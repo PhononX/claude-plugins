@@ -150,6 +150,40 @@ cv_marketplace() {
   echo "$kind $loc"
 }
 
+# Installed plugins, from `claude plugin list --json` (written to a file, see WORK in main()).
+# Each entry is a flat object: {"id": "cos@carbonvoice", "version": "0.1.1", "scope": "user",
+# "enabled": true, ...}. Run again after anything changes what's installed.
+refresh_plugins() {
+  if ! have claude || ! claude plugin list --json </dev/null >"$WORK/plugins.json" 2>/dev/null; then
+    printf '[]' >"$WORK/plugins.json"
+  fi
+}
+# plugin_state <name>: "enabled", "disabled" or "missing" for <name>@carbonvoice installed for
+# this user (scope user or managed; a project-only install doesn't reach the agent's folder).
+# Uses jq when it's installed; before that, pattern matching on the flat entries.
+plugin_state() {
+  local id="$1@carbonvoice" json re s=""
+  if have jq; then
+    s=$(jq -r --arg id "$id" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0]
+      | if . == null then empty elif .enabled == false then "disabled" else "enabled" end' "$WORK/plugins.json" 2>/dev/null || true)
+  else
+    json=$(<"$WORK/plugins.json"); json=${json//$'\n'/ }
+    re="\{[^{}]*\"id\": *\"$id\"[^{}]*\}"
+    if [[ $json =~ $re ]]; then
+      json=${BASH_REMATCH[0]}
+      re='"scope": *"(user|managed)"'
+      if [[ $json =~ $re ]]; then
+        re='"enabled": *false'
+        if [[ $json =~ $re ]]; then s=disabled; else s=enabled; fi
+      fi
+    fi
+  fi
+  printf '%s' "${s:-missing}"
+}
+plugin_version() {  # plugin_version <name>: installed version of <name>@carbonvoice. Needs jq.
+  jq -r --arg id "$1@carbonvoice" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0].version // empty' "$WORK/plugins.json" 2>/dev/null || true
+}
+
 # The carbonvoice marketplace's local copy of its catalog (.claude-plugin/marketplace.json),
 # or nothing if it can't be found. Its folder comes from `claude plugin marketplace list`, or
 # the usual place under ~/.claude/plugins/marketplaces/. Needs jq.
@@ -232,6 +266,12 @@ case "$(printf '%s' "$CV_SOURCE" | tr '[:upper:]' '[:lower:]')" in
   | "git "*"github.com:phononx/claude-plugins" | "git "*"github.com:phononx/claude-plugins.git") S_MKT=update ;;
   *) S_MKT=replace ;;
 esac
+# Are both plugins already installed? Then setup only checks them for updates. Replacing the
+# plugin source reinstalls them, and anything missing gets installed.
+refresh_plugins
+if [[ $S_MKT == replace ]]; then S_PLUGINS=replace
+elif [[ "$(plugin_state cv-channel)" != missing && "$(plugin_state cos)" != missing ]]; then S_PLUGINS=update
+else S_PLUGINS=install; fi
 
 clear 2>/dev/null || true
 printf '%sChief of Staff for Carbon Voice — setup%s\n\n' "$bold" "$reset"
@@ -248,7 +288,7 @@ printf '  %sjq%s — %s\n'           "$bold" "$reset" "$(label $S_JQ)"
 info "  A small tool your agent uses to manage its memory.$([ $S_JQ = install ] && echo " Installed $(where).")"
 printf '  %stmux%s — %s\n'         "$bold" "$reset" "$(label $S_TMUX)"
 info "  Lets your agent keep running after you close the Terminal window."
-printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $([ $S_MKT = replace ] && echo replace || echo install))"
+printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $S_PLUGINS)"
 info "  The Carbon Voice connection, plus the chief-of-staff skills and memory."
 if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from $MARKETPLACE."; fi
 printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
@@ -428,12 +468,30 @@ if [[ -n "$CATALOG" ]] && jq empty "$CATALOG" >/dev/null 2>&1; then
 else
   echo "Skipped the Chief of Staff plugin check: couldn't read the carbonvoice catalog${CATALOG:+ ($CATALOG)}." >>"$LOG"
 fi
+# Install what's missing. For what's already installed, `plugin install` does nothing, not even
+# pick up a newer version, so run `plugin update` instead (and turn it back on if it was off).
+refresh_plugins
 for p in cv-channel cos; do
-  if quiet claude plugin install "$p@carbonvoice" --scope user \
-     || quiet claude plugin install "$p@carbonvoice"; then
-    ok "$p"
+  state=$(plugin_state "$p")
+  if [[ $state == missing ]]; then
+    if quiet claude plugin install "$p@carbonvoice" --scope user \
+       || quiet claude plugin install "$p@carbonvoice"; then
+      refresh_plugins; v=$(plugin_version "$p"); ok "$p — installed${v:+ ($v)}"
+    else
+      die "Couldn't install the $p plugin. The details are in $LOG_SHOWN. Run this again, or in Claude type: /plugin install $p@carbonvoice"
+    fi
+    continue
+  fi
+  if [[ $state == disabled ]]; then
+    quiet claude plugin enable "$p@carbonvoice" && info "Turned $p back on." \
+      || info "Couldn't turn $p back on. In Claude, type: /plugin enable $p@carbonvoice"
+  fi
+  before=$(plugin_version "$p")
+  if quiet claude plugin update "$p@carbonvoice"; then
+    refresh_plugins; after=$(plugin_version "$p")
+    if [[ -n "$after" && "$after" != "$before" ]]; then ok "$p — updated to $after"; else ok "$p — up to date${after:+ ($after)}"; fi
   else
-    die "Couldn't install the $p plugin. The details are in $LOG_SHOWN. Run this again, or in Claude type: /plugin install $p@carbonvoice"
+    info "Couldn't check $p for updates; keeping ${before:-the installed version}. The details are in $LOG_SHOWN."
   fi
 done
 
