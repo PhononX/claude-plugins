@@ -16,7 +16,7 @@ Copy its Personal Access Token and keep it handy. Don't paste it into Claude.
 **2. Open Terminal and run the installer.** On a Mac, press **⌘ Space**, type **Terminal**,
 and press Return. Paste this line and press Return:
 ```
-curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
 ```
 It shows what it will install and why, and waits for your OK. Then it sets up everything this
 needs (Claude Code, Node.js, and a couple of small tools), opens your browser so you can sign in
@@ -24,8 +24,9 @@ to your Claude account if you aren't already, installs the Carbon Voice plugins,
 folder for your agent. Anything you already
 have is left alone, and it's safe to run again.
 
-**3. Answer Claude's questions.** The installer finishes by starting Claude. Approve the prompt
-to trust the folder, and Claude asks a few short questions: your name, your agent's name,
+**3. Finish setup in Claude.** The installer finishes by opening Claude in your agent's folder.
+When Claude asks whether you trust the folder, choose **Yes, I trust this folder**. Then type
+`/cos:setup` and press Return. Claude asks a few short questions: your name, your agent's name,
 whether to also show the session in the Claude app, and approval for the nightly review.
 
 **4. Start your Chief of Staff.** When setup finishes, type `/exit`, then run:

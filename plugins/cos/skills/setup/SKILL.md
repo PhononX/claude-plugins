@@ -29,7 +29,7 @@ then relaunch `claude` there) and stop unless the user confirms.
 Users normally arrive here from the installer, which has already installed everything, so this
 should be a quick confirmation. If anything required (Node.js 18+, `jq`, the channel plugin) is
 missing, offer to fix it by re-running the installer:
-`curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash`
+`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
 Run and report each:
 - OS: `uname -s` (Darwin → launchd; Linux → cron).
 - Node.js 18 or later: `node --version`.

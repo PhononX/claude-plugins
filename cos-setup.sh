@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Chief of Staff for Carbon Voice — setup
 #
-#   curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
+#
+# The older `curl -fsSL .../cos-setup.sh | bash` form still works, but then this script's input
+# isn't the terminal, so at the end it tells you how to open Claude instead of opening it.
 #
 # Shows what it will install and why, waits for your OK, then installs what's missing,
 # installs the Carbon Voice plugins, creates your agent's folder, and starts Claude to finish.
@@ -229,7 +232,7 @@ if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from 
 printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
 info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
 echo
-info "Then Claude starts and asks a few short questions to finish."
+info "Then Claude opens. You type /cos:setup there, and it asks a few short questions to finish."
 echo
 yes "Continue? [Y/n]" || { echo "No changes made."; exit 0; }
 
@@ -435,17 +438,36 @@ mkdir -p "$DIR" || die "Couldn't create $(shown "$DIR"). Run this again from a f
 ok "$(shown "$DIR")"
 
 # ---------- hand off ----------
-step "Everything's installed. Starting Claude to finish setup."
-cat <<EOF
-  ${dim}• Your agent will use ${ORG:-your Claude account}${PLAN:+ (${PLAN} plan)}.
-  • Approve the prompt asking to trust this folder.
-  • Then answer a few short questions.${reset}
-
-EOF
-ask "  Press Return to continue." >/dev/null
-cd "$DIR"
-rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
-exec claude "/cos:setup" </dev/tty
+# What to do once Claude opens, shown just before it does: the user finishes setup there.
+next_steps() {
+  printf '  • Your agent will use %s%s.\n' "${ORG:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
+  echo '  • Claude will ask whether you trust this folder. Choose "Yes, I trust this folder".'
+  printf '  • Then type  %s/cos:setup%s  and press Return.\n' "$bold" "$reset"
+}
+if [[ -t 0 ]]; then
+  step "Everything's installed. Opening Claude to finish setup."
+  next_steps
+  echo
+  ask "  Press Return to open Claude." >/dev/null
+  cd "$DIR"
+  rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
+  # Plain `claude`, with no first message, on purpose. In a folder that isn't trusted yet,
+  # `claude "/cos:setup"` shows the folder-trust prompt but then ignores every key (Enter,
+  # arrows, Ctrl+C), so the user is stuck. Plain `claude` handles the prompt fine, and the
+  # user types /cos:setup after trusting the folder. Don't pass a first message here.
+  exec claude </dev/tty
+else
+  # Our input isn't the terminal (run as `curl ... | bash`), so don't open Claude from here:
+  # tell the user how to open it, and what to do once it's open.
+  CD_PATH=$(shown "$DIR")
+  if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
+  step "Everything's installed. One last step: open Claude to finish setup."
+  echo "  Run these two lines in Terminal:"
+  printf '      %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
+  printf '      %sclaude%s\n' "$bold" "$reset"
+  next_steps
+  echo
+fi
 }
 
 main "$@"
