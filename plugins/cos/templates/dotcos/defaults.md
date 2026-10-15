@@ -10,6 +10,7 @@ switches that default off.
 - Leave newsletters, notifications and other bulk mail out of briefs, and always include your important people [id:: bulk]
 - After your first week of briefs, ask what you'd want more or less of; after that, ask once a month if your briefs haven't changed [id:: checkin]
 - Notice which parts of your briefs you use, and suggest changes. Never change your briefs without asking [id:: learn]
+- When there's more to say than a few spoken sentences (a brief, a catch-up, meeting prep, a list), say the short version and attach the details as a document you can read in Carbon Voice [id:: attach]
 - Raise at most three nudges a day, or the number set in my-rules.md [id:: nudges]
 - Keep your to-dos in actions.md. To-do lists you keep in other tools stay there; actions.md points to them [id:: todos]
 - Each night, archive finished items, and items untouched for 30 days (or the number of days set in my-rules.md), each with the reason. Nothing is deleted [id:: archive]

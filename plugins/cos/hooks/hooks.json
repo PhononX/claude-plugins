@@ -22,6 +22,12 @@
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/rebuild-brain.sh\"" }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_cv-channel_cv-channel__send_message",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/remember-thread.sh\"" }
+        ]
       }
     ]
   }

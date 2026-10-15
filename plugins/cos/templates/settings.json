@@ -16,6 +16,9 @@
       "Bash(./open-brain.sh)",
       "Bash(./open-brain.sh --link)",
       "Bash(./.cos/build-brain.sh)",
+      "Read(./outbox/**)",
+      "Write(./outbox/**)",
+      "Edit(./outbox/**)",
       "CronList",
       "CronCreate",
       "CronDelete"

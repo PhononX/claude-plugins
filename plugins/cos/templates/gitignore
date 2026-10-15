@@ -6,3 +6,5 @@ cos/.pending-reconcile
 cos/.update-check
 # The notebook page is rebuilt from cos/ and holds all your notes
 brain.html
+# Documents your agent attached to its messages
+outbox/

@@ -68,6 +68,12 @@ an idea or a link you'll want later, or have it keep track of something.
   "What goes in my briefs" and "Important people" in `cos/my-rules.md`. After your first week
   it asks what you'd want more or less of, and it suggests changes based on what you use.
   Back from time off? Ask it to "catch me up since Friday".
+- **Details attached.** When there's more than a few sentences can carry, like a brief, a
+  catch-up or meeting prep, it says the short version and attaches the details as a document
+  you can read in Carbon Voice, with links to the emails and threads.
+- **What it can do, and your settings.** Ask "what can you do?", or run `/cos:settings` in
+  Claude. It shows everything you can turn on or change, what's on for you now, and a few
+  things that might suit you, and changes any of it when you ask.
 - **Your notebook page.** Everything it knows, on one page: today, your actions, what you're
   waiting on, projects, people, ideas to come back to, links and facts, decisions, a daily log,
   the archive, and how it works for you. Run `./open-brain.sh` to open it (your agent also
@@ -118,7 +124,8 @@ Account in Carbon Voice and run the installer again with a new folder name.
 | `CLAUDE.md` | Your agent's role and how it should talk to you (replaced by updates) |
 | `start-cos.sh`, `update-cos.sh`, `nightly.sh`, `open-brain.sh` | Start it, update it, its nightly review, and your notebook page |
 | `brain.html` | Your notebook page, rebuilt from `cos/` whenever a note changes |
-| `.cos/` | The defaults and the notebook page's builder (replaced by updates) |
+| `.cos/` | The defaults, everything your agent can do (`options.md`), and the notebook page's builder (replaced by updates) |
+| `outbox/` | Documents your agent attached to its messages (kept 30 days) |
 | `cos/` | The notebook: an Obsidian-compatible folder of plain Markdown |
 | `cos/my-rules.md`, `cos/about-me.md` | Your rules, and what your agent knows about you (updates never change them) |
 | `cos/now.md`, `cos/brief.md`, `cos/nudges.md` | Today: focus, today's briefs, reminders |

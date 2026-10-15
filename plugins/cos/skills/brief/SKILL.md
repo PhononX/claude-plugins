@@ -61,13 +61,20 @@ Follow the brief's `covers`. For the usual parts:
 1. If `cos/brief.md`'s date isn't today, start it again: front matter `date`, then
    `# Briefs for <weekday, month day>`. Add this brief as `## <name> [sent:: HH:MM]` with its
    sections as `###` headings. Leave out empty sections.
-2. Send a spoken version in Carbon Voice with cv-channel's `send_message`, to the conversation
-   the user last messaged you from (or `list_senders` to find them). Follow "What goes in my
-   briefs" for length; otherwise keep it under a minute. Open with the brief's name ("Here's
-   your midday check-in"), then the parts in order, then the follow-ups by number with a few
-   words each, ending with something like "Tell me the numbers you want me to do." Speaking
+2. Write the brief as a document to read: `outbox/<YYYY-MM-DD>-<brief name in lowercase, with
+   dashes>.md` in this folder, titled with the brief's name and the date, with each part as a
+   heading, catch-up lines linking to their threads, and each follow-up's number and full draft.
+   (Skip this if the user's rules turn attachments off.)
+3. Send it in Carbon Voice with cv-channel's `send_message`, using `channel_id` and
+   `reply_to_message_id` from `cos/.cv-thread` (the conversation you last replied in; a hook
+   keeps it current), with the document's full path in `attachments`. If `cos/.cv-thread`
+   doesn't exist yet, the user hasn't messaged you since setup: keep the brief, and give it the
+   next time they message you. The spoken text follows "What goes in my briefs" for length, and
+   is otherwise under a minute: open with the brief's name ("Here's your midday check-in"),
+   then the parts in order, then the follow-ups by number with a few words each, ending with
+   something like "The details are attached. Tell me the numbers you want me to do." Speaking
    rules apply: no lists, no links.
-3. Add one line to today's log.
+4. Add one line to today's log.
 
 ## 4. Check in about the briefs
 Keep `cos/.brief-checkin` with two lines, `first: <date of the first brief>` and
@@ -100,8 +107,9 @@ If no brief runs on any day, schedule nothing.
 ## Catch me up
 "Catch me up since Friday" (or "on the last three days", "on what I missed this morning"): do
 step 1 over that window instead of 7 days, then send a short spoken summary: what needs their
-reply, what they may have missed, what changed, and up to five numbered follow-ups. Write it
-into `brief.md` as `## Catch-up [sent:: HH:MM]`, so the numbers work the same way.
+reply, what they may have missed, what changed, and up to five numbered follow-ups, with the
+details attached as a document, as for a brief. Write it into `brief.md` as
+`## Catch-up [sent:: HH:MM]`, so the numbers work the same way.
 
 ## Meeting prep
 For prep asked for, offered and accepted, or scheduled by `auto` (a one-time task 15 minutes
@@ -111,7 +119,7 @@ before the meeting, with the prompt "Use the cos:brief skill to send prep for th
   link them or the meeting's project, recent decisions, the project's status and next step, and
   their recent messages to the user.
 - Send three to five spoken sentences: what this meeting is for, what's open with them, what
-  the user promised, and one thing worth raising.
+  the user promised, and one thing worth raising. Attach the fuller prep as a document.
 - Add the prep as a quote under that meeting in `brief.md`, and set `[prep:: ready]`.
 
 ## "Do 1 and 3"

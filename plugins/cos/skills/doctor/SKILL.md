@@ -11,7 +11,8 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
 
 1. **Workspace:** `cos/.version` exists; `CLAUDE.md`, `cos/my-rules.md`, `cos/about-me.md`,
    `.claude/settings.json`, `start-cos.sh`, `nightly.sh`, `update-cos.sh`, `open-brain.sh`,
-   `.cos/defaults.md`, `.cos/build-brain.sh` and `.cos/brain-template.html` exist; no `{{`
+   `.cos/defaults.md`, `.cos/options.md`, `.cos/build-brain.sh` and `.cos/brain-template.html`
+   exist; no `{{`
    placeholders remain. Compare `cos/.version` with the version in
    `PLUGIN_ROOT/.claude-plugin/plugin.json`. If they differ, or `update-cos.sh` is missing, the
    fix is: type `/exit`, then run `./update-cos.sh` (or, without it, re-run the installer for
@@ -54,6 +55,8 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    prompt starts with "Use the cos:brief skill now", and when it runs. It should be the next
    brief due; if it's missing or wrong, offer to fix it as "Scheduling" in the cos:brief skill
    describes. Report the briefs sent today from `cos/brief.md`, and how many lines
-   `cos/catch-up.md` holds.
+   `cos/catch-up.md` holds. Briefs go to the conversation in `cos/.cv-thread`, which is written
+   the first time the agent replies in Carbon Voice; if it's missing, say briefs start once the
+   user has messaged the agent.
 11. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
 12. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

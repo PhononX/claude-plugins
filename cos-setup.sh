@@ -790,7 +790,7 @@ if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
 SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
 
 mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/cos/people" \
-  "$DIR/cos/archive" "$DIR/.cos" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+  "$DIR/cos/archive" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
 # A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
@@ -858,8 +858,9 @@ if [[ -f "$DIR/my-instructions.md" ]]; then
   fi
   mv -f "$DIR/my-instructions.md" "$DIR/my-instructions.md.bak"
 fi
-# The notebook page's builder, its template and the defaults: replaced on every update.
-for f in build-brain.sh brain-template.html defaults.md; do
+# The notebook page's builder and template, the defaults, and the list of everything the agent
+# can do (options.md, for /cos:settings): replaced on every update.
+for f in build-brain.sh brain-template.html defaults.md options.md; do
   if [[ -f "$TEMPLATES/dotcos/$f" ]]; then cp "$TEMPLATES/dotcos/$f" "$DIR/.cos/$f"; fi
 done
 chmod +x "$DIR/.cos/build-brain.sh" 2>/dev/null || true

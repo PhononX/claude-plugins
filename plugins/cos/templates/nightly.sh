@@ -43,6 +43,7 @@ if [[ -n "$NEWER" ]] && ! grep -qs 'update-cos.sh' cos/nudges.md; then
 fi
 # Rebuild the notebook page from tonight's notes (the review's edits also rebuild it as they go).
 if [[ -x .cos/build-brain.sh ]]; then .cos/build-brain.sh >> "$LOG" 2>&1 || true; fi
-# Keep 30 days of archived transcripts.
+# Keep 30 days of archived transcripts, and of documents attached to messages.
 find cos/log/transcripts -name '*.jsonl' -mtime +30 -delete 2>/dev/null
+find outbox -name '*.md' -mtime +30 -delete 2>/dev/null
 echo "=== $(date '+%Y-%m-%d %H:%M') exit $STATUS" >> "$LOG"
