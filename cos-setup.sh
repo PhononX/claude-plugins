@@ -112,11 +112,11 @@ cv_whoami() {
   printf 'header = "Authorization: Bearer %s"\n' "$1" \
     | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
 }
-cv_user() {  # cv_user <field>: id, name or owner of the user in $WORK/whoami.json
+cv_user() {  # cv_user <field>: id, name or creator of the user in $WORK/whoami.json
   case "$1" in
     id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
     name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
-    owner) jq -r '.user.owner_id // .owner_id // empty' "$WORK/whoami.json" 2>/dev/null || true ;;   # set for Agent Accounts
+    creator) jq -r '.user.created_by // empty' "$WORK/whoami.json" 2>/dev/null || true ;;   # who created an Agent Account
   esac
 }
 # Reads the token into PAT, one character at a time and hidden, printing a • for each so a
@@ -136,6 +136,17 @@ read_token() {
     esac
   done
   echo
+}
+# cv_contact_name <token> <user ID>: that user's name, from Carbon Voice's POST /contacts, or
+# nothing if it can't be looked up. The token goes to curl on its input, as in cv_whoami.
+cv_contact_name() {
+  [[ "$2" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
+  printf 'header = "Authorization: Bearer %s"\nheader = "Content-Type: application/json"\n' "$1" \
+    | curl -sS -K - -o "$WORK/contact.json" --max-time 20 -X POST --data "{\"user_guids\":[\"$2\"]}" \
+        "$CV_API/contacts" 2>>"$LOG" || true
+  jq -r '(if type == "array" then .[0] else ((.contacts // .data // [])[0]) end) // {}
+         | [.first_name, .last_name] | map(select(. != null and . != "")) | join(" ")' \
+    "$WORK/contact.json" 2>/dev/null || true
 }
 open_url() { if have open; then open "$1" </dev/null >/dev/null 2>&1; elif have xdg-open; then xdg-open "$1" </dev/null >/dev/null 2>&1; fi; }
 
@@ -676,10 +687,33 @@ if [[ -z "$PAT" ]]; then
   (umask 077; printf 'CV_PAT=%s\n' "$PAT" > "$CV_DIR/.env"); chmod 600 "$CV_DIR/.env"
   ok "Token saved for ${AGENT_NAME:-your agent}"
 fi
+# Who created this Agent Account, its owner: created_by in the /whoami response for the token
+# just checked. /whoami can't tell an Agent Account from a person (user_type is "user" for
+# both), and a person's account can have a created_by too (an admin who made it), so this asks
+# by name before letting that account message the agent without pairing. An account already on
+# the allowlist isn't asked about again, and a "no" is remembered for updates (ALLOW_CREATOR=0).
+OWNER_ID=""; ALLOW_CREATOR=""
+CREATOR=$(cv_user creator)
+if [[ -n "$CREATOR" && "$CREATOR" != "$(cv_user id)" && -n "${PAT:-}" ]]; then
+  if [[ -s "$CV_DIR/access.json" ]] \
+     && jq -e --arg o "$CREATOR" '(.allowFrom // []) | index($o)' "$CV_DIR/access.json" >/dev/null 2>&1; then
+    OWNER_ID=$CREATOR
+  elif [[ $MODE == update && "$(saved ALLOW_CREATOR)" == 0 ]]; then
+    ALLOW_CREATOR=0
+  else
+    CREATOR_NAME=$(cv_contact_name "$PAT" "$CREATOR")
+    if [[ -n "$CREATOR_NAME" ]]; then
+      if yes "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [Y/n]"; then
+        OWNER_ID=$CREATOR
+      fi
+    else
+      echo "  Carbon Voice says this Agent Account was created by the account with ID $CREATOR."
+      if ! no "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/N]"; then OWNER_ID=$CREATOR; fi
+    fi
+    if [[ -n "$OWNER_ID" ]]; then ALLOW_CREATOR=1; else ALLOW_CREATOR=0; fi
+  fi
+fi
 PAT=""; unset PAT
-# The Agent Account's owner, from the /whoami response for the token just checked (owner_id;
-# empty for a person's token, or when Carbon Voice couldn't be reached).
-OWNER_ID=$(cv_user owner)
 
 # ---------- about you and your agent ----------
 # Answers saved at an earlier setup are reused by an update, and offered as defaults by a
@@ -882,6 +916,7 @@ else
 fi
 
 # Save the answers, so ./update-cos.sh can update this agent without asking again.
+ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file is rewritten
 {
   echo "# Your answers to setup. ./update-cos.sh reuses them; you can edit them (1 = yes, 0 = no)."
   echo "OWNER_NAME=$OWNER_NAME"
@@ -889,6 +924,7 @@ fi
   echo "TEAM=$([ -n "$TEAM" ] && echo 1 || echo 0)"
   echo "REMOTE=$([ -n "$REMOTE_ARGS" ] && echo 1 || echo 0)"
   echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
+  if [[ -n "$ALLOW_CREATOR" ]]; then echo "ALLOW_CREATOR=$ALLOW_CREATOR"; fi
 } > "$DIR/cos/setup.conf"
 
 # ---------- hand off ----------
