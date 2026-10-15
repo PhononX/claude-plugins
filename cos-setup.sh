@@ -537,7 +537,7 @@ if [[ -s "$CV_DIR/.env" ]]; then
   fi
 fi
 if [[ -z "$PAT" ]]; then
-  echo "  In Carbon Voice, create an Agent Account for your chief of staff."
+  echo "  In Carbon Voice, create a Personal Agent Account for your chief of staff."
   echo "  Then copy its Personal Access Token. You'll paste it here, and it stays hidden."
   if [[ -n "$CV_AGENT_URL" ]] && yes "  Open the Carbon Voice page for this now? [Y/n]"; then open_url "$CV_AGENT_URL"; fi
   for try in 1 2 3 4; do   # the first ask, then up to 3 more
