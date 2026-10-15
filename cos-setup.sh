@@ -104,12 +104,29 @@ cv_whoami() {
   printf 'header = "Authorization: Bearer %s"\n' "$1" \
     | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
 }
-cv_user() {  # cv_user <field>: id, name or type of the user in $WORK/whoami.json
+cv_user() {  # cv_user <field>: id or name of the user in $WORK/whoami.json
   case "$1" in
     id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
     name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
-    type) jq -r '.user.user_type // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
   esac
+}
+# Reads the token into PAT, one character at a time and hidden, printing a • for each so a
+# paste visibly lands; Backspace removes one. The markers some terminals wrap around pasted
+# text (ESC [200~ ... ESC [201~) are skipped. Works with macOS's bash 3.2: whole-second
+# timeouts only.
+read_token() {
+  local c
+  PAT=""
+  printf '  Token (hidden): '
+  while IFS= read -rsn1 c </dev/tty; do
+    case "$c" in
+      "") break ;;                                                   # Return
+      $'\177'|$'\b') if [[ -n "$PAT" ]]; then PAT=${PAT%?}; printf '\b \b'; fi ;;
+      $'\033') read -rsn5 -t 1 c </dev/tty || true ;;                # a paste marker or arrow key
+      *) PAT+=$c; printf '•' ;;
+    esac
+  done
+  echo
 }
 open_url() { if have open; then open "$1" </dev/null >/dev/null 2>&1; elif have xdg-open; then xdg-open "$1" </dev/null >/dev/null 2>&1; fi; }
 
@@ -294,7 +311,7 @@ if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from 
 printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
 info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
 printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
-info "  Create an Agent Account in Carbon Voice; it's who you'll talk to."
+info "  Create a Personal Agent Account in Carbon Voice; it's who you'll talk to."
 echo
 info "Then Claude opens. You type /cos:setup there, and it asks a few short questions to finish."
 echo
@@ -541,10 +558,11 @@ if [[ -z "$PAT" ]]; then
   echo "  Then copy its Personal Access Token. You'll paste it here, and it stays hidden."
   if [[ -n "$CV_AGENT_URL" ]] && yes "  Open the Carbon Voice page for this now? [Y/n]"; then open_url "$CV_AGENT_URL"; fi
   for try in 1 2 3 4; do   # the first ask, then up to 3 more
-    read -rsp "  Token (hidden): " PAT </dev/tty || true; echo
+    read_token
     PAT="${PAT#"${PAT%%[![:space:]]*}"}"; PAT="${PAT%"${PAT##*[![:space:]]}"}"
     if [[ -z "$PAT" ]]; then info "Nothing was pasted. Copy the token in Carbon Voice, then paste it here."; continue; fi
     if [[ "$PAT" == *[[:space:]\"\\]* ]]; then info "That doesn't look like a token. Copy just the token and paste it again."; PAT=""; continue; fi
+    info "Got ${#PAT} characters. Checking with Carbon Voice..."
     case "$(cv_whoami "$PAT")" in
       200) ;;
       401|403) info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue ;;
@@ -552,11 +570,6 @@ if [[ -z "$PAT" ]]; then
     esac
     if [[ -z "$(cv_user id)" ]]; then info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue; fi
     AGENT_NAME=$(cv_user name)
-    if [[ "$(cv_user type)" == user ]]; then
-      printf '  %s!%s That token belongs to a person%s, not an Agent Account.\n' "$yellow" "$reset" "${AGENT_NAME:+ ($AGENT_NAME)}"
-      echo "    Your agent would send messages as that person."
-      if no "  Use it anyway? [y/N]"; then PAT=""; AGENT_NAME=""; continue; fi
-    fi
     break
   done
   [[ -n "$PAT" ]] || die "No working token. Run this again when you have your Agent Account's token; everything installed so far stays installed."
@@ -567,9 +580,9 @@ fi
 PAT=""; unset PAT
 # /cos:setup reads the agent's name from here instead of asking for it.
 if [[ -n "$AGENT_NAME" ]]; then printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-name"; fi
-# TODO(owner allowlist): /whoami says what kind of account the token is for (user_type "bot" or
-# "user") and has a created_by user ID, but created_by isn't documented as the Agent Account's
-# owner. Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
+# TODO(owner allowlist): /whoami has a created_by user ID, but it isn't documented as the
+# Agent Account's owner (and user_type is "user" for Agent Accounts too, so it can't tell them
+# apart from people). Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
 # {"dmPolicy": "allowlist", "allowFrom": ["<owner user ID>"], "blockedFrom": []} to
 # $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
 
