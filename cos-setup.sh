@@ -44,10 +44,11 @@ node_ok() { have node && [[ "$(node -p 'process.versions.node.split(".")[0]' </d
 # Signed in to a Claude account? `claude auth status` prints JSON ({"loggedIn": true,
 # "authMethod": "claude.ai", "email": ..., "subscriptionType": ...}); go by loggedIn, and by
 # its exit code (0 when signed in) only when jq isn't installed yet or the output isn't JSON.
+# Checked without ANTHROPIC_API_KEY, the way the agent's start script runs Claude.
 # Leaves the output in AUTH_JSON.
 signed_in() {
   local rc=0
-  AUTH_JSON=$(claude auth status </dev/null 2>/dev/null) || rc=$?
+  AUTH_JSON=$(env -u ANTHROPIC_API_KEY claude auth status </dev/null 2>/dev/null) || rc=$?
   if have jq && printf '%s' "$AUTH_JSON" | jq empty >/dev/null 2>&1; then
     printf '%s' "$AUTH_JSON" | jq -e '.loggedIn == true' >/dev/null 2>&1
   else
@@ -59,6 +60,9 @@ auth_field() {  # auth_field <name>: a text field from AUTH_JSON, e.g. email, or
   if have jq; then printf '%s' "$AUTH_JSON" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true
   elif [[ $AUTH_JSON =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
 }
+# Signed in with an Anthropic API (Console) account rather than a Claude plan? A saved Claude
+# sign-in token (oauth_token, from CLAUDE_CODE_OAUTH_TOKEN) isn't one.
+api_account() { case "$(auth_field authMethod)" in ""|claude.ai|oauth_token) return 1 ;; *) return 0 ;; esac; }
 account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving out what's unknown
   local email org plan
   email=$(auth_field email); org=$(auth_field orgName); plan=$(auth_field subscriptionType)
@@ -109,6 +113,7 @@ label() {  # status → coloured label
     create)     printf '%swill create%s' "$yellow" "$reset" ;;
     replace)    printf '%swill replace an older Carbon Voice plugin source%s' "$yellow" "$reset" ;;
     signedin)   printf '%s%s%s' "$green" "$2" "$reset" ;;
+    api)        printf '%ssigned in with an API account — will ask you to sign in with your Claude plan%s' "$yellow" "$reset" ;;
     signin)     printf '%swill open your browser to sign in%s' "$yellow" "$reset" ;;
     needs-brew) printf '%soptional — needs Homebrew (asked next)%s' "$yellow" "$reset" ;;
   esac
@@ -143,7 +148,9 @@ else S_TMUX=needs-brew; fi
 # Signed in? Show which account and organization, so a computer signed in to the wrong one is
 # easy to spot.
 AUTH_DESC=""
-if have claude && signed_in; then S_AUTH=signedin; AUTH_DESC=$(account_desc); else S_AUTH=signin; fi
+if have claude && signed_in; then
+  if api_account; then S_AUTH=api; else S_AUTH=signedin; AUTH_DESC=$(account_desc); fi
+else S_AUTH=signin; fi
 
 # Is a "carbonvoice" plugin marketplace already added, and from where? Claude Code allows only
 # one marketplace per name, and early setups added it from PhononX/cv-claude-channels or a
@@ -250,18 +257,25 @@ if ! signed_in; then
   claude auth login </dev/tty || true
   signed_in || die "Not signed in. Run this setup again to retry."
 fi
-ok "$(account_desc)"
-METHOD=$(auth_field authMethod)
-if [[ -n "$METHOD" && "$METHOD" != "claude.ai" ]]; then
+if api_account; then
+  # The agent can't run on an API account: its start script drops ANTHROPIC_API_KEY, and the
+  # Carbon Voice and Claude app connections need a Claude plan sign-in. So this isn't optional.
   printf '  %s!%s This computer is signed in with an Anthropic API account, not a Claude plan.\n' "$yellow" "$reset"
-  echo "    The Carbon Voice connection and the Claude app connection need a Claude plan sign-in."
-  if yes "  Sign in with your Claude plan instead? [Y/n]"; then
-    claude auth logout </dev/null >/dev/null 2>&1 || true
-    claude auth login </dev/tty || true
-    signed_in || die "Not signed in. Run this setup again to retry."
-    ok "$(account_desc)"
-  fi
+  echo "    Your agent needs a Claude plan sign-in for the Carbon Voice and Claude app connections."
+  echo "    Signing in with your Claude plan doesn't delete or change your API account."
+  yes "  Sign in with your Claude plan now? [Y/n]" \
+    || die "Your agent needs a Claude plan sign-in. Run this again when you're ready."
+  claude auth logout </dev/null >/dev/null 2>&1 || true
+  claude auth login </dev/tty || true
+  signed_in || die "Not signed in. Run this setup again to retry."
+  api_account && die "Still signed in with an API account. When your browser opens, choose your Claude account (not the Anthropic Console), then run this again."
+elif [[ "$(auth_field authMethod)" == oauth_token ]]; then
+  # A saved token (CLAUDE_CODE_OAUTH_TOKEN, e.g. from `claude setup-token`). Claude Code keeps
+  # using it while it's set, so signing out and in again wouldn't change anything.
+  printf '  %s!%s This computer signs in to Claude with a saved token (CLAUDE_CODE_OAUTH_TOKEN).\n' "$yellow" "$reset"
+  echo "    If the Claude app connection doesn't work, remove that setting and run this again."
 fi
+ok "$(account_desc)"
 ORG=$(auth_field orgName); PLAN=$(auth_field subscriptionType)   # the account the agent will use
 [[ "$PLAN" == "free" ]] && die "Claude Code needs a paid Claude plan (Pro, Max, Team or Enterprise). Upgrade at claude.ai, then run this again."
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
