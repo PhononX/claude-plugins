@@ -41,9 +41,9 @@ folder with:
 ./start-cos.sh
 ```
 
-**5. Say hello in Carbon Voice.** Message your agent from your own account, the one that owns
-the Agent Account. The installer already allowed that account, so your agent starts a short
-voice conversation to learn about your work.
+**5. Say hello in Carbon Voice.** Message your agent from your own account, the one that
+created the Agent Account. The installer asks whether to let that account in without a pairing
+code; if you said yes, your agent starts a short voice conversation to learn about your work.
 
 If your agent replies with a pairing code instead (for example, you messaged from a different
 account), type `/cv-channel:access pair <code>` in your agent's Terminal window, then message it

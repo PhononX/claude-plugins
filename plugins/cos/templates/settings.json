@@ -8,7 +8,10 @@
       "Grep",
       "Bash(grep:*)",
       "Bash(date:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__plugin_cv-channel_cv-channel__confirm_channels",
+      "mcp__plugin_cv-channel_cv-channel__send_message",
+      "mcp__plugin_cv-channel_cv-channel__list_senders"
     ],
     "deny": [
       "Read(./.cv/.env)",

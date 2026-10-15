@@ -35,7 +35,9 @@ CV_AGENT_URL=""
 CV_API="https://api.carbonvoice.app"
 
 # ---------- helpers ----------
-bold=$'\033[1m'; dim=$'\033[2m'; green=$'\033[32m'; yellow=$'\033[33m'; red=$'\033[31m'; reset=$'\033[0m'
+bold=$'\033[1m'; dim=$'\033[2m'; green=$'\033[32m'; yellow=$'\033[33m'; red=$'\033[31m'; cyan=$'\033[36m'; reset=$'\033[0m'
+hl()  { printf '%s%s%s' "$bold$cyan" "$1" "$reset"; }   # something to type or choose
+val() { printf '%s%s%s' "$bold" "$1" "$reset"; }        # a value worth noticing
 step() { printf '\n%s▸ %s%s\n' "$bold" "$1" "$reset"; }
 ok()   { printf '  %s✓%s %s\n' "$green" "$reset" "$1"; }
 info() { printf '  %s%s%s\n' "$dim" "$1" "$reset"; }
@@ -110,11 +112,11 @@ cv_whoami() {
   printf 'header = "Authorization: Bearer %s"\n' "$1" \
     | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
 }
-cv_user() {  # cv_user <field>: id, name or owner of the user in $WORK/whoami.json
+cv_user() {  # cv_user <field>: id, name or creator of the user in $WORK/whoami.json
   case "$1" in
     id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
     name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
-    owner) jq -r '.user.owner_id // .owner_id // empty' "$WORK/whoami.json" 2>/dev/null || true ;;   # set for Agent Accounts
+    creator) jq -r '.user.created_by // empty' "$WORK/whoami.json" 2>/dev/null || true ;;   # who created an Agent Account
   esac
 }
 # Reads the token into PAT, one character at a time and hidden, printing a • for each so a
@@ -134,6 +136,17 @@ read_token() {
     esac
   done
   echo
+}
+# cv_contact_name <token> <user ID>: that user's name, from Carbon Voice's POST /contacts, or
+# nothing if it can't be looked up. The token goes to curl on its input, as in cv_whoami.
+cv_contact_name() {
+  [[ "$2" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
+  printf 'header = "Authorization: Bearer %s"\nheader = "Content-Type: application/json"\n' "$1" \
+    | curl -sS -K - -o "$WORK/contact.json" --max-time 20 -X POST --data "{\"user_guids\":[\"$2\"]}" \
+        "$CV_API/contacts" 2>>"$LOG" || true
+  jq -r '(if type == "array" then .[0] else ((.contacts // .data // [])[0]) end) // {}
+         | [.first_name, .last_name] | map(select(. != null and . != "")) | join(" ")' \
+    "$WORK/contact.json" 2>/dev/null || true
 }
 open_url() { if have open; then open "$1" </dev/null >/dev/null 2>&1; elif have xdg-open; then xdg-open "$1" </dev/null >/dev/null 2>&1; fi; }
 
@@ -674,10 +687,33 @@ if [[ -z "$PAT" ]]; then
   (umask 077; printf 'CV_PAT=%s\n' "$PAT" > "$CV_DIR/.env"); chmod 600 "$CV_DIR/.env"
   ok "Token saved for ${AGENT_NAME:-your agent}"
 fi
+# Who created this Agent Account, its owner: created_by in the /whoami response for the token
+# just checked. /whoami can't tell an Agent Account from a person (user_type is "user" for
+# both), and a person's account can have a created_by too (an admin who made it), so this asks
+# by name before letting that account message the agent without pairing. An account already on
+# the allowlist isn't asked about again, and a "no" is remembered for updates (ALLOW_CREATOR=0).
+OWNER_ID=""; ALLOW_CREATOR=""
+CREATOR=$(cv_user creator)
+if [[ -n "$CREATOR" && "$CREATOR" != "$(cv_user id)" && -n "${PAT:-}" ]]; then
+  if [[ -s "$CV_DIR/access.json" ]] \
+     && jq -e --arg o "$CREATOR" '(.allowFrom // []) | index($o)' "$CV_DIR/access.json" >/dev/null 2>&1; then
+    OWNER_ID=$CREATOR
+  elif [[ $MODE == update && "$(saved ALLOW_CREATOR)" == 0 ]]; then
+    ALLOW_CREATOR=0
+  else
+    CREATOR_NAME=$(cv_contact_name "$PAT" "$CREATOR")
+    if [[ -n "$CREATOR_NAME" ]]; then
+      if yes "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [Y/n]"; then
+        OWNER_ID=$CREATOR
+      fi
+    else
+      echo "  Carbon Voice says this Agent Account was created by the account with ID $CREATOR."
+      if ! no "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/N]"; then OWNER_ID=$CREATOR; fi
+    fi
+    if [[ -n "$OWNER_ID" ]]; then ALLOW_CREATOR=1; else ALLOW_CREATOR=0; fi
+  fi
+fi
 PAT=""; unset PAT
-# The Agent Account's owner, from the /whoami response for the token just checked (owner_id;
-# empty for a person's token, or when Carbon Voice couldn't be reached).
-OWNER_ID=$(cv_user owner)
 
 # ---------- about you and your agent ----------
 # Answers saved at an earlier setup are reused by an update, and offered as defaults by a
@@ -880,6 +916,7 @@ else
 fi
 
 # Save the answers, so ./update-cos.sh can update this agent without asking again.
+ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file is rewritten
 {
   echo "# Your answers to setup. ./update-cos.sh reuses them; you can edit them (1 = yes, 0 = no)."
   echo "OWNER_NAME=$OWNER_NAME"
@@ -887,6 +924,7 @@ fi
   echo "TEAM=$([ -n "$TEAM" ] && echo 1 || echo 0)"
   echo "REMOTE=$([ -n "$REMOTE_ARGS" ] && echo 1 || echo 0)"
   echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
+  if [[ -n "$ALLOW_CREATOR" ]]; then echo "ALLOW_CREATOR=$ALLOW_CREATOR"; fi
 } > "$DIR/cos/setup.conf"
 
 # ---------- hand off ----------
@@ -908,46 +946,51 @@ if [[ $MODE == update ]]; then
 fi
 step "Your agent is ready."
 ACCOUNT=$(account_name)
-printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
-printf '  %-20s %s\n' "Your agent:" "$AGENT_NAME"
-printf '  %-20s %s%s\n' "Claude account:" "${ACCOUNT:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
+CD_PATH=$(shown "$DIR")
+if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
+# Number the steps first, so the summary can point at the pairing step.
+DEV_STEP=""; if [[ -z "$TEAM" ]]; then DEV_STEP=3; fi
+MSG_STEP=$(( ${DEV_STEP:-2} + 1 ))
+if [[ -n "$OWNER_ALLOWED" ]]; then WHO="$bold$green""your Carbon Voice account""$reset"
+else WHO="$bold$yellow""nobody yet: you'll pair your account in step $((MSG_STEP + 1))""$reset"; fi
+printf '  %-20s %s\n' "Your agent's folder:" "$(val "$(shown "$DIR")")"
+printf '  %-20s %s\n' "Your agent:" "$(val "$AGENT_NAME")"
+printf '  %-20s %s%s\n' "Claude account:" "$(val "${ACCOUNT:-your Claude account}")" "${PLAN:+ ($PLAN plan)}"
+printf '  %-20s %s\n' "Who can message it:" "$WHO"
 printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
 printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
 echo
-echo "  To start talking to $AGENT_NAME:"
-CD_PATH=$(shown "$DIR")
-if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
+printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
 if [[ -t 0 ]]; then
-  echo "    1. Press Return below to start $AGENT_NAME. Keep that window open while you use it."
+  printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
 else
   echo "    1. Start $AGENT_NAME by running these two lines in Terminal, and keep that window open:"
-  printf '         %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
-  printf '         %s./start-cos.sh%s\n' "$bold" "$reset"
+  printf '         %s\n' "$(hl "cd $CD_PATH")"
+  printf '         %s\n' "$(hl ./start-cos.sh)"
 fi
-echo '    2. Claude asks whether you trust this folder. Choose "Yes, I trust this folder".'
-N=3
-if [[ -z "$TEAM" ]]; then
+printf '    2. Claude asks whether you trust this folder. Choose %s.\n' "$(hl '"Yes, I trust this folder"')"
+if [[ -n "$DEV_STEP" ]]; then
   # Pro/Max start with --dangerously-load-development-channels, because cv-channel isn't on
   # Anthropic's approved channels list yet; Claude Code asks to confirm that on every start.
   echo "    3. Claude warns about loading a development channel, because the Carbon Voice connection"
-  echo "       isn't on Anthropic's approved list yet. Choose \"I am using this for local development\"."
-  N=4
+  printf "       isn't on Anthropic's approved list yet. Choose %s.\n" "$(hl '"I am using this for local development"')"
 fi
 if [[ -n "$OWNER_ALLOWED" ]]; then
-  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. It starts a short voice"
+  printf '    %s. In Carbon Voice, message %s from your own account. It starts a short voice\n' "$MSG_STEP" "$(val "$AGENT_NAME")"
   echo "       conversation to learn about your work."
 else
-  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
-  printf '    %s. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$((N + 1))" "$bold" "$reset"
+  printf "    %s. In Carbon Voice, message %s from your own account. You'll get a pairing code back.\n" "$MSG_STEP" "$(val "$AGENT_NAME")"
+  printf '    %s. In the Claude window, type  %s  and press Return.\n' "$((MSG_STEP + 1))" "$(hl '/cv-channel:access pair <code>')"
   echo "       Then message $AGENT_NAME again. It starts a short voice conversation to learn about your work."
 fi
 echo
 if [[ -n "$REMOTE_ARGS" ]]; then
   echo "  To watch from your phone, open the Claude app and tap Code. Make sure the app is in"
-  echo "  ${ORG:-the same account as Claude Code}, or your agent won't appear there. No app yet? Type /mobile once Claude starts."
+  printf "  %s, or your agent won't appear there. No app yet? Type %s once Claude starts.\n" \
+    "$(val "${ORG:-the same account as Claude Code}")" "$(hl /mobile)"
   echo
 fi
-printf '  Next time, start it with  %scd %s && ./start-cos.sh%s\n' "$bold" "$CD_PATH" "$reset"
+printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
 echo
 if [[ -t 0 ]]; then
   ask "  Press Return to start $AGENT_NAME." >/dev/null
