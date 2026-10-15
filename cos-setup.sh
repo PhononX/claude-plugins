@@ -23,6 +23,10 @@ LOG="$HOME/.local/state/cos-setup/install.log"
 LOG_SHOWN="~/.local/state/cos-setup/install.log"
 JQ_VERSION="1.7.1"
 NODE_MAJOR_MIN=18
+# >>> Carbon Voice page where Agent Accounts are created. Fill in the real URL; while it's
+# >>> empty, setup just says where to go instead of offering to open the page.
+CV_AGENT_URL=""
+CV_API="https://api.carbonvoice.app"
 
 # ---------- helpers ----------
 bold=$'\033[1m'; dim=$'\033[2m'; green=$'\033[32m'; yellow=$'\033[33m'; red=$'\033[31m'; reset=$'\033[0m'
@@ -92,6 +96,23 @@ clean_name() {
 shown() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }   # path with ~ for home
 place() { if [[ "$1" == "$HOME" ]]; then printf 'your home folder'; else shown "$1"; fi; }   # where, in words
 
+# Checks a Carbon Voice token the way the cv-channel plugin does (GET /whoami, the token's own
+# user) and prints the HTTP status ("000" if Carbon Voice couldn't be reached). The response
+# goes to $WORK/whoami.json. The token reaches curl through its standard input, never its
+# arguments, so it can't show up in the process list; it's never printed or logged.
+cv_whoami() {
+  printf 'header = "Authorization: Bearer %s"\n' "$1" \
+    | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
+}
+cv_user() {  # cv_user <field>: id, name or type of the user in $WORK/whoami.json
+  case "$1" in
+    id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
+    name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
+    type) jq -r '.user.user_type // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
+  esac
+}
+open_url() { if have open; then open "$1" </dev/null >/dev/null 2>&1; elif have xdg-open; then xdg-open "$1" </dev/null >/dev/null 2>&1; fi; }
+
 # Where the "carbonvoice" plugin marketplace comes from, as "<kind> <location>", e.g.
 # "github PhononX/claude-plugins", "git https://github.com/...", "directory /Users/me/...".
 # Prints nothing when it isn't added. Uses jq when it's installed; before that (first run on
@@ -148,6 +169,7 @@ label() {  # status → coloured label
     install)    printf '%swill install%s' "$yellow" "$reset" ;;
     create)     printf '%swill create%s%s' "$yellow" "${2:+ in $2}" "$reset" ;;
     replace)    printf '%swill replace an older Carbon Voice plugin source%s' "$yellow" "$reset" ;;
+    token)      printf '%swill ask for its token%s' "$yellow" "$reset" ;;
     signedin)   printf '%s%s%s' "$green" "$2" "$reset" ;;
     api)        printf '%ssigned in with an API account — will ask you to sign in with your Claude plan%s' "$yellow" "$reset" ;;
     signin)     printf '%swill open your browser to sign in%s' "$yellow" "$reset" ;;
@@ -231,6 +253,8 @@ info "  The Carbon Voice connection, plus the chief-of-staff skills and memory."
 if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from $MARKETPLACE."; fi
 printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
 info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
+printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
+info "  Create an Agent Account in Carbon Voice; it's who you'll talk to."
 echo
 info "Then Claude opens. You type /cos:setup there, and it asks a few short questions to finish."
 echo
@@ -436,6 +460,60 @@ done
 DIR="$BASE/$NAME"
 mkdir -p "$DIR" || die "Couldn't create $(shown "$DIR"). Run this again from a folder you can write to, such as your home folder."
 ok "$(shown "$DIR")"
+
+# ---------- Carbon Voice agent ----------
+# Done here, before Claude starts, so the token never enters a Claude session. It's saved where
+# start-cos.sh and the cv-channel plugin read it: <folder>/.cv/.env, as CV_PAT=...
+step "Your Carbon Voice agent"
+CV_DIR="$DIR/.cv"; PAT=""; AGENT_NAME=""
+if [[ -s "$CV_DIR/.env" ]]; then
+  info "This folder already has a Carbon Voice token saved."
+  if yes "  Keep it? [Y/n]"; then
+    PAT=$(sed -n 's/^[[:space:]]*CV_PAT[[:space:]]*=[[:space:]]*//p' "$CV_DIR/.env" | head -1)
+    case "$(cv_whoami "$PAT")" in
+      200) AGENT_NAME=$(cv_user name); ok "Keeping the saved token${AGENT_NAME:+ for $AGENT_NAME}" ;;
+      401|403) info "The saved token doesn't work any more, so you'll need a new one."; PAT="" ;;
+      *) ok "Keeping the saved token (couldn't reach Carbon Voice to check it)"
+         AGENT_NAME=$(cat "$CV_DIR/agent-name" 2>/dev/null || true) ;;
+    esac
+  fi
+fi
+if [[ -z "$PAT" ]]; then
+  echo "  In Carbon Voice, create an Agent Account for your chief of staff."
+  echo "  Then copy its Personal Access Token. You'll paste it here, and it stays hidden."
+  if [[ -n "$CV_AGENT_URL" ]] && yes "  Open the Carbon Voice page for this now? [Y/n]"; then open_url "$CV_AGENT_URL"; fi
+  for try in 1 2 3 4; do   # the first ask, then up to 3 more
+    read -rsp "  Token (hidden): " PAT </dev/tty || true; echo
+    PAT="${PAT#"${PAT%%[![:space:]]*}"}"; PAT="${PAT%"${PAT##*[![:space:]]}"}"
+    if [[ -z "$PAT" ]]; then info "Nothing was pasted. Copy the token in Carbon Voice, then paste it here."; continue; fi
+    if [[ "$PAT" == *[[:space:]\"\\]* ]]; then info "That doesn't look like a token. Copy just the token and paste it again."; PAT=""; continue; fi
+    case "$(cv_whoami "$PAT")" in
+      200) ;;
+      401|403) info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue ;;
+      *) die "Couldn't reach Carbon Voice to check the token. Check your internet connection and run this again." ;;
+    esac
+    if [[ -z "$(cv_user id)" ]]; then info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue; fi
+    AGENT_NAME=$(cv_user name)
+    if [[ "$(cv_user type)" == user ]]; then
+      printf '  %s!%s That token belongs to a person%s, not an Agent Account.\n' "$yellow" "$reset" "${AGENT_NAME:+ ($AGENT_NAME)}"
+      echo "    Your agent would send messages as that person."
+      if no "  Use it anyway? [y/N]"; then PAT=""; AGENT_NAME=""; continue; fi
+    fi
+    break
+  done
+  [[ -n "$PAT" ]] || die "No working token. Run this again when you have your Agent Account's token; everything installed so far stays installed."
+  mkdir -p "$CV_DIR"; chmod 700 "$CV_DIR"
+  (umask 077; printf 'CV_PAT=%s\n' "$PAT" > "$CV_DIR/.env"); chmod 600 "$CV_DIR/.env"
+  ok "Token saved for ${AGENT_NAME:-your agent}"
+fi
+PAT=""; unset PAT
+# /cos:setup reads the agent's name from here instead of asking for it.
+if [[ -n "$AGENT_NAME" ]]; then printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-name"; fi
+# TODO(owner allowlist): /whoami says what kind of account the token is for (user_type "bot" or
+# "user") and has a created_by user ID, but created_by isn't documented as the Agent Account's
+# owner. Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
+# {"dmPolicy": "allowlist", "allowFrom": ["<owner user ID>"], "blockedFrom": []} to
+# $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
 
 # ---------- hand off ----------
 # What to do once Claude opens, shown just before it does: the user finishes setup there.

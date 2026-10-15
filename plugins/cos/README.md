@@ -10,10 +10,7 @@ conversation instead of starting fresh each time.
 On Team and Enterprise plans, an admin must first enable channels and allow the Carbon Voice
 channel plugin.
 
-**1. In Carbon Voice:** create an Agent Account for your chief of staff and give it a name.
-Copy its Personal Access Token and keep it handy. Don't paste it into Claude.
-
-**2. Open Terminal and run the installer.** On a Mac, press **⌘ Space**, type **Terminal**,
+**1. Open Terminal and run the installer.** On a Mac, press **⌘ Space**, type **Terminal**,
 and press Return. Paste this line and press Return:
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
@@ -24,6 +21,11 @@ to your Claude account if you aren't already, installs the Carbon Voice plugins,
 folder for your agent. Anything you already
 have is left alone, and it's safe to run again.
 
+**2. Connect your Carbon Voice agent.** The installer asks you to create an Agent Account in
+Carbon Voice for your chief of staff (it's who you'll talk to), copy its Personal Access Token,
+and paste it in Terminal. The token is hidden as you paste it, checked with Carbon Voice, and
+saved only in your agent's folder. It never goes into a Claude conversation.
+
 **3. Finish setup in Claude.** The installer finishes by opening Claude in your agent's folder.
 When Claude asks whether you trust the folder, choose **Yes, I trust this folder**. Then type
 `/cos:setup` and press Return. Claude asks a few short questions: your name, your agent's name,
@@ -33,9 +35,8 @@ whether to also show the session in the Claude app, and approval for the nightly
 ```
 ./start-cos.sh
 ```
-The first time, it asks for your agent's token. The token is saved privately in the folder and
-never enters a Claude conversation. Keep this window open: you can watch messages arrive and
-see what your chief of staff does.
+Keep this window open: you can watch messages arrive and see what your chief of staff does.
+(If you ran `/cos:setup` without the installer, it asks for your agent's token the first time.)
 
 **5. Say hello in Carbon Voice.** Message your agent from your own account. You'll get a
 pairing code back. In Terminal, type `/cv-channel:access pair <code>`, then message your agent
