@@ -726,9 +726,9 @@ if [[ $MODE == update && -n "$SAVED_REMOTE" ]]; then
     else warn "This version of Claude Code can't show your agent in the Claude app, so that's off for now."; fi
   fi
 elif [[ -n "$CLAUDE_VER" ]] && version_ge "$CLAUDE_VER" 2.1.51; then
-  echo "  Your agent can also appear in the Claude app (Code tab) and at claude.ai/code, so you can"
-  echo "  watch what it's doing, approve its requests, or type instead of talk. While it's"
-  echo "  connected, the session transcript is kept on Anthropic's servers."
+  echo "  Your chats with the agent can also appear in the Claude app (Code tab) and at"
+  echo "  claude.ai/code, so you can watch what it's doing, approve its requests, or type instead"
+  echo "  of talk. While it's connected, the session transcript is kept on Anthropic's servers."
   if yes "  Show your agent in the Claude app? [Y/n]"; then REMOTE_ARGS="--remote-control"; fi
   if [[ -n "$REMOTE_ARGS" && -n "$TEAM" ]]; then
     info "On Team and Enterprise plans, an Owner must turn on Remote Control in Claude Code's admin settings."
