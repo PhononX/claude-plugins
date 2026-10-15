@@ -47,7 +47,8 @@ it keep track of something. It tidies its notes every night.
 If you turned on the Claude app option, you can also watch the session from your phone: open
 the Claude app and tap **Code**, or go to claude.ai/code. Don't have the app? Run `/mobile` in
 Claude for a QR code to download it for iOS or Android, and sign in with the same account you
-use for Claude Code. It's the same session, so you can see
+use for Claude Code. If your email has more than one Claude organization (for example personal
+and work), switch the app to the one you chose during setup. It's the same session, so you can see
 what it's doing, approve requests, or type instead of talk. While connected, the session
 transcript is kept on Anthropic's servers. Your Carbon Voice token never appears in it.
 

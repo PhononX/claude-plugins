@@ -28,6 +28,9 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    and flag authentication errors, or a last run more than 2 days ago.
 8. **Remote Control:** report whether `start-cos.sh` launches with `--remote-control`. If it
    doesn't and `claude --version` is 2.1.51 or later, offer to turn it on by setting the
-   `REMOTE=(...)` line in `start-cos.sh` to `REMOTE=(--remote-control)`.
+   `REMOTE=(...)` line in `start-cos.sh` to `REMOTE=(--remote-control)`. If it does, read
+   `orgName` from `claude auth status` (JSON) and report it, with: "In the Claude app, make sure
+   you're in <orgName>, or your agent won't appear under Code." If `orgName` is missing, say to
+   make sure the app is signed in to the same account as Claude Code.
 9. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
 10. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

@@ -35,9 +35,12 @@ Run and report each:
 - Node.js 18 or later: `node --version`.
 - `jq`: `command -v jq`.
 - Claude binary: `command -v claude`. Record the absolute path as `CLAUDE_BIN`.
-- Signed in: `claude auth status` (exit code 0 means signed in; `authMethod` should be
-  `claude.ai`). If not signed in, or signed in with an API account, tell the user to run
-  `claude auth login` with their Claude plan account, or re-run the setup script.
+- Signed in: `claude auth status` prints JSON with `loggedIn`, `authMethod`, `email`, `orgName`
+  and `subscriptionType`. `loggedIn` should be `true` and `authMethod` should be `claude.ai`. If
+  not signed in, or signed in with an API account, tell the user to run `claude auth login`
+  with their Claude plan account, or re-run the setup script. Record `orgName` as `ORG_NAME`
+  (it may be missing). One email can belong to several Claude organizations, and the agent's
+  session only appears in the Claude app's Code tab when the app is switched to the same one.
 - Claude Code version: `claude --version`. Note whether it is 2.1.51 or later (needed for
   Remote Control in Phase 3).
 - `tmux` (optional, only needed for `--background`): `command -v tmux`.
@@ -63,7 +66,9 @@ Ask these together, briefly:
    kept on Anthropic's servers.
    - Yes → `REMOTE_ARGS` = `--remote-control`. Ask whether they already have the Claude app on
      their phone. If not, tell them to run `/mobile` now, which shows a QR code to download it
-     for iOS or Android, and to sign in with the same account they use for Claude Code.
+     for iOS or Android, and to sign in with the email they use for Claude Code. Either way, say:
+     "In the Claude app, make sure you're in <ORG_NAME>, or your agent won't appear under Code."
+     If `ORG_NAME` is missing, say "make sure the app is signed in to the same account" instead.
    - No, or Claude Code older than 2.1.51 → `REMOTE_ARGS` empty. If the version is too old, say
      they can update Claude Code and rerun `/cos:doctor` to turn it on later.
    - On Team/Enterprise, an Owner must enable Remote Control in Claude Code admin settings.
@@ -116,4 +121,6 @@ Then give exactly these next steps:
 4. In this terminal, run `/cv-channel:access pair <code>`, then message your agent again.
    It will start a short voice conversation to get to know your work.
 If Remote Control is on, add: "You can also watch it in the Claude app under Code. No app yet?
-Run `/mobile` for a download QR code, and sign in with the same account."
+Run `/mobile` for a download QR code. In the Claude app, make sure you're in <ORG_NAME>, or your
+agent won't appear under Code." If `ORG_NAME` is missing, end with "sign in with the same
+account" instead of naming the organization.

@@ -45,28 +45,45 @@ node_ok() { have node && [[ "$(node -p 'process.versions.node.split(".")[0]' </d
 # "authMethod": "claude.ai", "email": ..., "subscriptionType": ...}); go by loggedIn, and by
 # its exit code (0 when signed in) only when jq isn't installed yet or the output isn't JSON.
 # Checked without ANTHROPIC_API_KEY, the way the agent's start script runs Claude.
-# Leaves the output in AUTH_JSON.
+# Leaves the output in AUTH_FILE (see WORK in main() for why it goes to a file).
 signed_in() {
   local rc=0
-  AUTH_JSON=$(env -u ANTHROPIC_API_KEY claude auth status </dev/null 2>/dev/null) || rc=$?
-  if have jq && printf '%s' "$AUTH_JSON" | jq empty >/dev/null 2>&1; then
-    printf '%s' "$AUTH_JSON" | jq -e '.loggedIn == true' >/dev/null 2>&1
+  AUTH_FILE="$WORK/auth.json"
+  env -u ANTHROPIC_API_KEY claude auth status </dev/null >"$AUTH_FILE" 2>/dev/null || rc=$?
+  if have jq && [[ -s $AUTH_FILE ]] && jq empty "$AUTH_FILE" >/dev/null 2>&1; then
+    jq -e '.loggedIn == true' "$AUTH_FILE" >/dev/null 2>&1
   else
     return $rc
   fi
 }
-auth_field() {  # auth_field <name>: a text field from AUTH_JSON, e.g. email, orgName
+auth_field() {  # auth_field <name>: a text field from AUTH_FILE, e.g. email, orgName
   local re="\"$1\": *\"([^\"]*)\""
-  if have jq; then printf '%s' "$AUTH_JSON" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true
-  elif [[ $AUTH_JSON =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
+  [[ -f ${AUTH_FILE:-} ]] || return 0
+  if have jq; then jq -r --arg k "$1" '.[$k] // empty' "$AUTH_FILE" 2>/dev/null || true
+  elif [[ "$(<"$AUTH_FILE")" =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
 }
 # Signed in with an Anthropic API (Console) account rather than a Claude plan? A saved Claude
 # sign-in token (oauth_token, from CLAUDE_CODE_OAUTH_TOKEN) isn't one.
 api_account() { case "$(auth_field authMethod)" in ""|claude.ai|oauth_token) return 1 ;; *) return 0 ;; esac; }
+account_name() {  # "<email> — <orgName>", leaving out what's unknown
+  local email org
+  email=$(auth_field email); org=$(auth_field orgName)
+  printf '%s%s%s' "$email" "${email:+${org:+ — }}" "$org"
+}
 account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving out what's unknown
   local email org plan
   email=$(auth_field email); org=$(auth_field orgName); plan=$(auth_field subscriptionType)
   printf 'Signed in%s%s%s' "${email:+ as $email}" "${org:+ — $org}" "${plan:+ ($plan plan)}"
+}
+
+# Cleans up a folder name typed by the user: drops a leading "~/" or "$HOME/" and a trailing
+# "/", trims spaces, and turns inner spaces into "-".
+clean_name() {
+  local n=$1
+  n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
+  n=${n#"~/"}; n=${n#"$HOME/"}; n=${n%/}
+  n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
+  printf '%s' "${n// /-}"
 }
 
 # Where the "carbonvoice" plugin marketplace comes from, as "<kind> <location>", e.g.
@@ -76,23 +93,24 @@ account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving 
 # flat objects.
 cv_marketplace() {
   have claude || return 0
-  local json kind="" loc="" re
+  local json kind="" loc="" re list="$WORK/marketplaces.json"
   local file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/known_marketplaces.json"
-  if json=$(claude plugin marketplace list --json </dev/null 2>/dev/null); then
+  if claude plugin marketplace list --json </dev/null >"$list" 2>/dev/null; then
     # [{"name": "carbonvoice", "source": "github", "repo": "PhononX/claude-plugins", ...}]
     if have jq; then
-      printf '%s' "$json" | jq -r '.[] | select(.name == "carbonvoice") | "\(.source) \(.repo // .url // .path // "")"' 2>/dev/null || true
+      jq -r '.[] | select(.name == "carbonvoice") | "\(.source) \(.repo // .url // .path // "")"' "$list" 2>/dev/null || true
       return 0
     fi
+    json=$(<"$list")
     re='\{[^{}]*"name": *"carbonvoice"[^{}]*\}'
   elif [[ -f $file ]]; then
     # Older Claude Code without --json: read the file it records added marketplaces in.
     # {"carbonvoice": {"source": {"source": "github", "repo": "PhononX/claude-plugins"}, ...}}
-    json=$(cat "$file")
     if have jq; then
-      printf '%s' "$json" | jq -r '.carbonvoice.source // empty | "\(.source) \(.repo // .url // .path // "")"' 2>/dev/null || true
+      jq -r '.carbonvoice.source // empty | "\(.source) \(.repo // .url // .path // "")"' "$file" 2>/dev/null || true
       return 0
     fi
+    json=$(<"$file")
     re='"carbonvoice": *\{ *"source": *\{[^{}]*\}'
   else
     return 0
@@ -103,6 +121,18 @@ cv_marketplace() {
   re='"source": *"([^"]*)"';             [[ $json =~ $re ]] && kind=${BASH_REMATCH[1]}
   re='"(repo|url|path)": *"([^"]*)"';    [[ $json =~ $re ]] && loc=${BASH_REMATCH[2]}
   echo "$kind $loc"
+}
+
+# The carbonvoice marketplace's local copy of its catalog (.claude-plugin/marketplace.json),
+# or nothing if it can't be found. Its folder comes from `claude plugin marketplace list`, or
+# the usual place under ~/.claude/plugins/marketplaces/. Needs jq.
+cv_catalog() {
+  local list="$WORK/marketplaces.json" dir=""
+  if claude plugin marketplace list --json </dev/null >"$list" 2>/dev/null; then
+    dir=$(jq -r '.[] | select(.name == "carbonvoice") | .installLocation // empty' "$list" 2>/dev/null || true)
+  fi
+  [[ -n $dir ]] || dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/carbonvoice"
+  if [[ -f "$dir/.claude-plugin/marketplace.json" ]]; then printf '%s' "$dir/.claude-plugin/marketplace.json"; fi
 }
 
 label() {  # status → coloured label
@@ -121,6 +151,11 @@ label() {  # status → coloured label
 where() { have brew && echo "with Homebrew" || echo "into ~/.local (no password needed)"; }
 
 main() {
+# Scratch folder, removed on exit. `claude ... --json` output is written to a file here and
+# read back, never piped or captured: on macOS, output to a pipe can be cut off at the pipe
+# buffer (about 64 KB) when Claude exits.
+WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
+
 # ---------- platform ----------
 OS=$(uname -s); ARCH=$(uname -m)
 case "$OS" in
@@ -195,8 +230,10 @@ printf '\n=== cos-setup %s ===\n' "$(date)" >>"$LOG"
 # ---------- which Claude account ----------
 # One email can belong to several Claude organizations (say, personal and work), and Claude
 # Code is signed in to one at a time, so check it's the one the agent should use.
-if [[ $S_AUTH == signedin ]] && ! yes "Use this account for your agent? [Y/n]"; then
-  step "Claude account"
+# The question names the Claude account so it isn't mistaken for the Carbon Voice one.
+# No step heading here: "Claude account" prints once, in the sign-in step below.
+ACCOUNT_NAME=$(account_name)
+if [[ $S_AUTH == signedin ]] && ! yes "Use this Claude account${ACCOUNT_NAME:+ ($ACCOUNT_NAME)} for your agent? [Y/n]"; then
   echo "  You'll be signed out, then your browser opens so you can sign in again."
   echo "  If your email belongs to more than one Claude organization, choose the one for your agent there."
   claude auth logout </dev/tty >/dev/null 2>&1 || true
@@ -240,7 +277,7 @@ elif have brew; then brew_install jq
 else
   JQ_ASSET="jq-$([ "$PLATFORM" = mac ] && echo macos || echo linux)-$ARCH_JQ"
   JQ_BASE="https://github.com/jqlang/jq/releases/download/jq-$JQ_VERSION"
-  TMP=$(mktemp -d)
+  TMP=$(mktemp -d "$WORK/download.XXXXXX")
   curl -fsSL -o "$TMP/jq" "$JQ_BASE/$JQ_ASSET"
   curl -fsSL -o "$TMP/sums" "$JQ_BASE/sha256sum.txt"
   EXPECTED=$(grep " $JQ_ASSET\$" "$TMP/sums" | cut -d' ' -f1)
@@ -291,7 +328,7 @@ else
   NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.lts != false)][0].version')
   [[ "$NODE_VERSION" == v* ]] || die "Couldn't find the current Node.js release. Run this again."
   NODE_PKG="node-$NODE_VERSION-$NODE_OS-$ARCH_NODE"
-  TMP=$(mktemp -d)
+  TMP=$(mktemp -d "$WORK/download.XXXXXX")
   curl -fsSL -o "$TMP/node.tar.gz" "https://nodejs.org/dist/$NODE_VERSION/$NODE_PKG.tar.gz"
   curl -fsSL -o "$TMP/sums" "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt"
   EXPECTED=$(grep " $NODE_PKG.tar.gz\$" "$TMP/sums" | cut -d' ' -f1)
@@ -344,12 +381,17 @@ case $S_MKT in
       || die "Couldn't add the Carbon Voice plugin source ($MARKETPLACE). Check your internet connection and run this again. The details are in $LOG_SHOWN.
   If it says a \"carbonvoice\" marketplace already exists, $FIX" ;;
 esac
-# Make sure the catalog we now have really offers the chief-of-staff plugin before installing.
-# (--available lists only plugins not yet installed, so on a re-run cos shows as installed.)
-claude plugin list --available --json </dev/null 2>>"$LOG" \
-  | jq -e '[.installed[]?.id, .available[]?.pluginId] | index("cos@carbonvoice") != null' >/dev/null 2>&1 \
-  || die "The Carbon Voice plugin list on this computer doesn't include the Chief of Staff plugin.
+# Make sure the catalog we now have really lists the chief-of-staff plugin before installing.
+# Read the marketplace's own copy of its catalog. If it can't be found, skip the check and
+# let the install step report any problem.
+CATALOG=$(cv_catalog)
+if [[ -n "$CATALOG" ]] && jq empty "$CATALOG" >/dev/null 2>&1; then
+  jq -e 'any(.plugins[]?; .name == "cos")' "$CATALOG" >/dev/null 2>&1 \
+    || die "The Carbon Voice plugin list on this computer doesn't include the Chief of Staff plugin.
   To fix it, $FIX"
+else
+  echo "Skipped the Chief of Staff plugin check: couldn't read the carbonvoice catalog${CATALOG:+ ($CATALOG)}." >>"$LOG"
+fi
 for p in cv-channel cos; do
   if quiet claude plugin install "$p@carbonvoice" --scope user \
      || quiet claude plugin install "$p@carbonvoice"; then
@@ -362,8 +404,23 @@ done
 # ---------- workspace ----------
 step "Your agent's folder"
 info "Each agent gets its own folder. Use a different name for each agent you create."
-NAME=$(ask "  Folder name [chief-of-staff]:")
-NAME=${NAME:-chief-of-staff}; NAME=${NAME// /-}
+NAME=""; REUSE=""
+for try in 1 2 3 4; do   # the first ask, then up to 3 more
+  RAW=$(ask "  Folder name [chief-of-staff]:")
+  if [[ -z "${RAW//[[:space:]]/}" ]]; then NAME=chief-of-staff; else NAME=$(clean_name "$RAW"); fi
+  case "$NAME" in
+    "")  info "Type a name, or press Return for chief-of-staff."; NAME=""; continue ;;
+    */*) info "Use just a name, like chief-of-staff. The folder goes in your home folder."; NAME=""; continue ;;
+    .*)  info "The name can't start with a dot."; NAME=""; continue ;;
+  esac
+  # A folder that already has an agent: reuse it only if the same name is typed again.
+  if [[ -f "$HOME/$NAME/cos/.version" && "$NAME" != "$REUSE" ]]; then
+    info "~/$NAME already has an agent. Type a different name, or type $NAME again to reuse it."
+    REUSE=$NAME; NAME=""; continue
+  fi
+  break
+done
+[[ -n "$NAME" ]] || die "No folder name chosen. Run this again when you're ready; everything installed so far stays installed."
 DIR="$HOME/$NAME"
 mkdir -p "$DIR"
 ok "~/$NAME"
@@ -378,6 +435,7 @@ cat <<EOF
 EOF
 ask "  Press Return to continue." >/dev/null
 cd "$DIR"
+rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
 exec claude "/cos:setup" </dev/tty
 }
 
