@@ -21,7 +21,8 @@ step, and stop at any failure with a clear fix. Finish with the checklist in Pha
   Confirm `TEMPLATES` exists with `ls` before continuing.
 
 ## Phase 1 — Where are we?
-Show the current directory. If it's an empty folder the installer just created, continue. If it is the home directory, a code repository, or a folder with
+Show the current directory. If it's a folder the installer just created (empty apart from
+`.cv/`, which holds the saved Carbon Voice token), continue. If it is the home directory, a code repository, or a folder with
 unrelated files, recommend a dedicated folder (`mkdir ~/chief-of-staff && cd ~/chief-of-staff`,
 then relaunch `claude` there) and stop unless the user confirms.
 
@@ -29,7 +30,7 @@ then relaunch `claude` there) and stop unless the user confirms.
 Users normally arrive here from the installer, which has already installed everything, so this
 should be a quick confirmation. If anything required (Node.js 18+, `jq`, the channel plugin) is
 missing, offer to fix it by re-running the installer:
-`curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash`
+`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
 Run and report each:
 - OS: `uname -s` (Darwin → launchd; Linux → cron).
 - Node.js 18 or later: `node --version`.
@@ -46,13 +47,17 @@ Run and report each:
 - `tmux` (optional, only needed for `--background`): `command -v tmux`.
 - Channel plugin: check that `cv-channel` from the `carbonvoice` marketplace is installed. If not,
   tell the user to run `/plugin install cv-channel@carbonvoice` and rerun setup.
+- Carbon Voice token: check that `.cv/.env` exists (`test -s .cv/.env`). Never read or print it.
+  If it's missing, setup was run without the installer: tell the user to run the installer
+  (above), or that `./start-cos.sh` will ask for the token privately the first time it runs.
 
 ## Phase 3 — Questions
 Ask these together, briefly:
 1. **Your name**, as the agent should address you. → `OWNER_NAME`
-2. **Your agent's name** — the Agent Account you created in Carbon Voice. → `AGENT_NAME`
-   If they haven't created one: in Carbon Voice, create an Agent Account and copy its Personal
-   Access Token. They'll paste the token later, privately — not here.
+2. **Your agent's name:** read `.cv/agent-name`, which the installer wrote from the Agent
+   Account's name in Carbon Voice. Don't ask for it; confirm it in the same message ("Your agent
+   is <name>, from its Carbon Voice account"), and use what they say if they correct it.
+   → `AGENT_NAME`. Only if the file is missing, ask for the agent's name.
 3. **Your Claude plan:** first run `claude auth status` and read `subscriptionType`. If it's
    `pro` or `max`, or `team` or `enterprise`, use it and don't ask. Only ask if it's missing.
    - Pro/Max → `CHANNEL_ARGS` = `--dangerously-load-development-channels plugin:cv-channel@carbonvoice`
@@ -116,7 +121,7 @@ will recheck. On a fresh workspace the review should report nothing to consolida
 Print a short checklist with ✓ or ✗ for: system check, workspace files, hooks, nightly review.
 Then give exactly these next steps:
 1. Type `/exit`.
-2. Run `./start-cos.sh`. The first time, paste your Agent Account's token when asked.
+2. Run `./start-cos.sh`. (If the token wasn't saved during install, it asks for it first.)
 3. In Carbon Voice, message your agent from your own account. You'll get a pairing code back.
 4. In this terminal, run `/cv-channel:access pair <code>`, then message your agent again.
    It will start a short voice conversation to get to know your work.
