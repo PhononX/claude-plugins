@@ -24,6 +24,12 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    If someone is allowed and the policy is still `pairing`, suggest
    `/cv-channel:access policy allowlist`. Note that access commands only see this folder's
    allowlist in a session started by `./start-cos.sh`.
+   **Channel log:** if `.cv/channel.log` exists, show its last 30 lines (they hold IDs and
+   events, never the token or message contents) and say what they show: whether the channel
+   connected ("authenticated as", "first run, starting from"), messages dropped from unknown
+   senders, pairing codes, or errors. If messages aren't getting through and
+   `.cv/channel-log.on` doesn't exist, suggest `./cv-channel-log.sh on`, restarting the agent,
+   and sending another message.
 6. **This session:** check whether `CV_ACCESS_PATH` is set in the environment. If not, this session
    wasn't started by `./start-cos.sh` and isn't connected to Carbon Voice.
 7. **Nightly review:** macOS — `launchctl print gui/$(id -u)/com.phononx.cos.<folder-name>`;

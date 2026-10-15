@@ -805,7 +805,7 @@ touch "$DIR/.gitignore"
 while IFS= read -r line; do
   grep -qxF -- "$line" "$DIR/.gitignore" || printf '%s\n' "$line" >> "$DIR/.gitignore"
 done < "$TEMPLATES/gitignore"
-for s in start-cos.sh nightly.sh update-cos.sh; do
+for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh; do
   [[ -f "$TEMPLATES/$s" ]] || continue
   fill "$TEMPLATES/$s" "$WORK/$s" AGENT_NAME="$SCRIPT_NAME" CLAUDE_BIN="$CLAUDE_BIN" \
     CHANNEL_ARGS="$CHANNEL_ARGS" REMOTE_ARGS="$REMOTE_ARGS"

@@ -40,6 +40,13 @@ export CV_ACCESS_PATH="$CV_DIR/access.json"
 export CV_PENDING_PATH="$CV_DIR/pending.json"
 export CV_ATTACHMENTS_DIR="$CV_DIR/attachments"
 export CV_PROJECT_NAME="{{AGENT_NAME}}"
+# ./cv-channel-log.sh on|off turns on a log of the Carbon Voice connection in .cv/channel.log.
+# Past 5 MB a new log starts, keeping the previous one as channel.log.1.
+if [[ -e "$CV_DIR/channel-log.on" ]]; then
+  export CV_LOG_FILE="$CV_DIR/channel.log"
+  if [[ -f "$CV_LOG_FILE" && $(wc -c < "$CV_LOG_FILE") -gt 5000000 ]]; then mv -f "$CV_LOG_FILE" "$CV_LOG_FILE.1"; fi
+  echo "Logging the Carbon Voice connection to .cv/channel.log (./cv-channel-log.sh off to stop)."
+fi
 
 CMD=("{{CLAUDE_BIN}}" {{CHANNEL_ARGS}} ${REMOTE[@]+"${REMOTE[@]}"})
 

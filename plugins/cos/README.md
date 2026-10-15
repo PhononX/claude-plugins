@@ -69,6 +69,9 @@ transcript is kept on Anthropic's servers. Your Carbon Voice token never appears
 - `./update-cos.sh` — update to the latest version. `./start-cos.sh` tells you when there's an
   update, and your agent mentions it too. Your notes, token and setup answers are kept, so it
   only asks about anything missing. Restart your agent afterwards.
+- `./cv-channel-log.sh on` — keep a log of the Carbon Voice connection in `.cv/channel.log`, to
+  see why messages aren't getting through; `./cv-channel-log.sh` shows it, `off` stops it.
+  It records IDs and what happened, never your token or what was said.
 - `/cos:doctor` (in Claude) — check that everything is healthy.
 
 Want your agent to behave differently? Write it in `my-instructions.md` in its folder.
