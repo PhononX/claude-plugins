@@ -587,16 +587,29 @@ if [[ -n "$AGENT_NAME" ]]; then printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-nam
 # $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
 
 # ---------- hand off ----------
-# What to do once Claude opens, shown just before it does: the user finishes setup there.
-next_steps() {
-  printf '  • Your agent will use %s%s.\n' "${ORG:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
-  echo '  • Claude will ask whether you trust this folder. Choose "Yes, I trust this folder".'
-  printf '  • Then type  %s/cos:setup%s  and press Return.\n' "$bold" "$reset"
-}
+# First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this
+# script can open Claude itself: it can when its input is the terminal (/bin/bash -c "$(curl ...)"),
+# not under `curl ... | bash`, where the user opens Claude with two lines in Terminal.
+step "Everything's installed."
+ACCOUNT=$(account_name)
+printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
+if [[ -n "$AGENT_NAME" ]]; then printf '  %-20s %s\n' "Carbon Voice agent:" "$AGENT_NAME"; fi
+printf '  %-20s %s%s\n' "Claude account:" "${ACCOUNT:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
+echo
+echo "  To finish setup:"
 if [[ -t 0 ]]; then
-  step "Everything's installed. Opening Claude to finish setup."
-  next_steps
-  echo
+  echo "    1. Press Return below to open Claude in your agent's folder."
+else
+  CD_PATH=$(shown "$DIR")
+  if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
+  echo "    1. Open Claude in your agent's folder by running these two lines in Terminal:"
+  printf '         %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
+  printf '         %sclaude%s\n' "$bold" "$reset"
+fi
+echo '    2. Claude asks whether you trust this folder. Choose "Yes, I trust this folder".'
+printf '    3. Type  %s/cos:setup%s  and press Return.\n' "$bold" "$reset"
+echo
+if [[ -t 0 ]]; then
   ask "  Press Return to open Claude." >/dev/null
   cd "$DIR"
   rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
@@ -605,18 +618,8 @@ if [[ -t 0 ]]; then
   # arrows, Ctrl+C), so the user is stuck. Plain `claude` handles the prompt fine, and the
   # user types /cos:setup after trusting the folder. Don't pass a first message here.
   exec claude </dev/tty
-else
-  # Our input isn't the terminal (run as `curl ... | bash`), so don't open Claude from here:
-  # tell the user how to open it, and what to do once it's open.
-  CD_PATH=$(shown "$DIR")
-  if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
-  step "Everything's installed. One last step: open Claude to finish setup."
-  echo "  Run these two lines in Terminal:"
-  printf '      %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
-  printf '      %sclaude%s\n' "$bold" "$reset"
-  next_steps
-  echo
 fi
+# Otherwise (input isn't the terminal) the steps above already say how to open Claude.
 }
 
 main "$@"
