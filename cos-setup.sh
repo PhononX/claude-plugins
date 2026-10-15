@@ -45,20 +45,22 @@ node_ok() { have node && [[ "$(node -p 'process.versions.node.split(".")[0]' </d
 # "authMethod": "claude.ai", "email": ..., "subscriptionType": ...}); go by loggedIn, and by
 # its exit code (0 when signed in) only when jq isn't installed yet or the output isn't JSON.
 # Checked without ANTHROPIC_API_KEY, the way the agent's start script runs Claude.
-# Leaves the output in AUTH_JSON.
+# Leaves the output in AUTH_FILE (see WORK in main() for why it goes to a file).
 signed_in() {
   local rc=0
-  AUTH_JSON=$(env -u ANTHROPIC_API_KEY claude auth status </dev/null 2>/dev/null) || rc=$?
-  if have jq && printf '%s' "$AUTH_JSON" | jq empty >/dev/null 2>&1; then
-    printf '%s' "$AUTH_JSON" | jq -e '.loggedIn == true' >/dev/null 2>&1
+  AUTH_FILE="$WORK/auth.json"
+  env -u ANTHROPIC_API_KEY claude auth status </dev/null >"$AUTH_FILE" 2>/dev/null || rc=$?
+  if have jq && [[ -s $AUTH_FILE ]] && jq empty "$AUTH_FILE" >/dev/null 2>&1; then
+    jq -e '.loggedIn == true' "$AUTH_FILE" >/dev/null 2>&1
   else
     return $rc
   fi
 }
-auth_field() {  # auth_field <name>: a text field from AUTH_JSON, e.g. email, orgName
+auth_field() {  # auth_field <name>: a text field from AUTH_FILE, e.g. email, orgName
   local re="\"$1\": *\"([^\"]*)\""
-  if have jq; then printf '%s' "$AUTH_JSON" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true
-  elif [[ $AUTH_JSON =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
+  [[ -f ${AUTH_FILE:-} ]] || return 0
+  if have jq; then jq -r --arg k "$1" '.[$k] // empty' "$AUTH_FILE" 2>/dev/null || true
+  elif [[ "$(<"$AUTH_FILE")" =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
 }
 # Signed in with an Anthropic API (Console) account rather than a Claude plan? A saved Claude
 # sign-in token (oauth_token, from CLAUDE_CODE_OAUTH_TOKEN) isn't one.
@@ -91,23 +93,24 @@ clean_name() {
 # flat objects.
 cv_marketplace() {
   have claude || return 0
-  local json kind="" loc="" re
+  local json kind="" loc="" re list="$WORK/marketplaces.json"
   local file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/known_marketplaces.json"
-  if json=$(claude plugin marketplace list --json </dev/null 2>/dev/null); then
+  if claude plugin marketplace list --json </dev/null >"$list" 2>/dev/null; then
     # [{"name": "carbonvoice", "source": "github", "repo": "PhononX/claude-plugins", ...}]
     if have jq; then
-      printf '%s' "$json" | jq -r '.[] | select(.name == "carbonvoice") | "\(.source) \(.repo // .url // .path // "")"' 2>/dev/null || true
+      jq -r '.[] | select(.name == "carbonvoice") | "\(.source) \(.repo // .url // .path // "")"' "$list" 2>/dev/null || true
       return 0
     fi
+    json=$(<"$list")
     re='\{[^{}]*"name": *"carbonvoice"[^{}]*\}'
   elif [[ -f $file ]]; then
     # Older Claude Code without --json: read the file it records added marketplaces in.
     # {"carbonvoice": {"source": {"source": "github", "repo": "PhononX/claude-plugins"}, ...}}
-    json=$(cat "$file")
     if have jq; then
-      printf '%s' "$json" | jq -r '.carbonvoice.source // empty | "\(.source) \(.repo // .url // .path // "")"' 2>/dev/null || true
+      jq -r '.carbonvoice.source // empty | "\(.source) \(.repo // .url // .path // "")"' "$file" 2>/dev/null || true
       return 0
     fi
+    json=$(<"$file")
     re='"carbonvoice": *\{ *"source": *\{[^{}]*\}'
   else
     return 0
@@ -118,6 +121,18 @@ cv_marketplace() {
   re='"source": *"([^"]*)"';             [[ $json =~ $re ]] && kind=${BASH_REMATCH[1]}
   re='"(repo|url|path)": *"([^"]*)"';    [[ $json =~ $re ]] && loc=${BASH_REMATCH[2]}
   echo "$kind $loc"
+}
+
+# The carbonvoice marketplace's local copy of its catalog (.claude-plugin/marketplace.json),
+# or nothing if it can't be found. Its folder comes from `claude plugin marketplace list`, or
+# the usual place under ~/.claude/plugins/marketplaces/. Needs jq.
+cv_catalog() {
+  local list="$WORK/marketplaces.json" dir=""
+  if claude plugin marketplace list --json </dev/null >"$list" 2>/dev/null; then
+    dir=$(jq -r '.[] | select(.name == "carbonvoice") | .installLocation // empty' "$list" 2>/dev/null || true)
+  fi
+  [[ -n $dir ]] || dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/carbonvoice"
+  if [[ -f "$dir/.claude-plugin/marketplace.json" ]]; then printf '%s' "$dir/.claude-plugin/marketplace.json"; fi
 }
 
 label() {  # status → coloured label
@@ -136,6 +151,11 @@ label() {  # status → coloured label
 where() { have brew && echo "with Homebrew" || echo "into ~/.local (no password needed)"; }
 
 main() {
+# Scratch folder, removed on exit. `claude ... --json` output is written to a file here and
+# read back, never piped or captured: on macOS, output to a pipe can be cut off at the pipe
+# buffer (about 64 KB) when Claude exits.
+WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
+
 # ---------- platform ----------
 OS=$(uname -s); ARCH=$(uname -m)
 case "$OS" in
@@ -257,7 +277,7 @@ elif have brew; then brew_install jq
 else
   JQ_ASSET="jq-$([ "$PLATFORM" = mac ] && echo macos || echo linux)-$ARCH_JQ"
   JQ_BASE="https://github.com/jqlang/jq/releases/download/jq-$JQ_VERSION"
-  TMP=$(mktemp -d)
+  TMP=$(mktemp -d "$WORK/download.XXXXXX")
   curl -fsSL -o "$TMP/jq" "$JQ_BASE/$JQ_ASSET"
   curl -fsSL -o "$TMP/sums" "$JQ_BASE/sha256sum.txt"
   EXPECTED=$(grep " $JQ_ASSET\$" "$TMP/sums" | cut -d' ' -f1)
@@ -308,7 +328,7 @@ else
   NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.lts != false)][0].version')
   [[ "$NODE_VERSION" == v* ]] || die "Couldn't find the current Node.js release. Run this again."
   NODE_PKG="node-$NODE_VERSION-$NODE_OS-$ARCH_NODE"
-  TMP=$(mktemp -d)
+  TMP=$(mktemp -d "$WORK/download.XXXXXX")
   curl -fsSL -o "$TMP/node.tar.gz" "https://nodejs.org/dist/$NODE_VERSION/$NODE_PKG.tar.gz"
   curl -fsSL -o "$TMP/sums" "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt"
   EXPECTED=$(grep " $NODE_PKG.tar.gz\$" "$TMP/sums" | cut -d' ' -f1)
@@ -361,17 +381,16 @@ case $S_MKT in
       || die "Couldn't add the Carbon Voice plugin source ($MARKETPLACE). Check your internet connection and run this again. The details are in $LOG_SHOWN.
   If it says a \"carbonvoice\" marketplace already exists, $FIX" ;;
 esac
-# Make sure the catalog we now have really offers the chief-of-staff plugin before installing.
-# (--available lists only plugins not yet installed, so on a re-run cos shows as installed.)
-# Older Claude Code may not have this command; then skip the check and let the install speak.
-if AVAILABLE=$(claude plugin list --available --json </dev/null 2>>"$LOG") \
-   && printf '%s' "$AVAILABLE" | jq -e 'type == "object"' >/dev/null 2>&1; then
-  printf '%s' "$AVAILABLE" \
-    | jq -e '[.installed[]?.id, .available[]?.pluginId] | index("cos@carbonvoice") != null' >/dev/null 2>&1 \
+# Make sure the catalog we now have really lists the chief-of-staff plugin before installing.
+# Read the marketplace's own copy of its catalog. If it can't be found, skip the check and
+# let the install step report any problem.
+CATALOG=$(cv_catalog)
+if [[ -n "$CATALOG" ]] && jq empty "$CATALOG" >/dev/null 2>&1; then
+  jq -e 'any(.plugins[]?; .name == "cos")' "$CATALOG" >/dev/null 2>&1 \
     || die "The Carbon Voice plugin list on this computer doesn't include the Chief of Staff plugin.
   To fix it, $FIX"
 else
-  echo "Skipped the plugin availability check: 'claude plugin list --available --json' failed or didn't print JSON." >>"$LOG"
+  echo "Skipped the Chief of Staff plugin check: couldn't read the carbonvoice catalog${CATALOG:+ ($CATALOG)}." >>"$LOG"
 fi
 for p in cv-channel cos; do
   if quiet claude plugin install "$p@carbonvoice" --scope user \
@@ -416,6 +435,7 @@ cat <<EOF
 EOF
 ask "  Press Return to continue." >/dev/null
 cd "$DIR"
+rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
 exec claude "/cos:setup" </dev/tty
 }
 

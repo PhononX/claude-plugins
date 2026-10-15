@@ -1,7 +1,7 @@
 {
   "name": "cos",
   "description": "A chief of staff you talk to through Carbon Voice. Keeps durable notes on your priorities, decisions, open loops and people, and tidies them nightly. Start with /cos:setup in an empty folder; check health with /cos:doctor.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": { "name": "PhononX" },
   "homepage": "https://github.com/PhononX/claude-plugins/tree/main/plugins/cos#readme",
   "repository": "https://github.com/PhononX/claude-plugins",
