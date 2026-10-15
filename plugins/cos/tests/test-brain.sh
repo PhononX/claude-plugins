@@ -17,7 +17,7 @@ ok() { echo "  ok: $*"; }
 setup_ws() { # $1: directory to create
   mkdir -p "$1/.cos"
   cp -R "$TESTS/sample-workspace/cos" "$1/cos"
-  cp "$DOTCOS/build-brain.sh" "$DOTCOS/brain-template.html" "$DOTCOS/defaults.md" "$1/.cos/"
+  cp "$DOTCOS/build-brain.sh" "$DOTCOS/brain-template.html" "$DOTCOS/defaults.md" "$DOTCOS/options.md" "$1/.cos/"
   chmod +x "$1/.cos/build-brain.sh"
 }
 
@@ -51,6 +51,7 @@ while IFS= read -r -d '' f; do
   grep -qF "data-path=\"$(html_attr "$rel")\"" "$B" || { fail "not embedded: $rel"; MISSING=1; }
 done < <(find "$WS/cos" -type f -name '*.md' -print0)
 grep -qF 'data-path=".cos/defaults.md"' "$B" || { fail "defaults.md not embedded"; MISSING=1; }
+grep -qF 'data-path=".cos/options.md"' "$B" || { fail "options.md not embedded"; MISSING=1; }
 [ $MISSING -eq 0 ] && ok "every note embedded"
 grep -q 'TRANSCRIPT-SHOULD-NOT-BE-EMBEDDED' "$B" && fail "a transcript was embedded" || ok "transcripts left out"
 grep -c '<script type="text/markdown"' "$B" | grep -q . || fail "no notes"
@@ -84,7 +85,7 @@ OUT=$("$WS3/.cos/build-brain.sh" 2>&1); RC=$?
 # A brand-new notebook: only the files a fresh install has (placeholders filled in).
 WS4="$TMP/new"
 mkdir -p "$WS4/.cos" "$WS4/cos/log"
-cp "$DOTCOS/build-brain.sh" "$DOTCOS/brain-template.html" "$DOTCOS/defaults.md" "$WS4/.cos/"
+cp "$DOTCOS/build-brain.sh" "$DOTCOS/brain-template.html" "$DOTCOS/defaults.md" "$DOTCOS/options.md" "$WS4/.cos/"
 if [ -d "$PLUGIN/templates/cos" ]; then
   for f in "$PLUGIN/templates/cos"/*.md; do
     sed -e 's/{{AGENT_NAME}}/Ada/g' -e 's/{{OWNER_NAME}}/Alex/g' "$f" > "$WS4/cos/$(basename "$f")"
@@ -149,7 +150,7 @@ else
   cat > "$TMP/check.mjs" <<'JS'
 // Opens brain.html in Chromium and walks through it. Args: playwright module, page, brand-new page, screenshot dir.
 import { pathToFileURL } from "node:url";
-const [pwPath, pagePath, freshPath, shots, legacyPath] = process.argv.slice(2);
+const [pwPath, pagePath, freshPath, shots, legacyPath, optionsPath] = process.argv.slice(2);
 const { chromium } = await import(pathToFileURL(pwPath).href);
 const CANARY = `</script> and <!-- not a comment --> with $HOME & "quotes" 'single' C:\\temp\\new 🚀 café`;
 let fails = 0;
@@ -288,6 +289,17 @@ async function clickAllSections(page, label) {
     "Skip newsletters", "Important people", "Moved from my-instructions.md", "Family and time off", "Learned", "Nudge me at most twice a day"])
     if (!has(pt, s)) fail("How Ada works is missing: " + s);
   if (has(pt, "Brief days")) fail("brief_days row shown although My briefs exists");
+  // Everything Ada can do, from .cos/options.md: one block per group.
+  const groups = [...(await import("node:fs")).readFileSync(new URL("file://" + optionsPath)).toString().matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
+  if (!has(pt, "Everything Ada can do") || !has(pt, "what can you do?") || !has(pt, "/cos:settings")) fail("Everything Ada can do section missing");
+  for (const g of groups) if (!(await page.locator("#main section.block > h4", { hasText: new RegExp("^" + g.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") }).count())) fail("options group missing: " + g);
+  if (!/Say: "move my morning brief to 6:45"/.test(pt)) fail("Say: hint missing");
+  if (!has(pt, "Default: on")) fail("Default chip missing");
+  if (!has(pt, "\"Catch me up since Friday\"")) fail("Ask any time phrases missing");
+  await page.click("#main [data-raw]");
+  if (!(await page.locator("#main .rawfile .path", { hasText: ".cos/options.md" }).count())) fail("options.md not in Show the files");
+  await page.click("#main [data-raw]");
+  ok("Everything Ada can do (" + groups.length + " groups)");
   if ((await page.locator("#main .overridden").count()) !== 3) fail("expected 3 struck-through defaults");
   if ((await page.locator("#main section.block > h3", { hasText: /^Notes$/i }).count())) fail("a nested heading shows as its own section");
   ok("How Ada works page");
@@ -300,6 +312,8 @@ async function clickAllSections(page, label) {
   if (!/\d+ results for “uptime”/.test(pt)) fail("search heading: " + pt.slice(0, 80));
   await page.locator("#main .grouplink", { hasText: "My actions" }).click();
   if ((await page.inputValue("#q")) !== "" || !(await page.locator("#main h2").innerText()).includes("My actions")) fail("search group header didn't open the section");
+  await page.fill("#q", "GitHub notifications");
+  if (!(await page.locator("#main .grouplink", { hasText: "How Ada works for you" }).count()) || !has(await mainText(page), ".cos/options.md")) fail("search doesn't cover options.md");
   await page.fill("#q", "canary");
   if (!(await mainText(page)).includes(CANARY)) fail("canary wrong in search results");
   await page.fill("#q", "");
@@ -398,7 +412,7 @@ if (shots) {
 await browser.close();
 process.exit(fails ? 1 : 0);
 JS
-  node "$TMP/check.mjs" "$PW" "$B" "$WS4/brain.html" "${BRAIN_SHOTS:-}" "$WS5/brain.html" || FAILS=$((FAILS + 1))
+  node "$TMP/check.mjs" "$PW" "$B" "$WS4/brain.html" "${BRAIN_SHOTS:-}" "$WS5/brain.html" "$DOTCOS/options.md" || FAILS=$((FAILS + 1))
 fi
 
 echo

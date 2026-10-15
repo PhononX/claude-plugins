@@ -156,6 +156,7 @@ details.brief-old > summary:hover { color: var(--accent); }
 details.brief-old[open] > summary { border-bottom: 1px solid var(--line); }
 .brief-body { padding: 16px 16px 0; }
 .brief-body section.block { margin-bottom: 18px; }
+.asks > li { padding: 8px 16px; }
 .catch-group { font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 2px 6px; }
 .catch-group:first-child { margin-top: 0; }
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
@@ -702,7 +703,7 @@ var VIEWS = [
   { id: "archive", label: "Archive", group: "Record", files: function () { return archiveFiles().concat(finishedProjects().map(function (n) { return n.path; })); },
     sub: "Finished, dropped and stale items, each with the reason. Nothing is deleted. Say “bring back …” to restore one.",
     count: function () { return archiveItems().length + finishedProjects().length; } },
-  { id: "about", label: "How " + AGENT + " works for you", group: "About " + AGENT, files: function () { return ["cos/my-rules.md", "cos/about-me.md", ".cos/defaults.md"]; },
+  { id: "about", label: "How " + AGENT + " works for you", group: "About " + AGENT, files: function () { return ["cos/my-rules.md", "cos/about-me.md", ".cos/defaults.md"].concat(has(".cos/options.md") ? [".cos/options.md"] : []); },
     sub: "Your rules come first, then what " + A + " knows about you, then the defaults that come with " + A + ". Updates change only the defaults.",
     count: function () { return doc("cos/my-rules.md").items.length; } },
   { id: "sources", label: "Where you talk", group: "About " + AGENT, files: function () { return ["cos/sources.md"]; },
@@ -1141,8 +1142,30 @@ R.about = function () {
       return '<li class="nobox"><div class="txt"><span class="' + (over && !d.fixed ? "overridden" : "") + '">' + inl(d.text) + "</span>" +
         meta(tag + (over && !d.fixed ? '<span class="tag">Now: ' + nowHtml + "</span>" : "")) + "</div></li>";
     }).join("") : emptyLi("The defaults file (.cos/defaults.md) wasn't found. Run ./update-cos.sh to restore it.")) + "</ul>");
-  return html;
+  return html + optionsHtml();
 };
+function optionsHtml() { // "Everything Ada can do", from .cos/options.md
+  var d = doc(".cos/options.md");
+  if (!d.items.length) return "";
+  var html = '<h3 class="brief-h" style="margin-top:8px">Everything ' + A + " can do</h3>" +
+    '<p class="hint" style="margin:-8px 2px 14px">Ask ' + A + " \u201cwhat can you do?\u201d or run /cos:settings to see what's on for you.</p>";
+  var names = sectionNames(d);
+  if (d.items.some(function (it) { return !it.section; })) names.unshift("");
+  names.forEach(function (name) {
+    var items = sectionBlocks(d, name).filter(function (b) { return b.type === "item"; });
+    if (!items.length) return;
+    var ask = /^askanytime/.test(norm(name)) || items.every(function (it) { return it.fields.default == null && it.fields.say == null; });
+    var body = ask
+      ? '<ul class="list card asks">' + items.map(function (it) { return '<li class="nobox"><div class="txt">' + inl(it.text) + "</div></li>"; }).join("") + "</ul>"
+      : '<ul class="list card">' + items.map(function (it) {
+          return '<li class="nobox"><div class="txt">' + inl(it.text) +
+            meta(it.fields.default ? '<span class="tag">Default: ' + inl(it.fields.default) + "</span>" : "") +
+            (it.fields.say ? '<p class="hint" style="margin:4px 0 0">Say: ' + inl(it.fields.say) + "</p>" : "") + "</div></li>";
+        }).join("") + "</ul>";
+    html += block(T(name || "Options"), "", body, "", "h4");
+  });
+  return html;
+}
 R.sources = function () {
   var v = V("sources"), items = sources();
   if (!items.length) return head(v) + '<div class="card empty">Nothing here yet. During setup ' + A + " asks where your conversations happen and lists each place here.</div>";
@@ -1166,7 +1189,7 @@ function sectionFor(p) {
   if (/^cos\/(projects|areas)\//.test(p)) return "projects";
   if (/^cos\/log\/\d{4}-\d{2}-\d{2}\.md$/.test(p)) return "log";
   if (/^cos\/archive\//.test(p)) return "archive";
-  if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md") return "about";
+  if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md" || p === ".cos/options.md") return "about";
   return null;
 }
 function searchView() {

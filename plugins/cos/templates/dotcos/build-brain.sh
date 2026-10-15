@@ -78,6 +78,7 @@ conf() {
   fi
 
   [ -f .cos/defaults.md ] && emit ".cos/defaults.md" ".cos/defaults.md"
+  [ -f .cos/options.md ] && emit ".cos/options.md" ".cos/options.md"
 
   AGENT=$(conf AGENT_NAME); [ -n "$AGENT" ] || AGENT="Your agent"
   OWNER=$(conf OWNER_NAME)
