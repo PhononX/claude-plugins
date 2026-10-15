@@ -54,10 +54,15 @@ signed_in() {
     return $rc
   fi
 }
-auth_email() {
-  local re='"email": *"([^"]*)"'
-  if have jq; then printf '%s' "$AUTH_JSON" | jq -r '.email // empty' 2>/dev/null || true
+auth_field() {  # auth_field <name>: a text field from AUTH_JSON, e.g. email, orgName
+  local re="\"$1\": *\"([^\"]*)\""
+  if have jq; then printf '%s' "$AUTH_JSON" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true
   elif [[ $AUTH_JSON =~ $re ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
+}
+account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving out what's unknown
+  local email org plan
+  email=$(auth_field email); org=$(auth_field orgName); plan=$(auth_field subscriptionType)
+  printf 'Signed in%s%s%s' "${email:+ as $email}" "${org:+ — $org}" "${plan:+ ($plan plan)}"
 }
 
 # Where the "carbonvoice" plugin marketplace comes from, as "<kind> <location>", e.g.
@@ -103,7 +108,7 @@ label() {  # status → coloured label
     install)    printf '%swill install%s' "$yellow" "$reset" ;;
     create)     printf '%swill create%s' "$yellow" "$reset" ;;
     replace)    printf '%swill replace an older Carbon Voice plugin source%s' "$yellow" "$reset" ;;
-    signedin)   printf '%salready signed in%s%s' "$green" "${2:+ as $2}" "$reset" ;;
+    signedin)   printf '%s%s%s' "$green" "$2" "$reset" ;;
     signin)     printf '%swill open your browser to sign in%s' "$yellow" "$reset" ;;
     needs-brew) printf '%soptional — needs Homebrew (asked next)%s' "$yellow" "$reset" ;;
   esac
@@ -135,9 +140,10 @@ if have tmux; then S_TMUX=have
 elif have brew || [[ "$PLATFORM" == linux ]]; then S_TMUX=install
 else S_TMUX=needs-brew; fi
 
-# Signed in? Show which account, so a computer signed in to the wrong one is easy to spot.
-AUTH_EMAIL=""
-if have claude && signed_in; then S_AUTH=signedin; AUTH_EMAIL=$(auth_email); else S_AUTH=signin; fi
+# Signed in? Show which account and organization, so a computer signed in to the wrong one is
+# easy to spot.
+AUTH_DESC=""
+if have claude && signed_in; then S_AUTH=signedin; AUTH_DESC=$(account_desc); else S_AUTH=signin; fi
 
 # Is a "carbonvoice" plugin marketplace already added, and from where? Claude Code allows only
 # one marketplace per name, and early setups added it from PhononX/cv-claude-channels or a
@@ -158,7 +164,7 @@ echo "Here's what will happen on this computer:"
 echo
 printf '  %sClaude Code%s — %s\n'  "$bold" "$reset" "$(label $S_CLAUDE)"
 info "  The AI agent itself. Your chief of staff runs inside it."
-printf '  %sSign in to Claude%s — %s\n' "$bold" "$reset" "$(label $S_AUTH "$AUTH_EMAIL")"
+printf '  %sSign in to Claude%s — %s\n' "$bold" "$reset" "$(label $S_AUTH "$AUTH_DESC")"
 info "  Uses your Claude Pro, Max, Team or Enterprise plan."
 printf '  %sNode.js%s — %s\n'      "$bold" "$reset" "$(label $S_NODE)"
 info "  Runs the connection between Carbon Voice and Claude.$([ $S_NODE = install ] && echo " Installed $(where).")"
@@ -178,6 +184,19 @@ yes "Continue? [Y/n]" || { echo "No changes made."; exit 0; }
 
 mkdir -p "${LOG%/*}"
 printf '\n=== cos-setup %s ===\n' "$(date)" >>"$LOG"
+
+# ---------- which Claude account ----------
+# One email can belong to several Claude organizations (say, personal and work), and Claude
+# Code is signed in to one at a time, so check it's the one the agent should use.
+if [[ $S_AUTH == signedin ]] && ! yes "Use this account for your agent? [Y/n]"; then
+  step "Claude account"
+  echo "  You'll be signed out, then your browser opens so you can sign in again."
+  echo "  If your email belongs to more than one Claude organization, choose the one for your agent there."
+  claude auth logout </dev/tty >/dev/null 2>&1 || true
+  claude auth login </dev/tty || true
+  signed_in || die "Not signed in. Run this setup again to retry."
+  ok "$(account_desc)"
+fi
 
 # ---------- optional Homebrew (only asked when it would add something) ----------
 if [[ $S_TMUX == needs-brew ]]; then
@@ -231,10 +250,8 @@ if ! signed_in; then
   claude auth login </dev/tty || true
   signed_in || die "Not signed in. Run this setup again to retry."
 fi
-METHOD=$(printf '%s' "$AUTH_JSON" | jq -r '.authMethod // empty' 2>/dev/null || true)
-PLAN=$(printf '%s' "$AUTH_JSON" | jq -r '.subscriptionType // empty' 2>/dev/null || true)
-EMAIL=$(auth_email)
-ok "Signed in${EMAIL:+ as $EMAIL}${PLAN:+ ($PLAN plan)}"
+ok "$(account_desc)"
+METHOD=$(auth_field authMethod)
 if [[ -n "$METHOD" && "$METHOD" != "claude.ai" ]]; then
   printf '  %s!%s This computer is signed in with an Anthropic API account, not a Claude plan.\n' "$yellow" "$reset"
   echo "    The Carbon Voice connection and the Claude app connection need a Claude plan sign-in."
@@ -242,9 +259,10 @@ if [[ -n "$METHOD" && "$METHOD" != "claude.ai" ]]; then
     claude auth logout </dev/null >/dev/null 2>&1 || true
     claude auth login </dev/tty || true
     signed_in || die "Not signed in. Run this setup again to retry."
-    ok "Signed in"
+    ok "$(account_desc)"
   fi
 fi
+ORG=$(auth_field orgName); PLAN=$(auth_field subscriptionType)   # the account the agent will use
 [[ "$PLAN" == "free" ]] && die "Claude Code needs a paid Claude plan (Pro, Max, Team or Enterprise). Upgrade at claude.ai, then run this again."
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
   info "Note: ANTHROPIC_API_KEY is set in your shell. Your agent's start script ignores it so it uses your Claude plan."
@@ -339,7 +357,8 @@ ok "~/$NAME"
 # ---------- hand off ----------
 step "Everything's installed. Starting Claude to finish setup."
 cat <<EOF
-  ${dim}• Approve the prompt asking to trust this folder.
+  ${dim}• Your agent will use ${ORG:-your Claude account}${PLAN:+ (${PLAN} plan)}.
+  • Approve the prompt asking to trust this folder.
   • Then answer a few short questions.${reset}
 
 EOF
