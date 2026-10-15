@@ -1,8 +1,10 @@
 # Chief of Staff for Claude Code
 
-A chief of staff you talk to through Carbon Voice. It keeps durable notes on your priorities,
-decisions, open loops and people, reviews them every night, and remembers across weeks of
-conversation instead of starting fresh each time.
+A chief of staff you talk to through Carbon Voice. It keeps a notebook of what you're focused
+on, what you owe and what you're waiting on, your projects, people, decisions, ideas, links and
+facts. You can see everything it knows on one page in your browser, or open the notebook in
+Obsidian. It sends you a morning brief, reviews its notes every night, and remembers across
+weeks of conversation instead of starting fresh each time.
 
 ## Set up
 
@@ -50,8 +52,25 @@ account), type `/cv-channel:access pair <code>` in your agent's Terminal window,
 again. Only add people you'd trust to approve your agent's actions.
 
 ## Day to day
-Just talk to your agent in Carbon Voice. Ask where things stand, tell it what changed, or have
-it keep track of something. It tidies its notes every night.
+Just talk to your agent in Carbon Voice. Ask where things stand, tell it what changed, mention
+an idea or a link you'll want later, or have it keep track of something.
+
+- **Morning brief.** On weekdays at 7:00 it sends you a short brief: your focus, today's
+  meetings (with prep if you want it), what's due, and numbered follow-ups it has drafted.
+  Reply with the numbers, like "do 1 and 3", and it sends those. It reads the tools connected
+  to your Claude account (email, calendar, Slack, task trackers, Carbon Voice) to put this
+  together, and never sends anything you didn't ask for. Change the time by telling it.
+- **Your notebook page.** Everything it knows, on one page: today, your actions, what you're
+  waiting on, projects, people, ideas to come back to, links and facts, decisions, a daily log,
+  the archive, and how it works for you. Run `./open-brain.sh` to open it (your agent also
+  sends you the link at the end of onboarding). Bookmark it; it keeps itself up to date. It
+  opens on the computer your agent runs on, and it holds all your notes, so don't share it.
+- **Obsidian.** The `cos` folder is an Obsidian vault as it is: open it with **Open folder as
+  vault**. Notes link to each other with `[[Name]]`, so every person and project shows what
+  links to it.
+- **Nightly review.** It tidies its notes every night, archives what's finished or gone stale
+  (nothing is ever deleted), and suggests moves, like turning an idea that keeps coming up into
+  a project. It asks before reorganizing anything.
 
 If you turned on the Claude app option, you can also watch the session from your phone: open
 the Claude app and tap **Code**, or go to claude.ai/code. Don't have the app? Run `/mobile` in
@@ -72,11 +91,14 @@ transcript is kept on Anthropic's servers. Your Carbon Voice token never appears
 - `./cv-channel-log.sh on` — keep a log of the Carbon Voice connection in `.cv/channel.log`, to
   see why messages aren't getting through; `./cv-channel-log.sh` shows it, `off` stops it.
   It records IDs and what happened, never your token or what was said.
+- `./open-brain.sh` — open your notebook page; `./open-brain.sh --link` prints its link.
 - `/cos:doctor` (in Claude) — check that everything is healthy.
 
-Want your agent to behave differently? Write it in `my-instructions.md` in its folder.
-`CLAUDE.md` holds the standard instructions and is replaced by updates; `my-instructions.md`
-is never changed.
+Want your agent to work differently? Tell it: "from now on, brief me at 6:45", "my team's tasks
+live in Linear". It keeps your rules in `cos/my-rules.md`, which you can also edit yourself.
+They work in three layers: the defaults that come with your agent (`.cos/defaults.md`), what it
+knows about you (`cos/about-me.md`), and your rules, which win over both. Updates only ever
+change the defaults.
 
 ## More than one agent
 Each folder is its own agent with its own token, memory and allowlist. Create another Agent
@@ -86,12 +108,22 @@ Account in Carbon Voice and run the installer again with a new folder name.
 | Path | What it is |
 |---|---|
 | `CLAUDE.md` | Your agent's role and how it should talk to you (replaced by updates) |
-| `my-instructions.md` | Your own instructions for your agent (updates never change it) |
-| `start-cos.sh`, `update-cos.sh`, `nightly.sh` | Start it, update it, and its nightly review |
+| `start-cos.sh`, `update-cos.sh`, `nightly.sh`, `open-brain.sh` | Start it, update it, its nightly review, and your notebook page |
+| `brain.html` | Your notebook page, rebuilt from `cos/` whenever a note changes |
+| `.cos/` | The defaults and the notebook page's builder (replaced by updates) |
+| `cos/` | The notebook: an Obsidian-compatible folder of plain Markdown |
+| `cos/my-rules.md`, `cos/about-me.md` | Your rules, and what your agent knows about you (updates never change them) |
+| `cos/now.md`, `cos/brief.md`, `cos/nudges.md` | Today: focus, the latest brief, reminders |
+| `cos/inbox.md`, `actions.md`, `waiting.md`, `ideas.md`, `links.md`, `facts.md`, `decisions.md` | What you owe, what you're waiting on, and what to find again |
+| `cos/projects/`, `cos/areas/`, `cos/people/` | One note per project, ongoing area, and person |
+| `cos/log/`, `cos/archive/` | Daily notes and archived transcripts (30 days); finished and stale items |
+| `cos/sources.md` | Where your conversations and to-do lists live, and what your agent reads |
 | `cos/setup.conf` | Your answers to setup, reused by updates |
-| `cos/now.md`, `open-loops.md`, `decisions.md`, `people.md` | The curated picture, kept short |
-| `cos/nudges.md` | What the nightly review wants you to know |
-| `cos/log/` | Daily notes, nightly review history, archived transcripts (30 days) |
 | `.cv/` | Carbon Voice token and channel state for this agent — never commit |
 
-Everything in `cos/` is plain markdown, so the folder works fine inside an Obsidian vault.
+The layout and the line format are described in
+[`skills/capture/notes-format.md`](skills/capture/notes-format.md).
+
+Updating from 0.1: `./update-cos.sh` adds the new files and moves anything you wrote in
+`my-instructions.md` into `cos/my-rules.md`. The next time your agent starts, it moves your
+notes into the new layout itself and keeps copies of the old files in `cos/archive/old-layout/`.

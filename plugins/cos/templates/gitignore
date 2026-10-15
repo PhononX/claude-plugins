@@ -4,3 +4,5 @@
 cos/log/transcripts/
 cos/.pending-reconcile
 cos/.update-check
+# The notebook page is rebuilt from cos/ and holds all your notes
+brain.html
