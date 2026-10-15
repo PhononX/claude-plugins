@@ -409,11 +409,12 @@ if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from 
 if [[ $MODE == update ]]; then
   printf '  %sYour agent'"'"'s folder%s — %s\n' "$bold" "$reset" "$(label refresh)"
   info "  Rebuilds its instructions and scripts from the latest version. Keeps its notes, its"
-  info "  token, my-instructions.md and your answers to setup."
+  info "  token, your own rules (cos/my-rules.md) and your answers to setup."
   echo
 else
   printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
-  info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
+  info "  Your agent's notes are plain text files, and a page in your browser shows everything"
+  info "  it knows.${BASE_NOTE:+ $BASE_NOTE}"
   printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
   info "  Create a Personal Agent Account in Carbon Voice; it's who you'll talk to."
   printf '  %sNightly review%s — %s\n' "$bold" "$reset" "$(label later)"
@@ -788,7 +789,8 @@ if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
 # the characters that would break them there.
 SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
 
-mkdir -p "$DIR/cos/log/transcripts" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/cos/people" \
+  "$DIR/cos/archive" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
 # A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
@@ -811,21 +813,66 @@ if [[ -n "$OWNER_ID" ]]; then
   fi
   chmod 600 "$ACCESS" 2>/dev/null || true
 fi
+# The notebook: a new agent gets every starting file; an existing one gets only the files it
+# doesn't have yet, so its notes are never touched.
 (cd "$TEMPLATES/cos" && find . -type f </dev/null) | while IFS= read -r f; do
-  if [[ ! -e "$DIR/cos/$f" ]]; then mkdir -p "$(dirname "$DIR/cos/$f")"; cp "$TEMPLATES/cos/$f" "$DIR/cos/$f"; fi
+  if [[ ! -e "$DIR/cos/$f" ]]; then
+    mkdir -p "$(dirname "$DIR/cos/$f")"
+    fill "$TEMPLATES/cos/$f" "$DIR/cos/$f" AGENT_NAME="$AGENT_NAME" OWNER_NAME="$OWNER_NAME"
+  fi
 done
+# Notes in the layout from before 0.2 (open-loops.md, people.md) are moved over by the agent
+# itself (the cos:migrate skill), which marks it done in cos/.layout. Anything else is current.
+if [[ ! -f "$DIR/cos/.layout" && ! -f "$DIR/cos/open-loops.md" && ! -f "$DIR/cos/people.md" ]]; then
+  printf '2\n' > "$DIR/cos/.layout"
+fi
+# Briefs used to be one setting (brief_time and brief_days in my-rules.md's front matter). Turn
+# that into a "My briefs" list with one "Morning brief", and add the other brief sections.
+RULES="$DIR/cos/my-rules.md"
+if [[ -f "$RULES" ]] && ! grep -q '^## My briefs' "$RULES"; then
+  front() {  # front <key> <default>: a value from the front matter of my-rules.md
+    local v
+    v=$(awk -v k="$1" 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+          NR > 1 { i = index($0, ":"); if (i && substr($0, 1, i - 1) == k) { v = substr($0, i + 1); gsub(/^[ \t"]+|[ \t"]+$/, "", v); print v; exit } }' "$RULES")
+    printf '%s' "${v:-$2}"
+  }
+  B_AT=$(front brief_time 07:00); B_DAYS=$(front brief_days weekdays)
+  awk 'NR == 1 && $0 == "---" { fm = 1; print; next }
+       fm && $0 == "---" { fm = 0 }
+       fm && (/^brief_time:/ || /^brief_days:/) { next }
+       { print }' "$RULES" > "$WORK/my-rules" && cat "$WORK/my-rules" > "$RULES"
+  printf '\n## My briefs\n- Morning brief [at:: %s] [days:: %s] [covers:: focus, meetings, catch up, follow-ups, due elsewhere]\n' \
+    "$B_AT" "$B_DAYS" >> "$RULES"
+  grep -q '^## What goes in my briefs' "$RULES" || printf '\n## What goes in my briefs\n' >> "$RULES"
+  grep -q '^## Important people' "$RULES" || printf '\n## Important people\n' >> "$RULES"
+fi
+# Before 0.2, the user's own instructions lived in my-instructions.md. Move anything they wrote
+# there into cos/my-rules.md, and keep the old file as my-instructions.md.bak.
+if [[ -f "$DIR/my-instructions.md" ]]; then
+  awk 'started || !(/^# Your own instructions for / || /^Anything you write below is added to your agent/ \
+         || /^Updates never change this file\. For example:/ || /^or topics to keep out of voice replies\./ || /^[[:space:]]*$/) \
+       { started = 1; print }' "$DIR/my-instructions.md" > "$WORK/my-instructions" 2>>"$LOG" || true
+  if [[ -s "$WORK/my-instructions" ]]; then
+    { printf '\n## Moved from my-instructions.md\n'; cat "$WORK/my-instructions"; } >> "$DIR/cos/my-rules.md"
+    ok "Your instructions from my-instructions.md are now in cos/my-rules.md"
+  fi
+  mv -f "$DIR/my-instructions.md" "$DIR/my-instructions.md.bak"
+fi
+# The notebook page's builder and template, the defaults, and the list of everything the agent
+# can do (options.md, for /cos:settings): replaced on every update.
+for f in build-brain.sh brain-template.html defaults.md options.md; do
+  if [[ -f "$TEMPLATES/dotcos/$f" ]]; then cp "$TEMPLATES/dotcos/$f" "$DIR/.cos/$f"; fi
+done
+chmod +x "$DIR/.cos/build-brain.sh" 2>/dev/null || true
 # CLAUDE.md is generated and replaced on every update; the user's own instructions live in
-# my-instructions.md, which CLAUDE.md pulls in and nothing here ever overwrites. A CLAUDE.md
+# cos/my-rules.md, which CLAUDE.md pulls in and nothing here ever overwrites. A CLAUDE.md
 # from before this split (no "Generated by" line) may hold the user's edits: keep a copy.
 if [[ -e "$DIR/CLAUDE.md" ]] && ! grep -q 'Generated by the Chief of Staff installer' "$DIR/CLAUDE.md"; then
   cp "$DIR/CLAUDE.md" "$DIR/CLAUDE.md.bak"
   warn "Your previous CLAUDE.md is saved as CLAUDE.md.bak. If you added your own instructions"
-  warn "to it, move them into my-instructions.md, where updates won't touch them."
+  warn "to it, move them into cos/my-rules.md, where updates won't touch them."
 fi
 fill "$TEMPLATES/CLAUDE.md" "$DIR/CLAUDE.md" AGENT_NAME="$AGENT_NAME" OWNER_NAME="$OWNER_NAME"
-if [[ ! -e "$DIR/my-instructions.md" && -f "$TEMPLATES/my-instructions.md" ]]; then
-  fill "$TEMPLATES/my-instructions.md" "$DIR/my-instructions.md" AGENT_NAME="$AGENT_NAME"
-fi
 if [[ -e "$DIR/.claude/settings.json" ]]; then
   if jq -s '.[0] as $t | .[1] | .permissions.allow = ((.permissions.allow // []) + ($t.permissions.allow // []) | unique)
               | .permissions.deny = ((.permissions.deny // []) + ($t.permissions.deny // []) | unique)' \
@@ -841,7 +888,7 @@ touch "$DIR/.gitignore"
 while IFS= read -r line; do
   grep -qxF -- "$line" "$DIR/.gitignore" || printf '%s\n' "$line" >> "$DIR/.gitignore"
 done < "$TEMPLATES/gitignore"
-for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh; do
+for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh open-brain.sh; do
   [[ -f "$TEMPLATES/$s" ]] || continue
   fill "$TEMPLATES/$s" "$WORK/$s" AGENT_NAME="$SCRIPT_NAME" CLAUDE_BIN="$CLAUDE_BIN" \
     CHANNEL_ARGS="$CHANNEL_ARGS" REMOTE_ARGS="$REMOTE_ARGS"
@@ -881,6 +928,11 @@ fi
 rm -f "$DIR/cos/.pending-reconcile"
 if [[ -n "$HOOKS_OK" ]]; then ok "Notes load when your agent starts, and tokens stay out of saved transcripts"
 else warn "The note-keeping check didn't pass. Your agent will still start; run /cos:doctor in its folder for details."; fi
+# The notebook page: everything the agent knows, built from cos/. It's rebuilt whenever the agent
+# changes a note; build it now so the link works straight away.
+BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
+if [[ -n "$BRAIN_LINK" ]]; then ok "Notebook page built"
+else warn "Couldn't build the notebook page. Your agent will still start; run /cos:doctor in its folder for details."; fi
 
 # ---------- nightly review ----------
 step "Nightly review"
@@ -937,6 +989,7 @@ if [[ $MODE == update ]]; then
   printf '  %-20s %s\n' "Version:" "${COS_VERSION:-unknown}"
   printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
   printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
+  if [[ -n "$BRAIN_LINK" ]]; then printf '  %-20s %s\n' "Notebook page:" "$BRAIN_LINK"; fi
   echo
   echo "  If $AGENT_NAME is running, restart it to use the update: in its window, type /exit,"
   echo "  then run ./start-cos.sh."
@@ -959,6 +1012,11 @@ printf '  %-20s %s%s\n' "Claude account:" "$(val "${ACCOUNT:-your Claude account
 printf '  %-20s %s\n' "Who can message it:" "$WHO"
 printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
 printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
+if [[ -n "$BRAIN_LINK" ]]; then
+  printf '  %-20s %s\n' "Notebook page:" "$(val "$BRAIN_LINK")"
+  echo "                       Everything $AGENT_NAME knows, on one page. Open it in your browser and"
+  echo "                       bookmark it; it keeps itself up to date. (Or run ./open-brain.sh.)"
+fi
 echo
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
 if [[ -t 0 ]]; then

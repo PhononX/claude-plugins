@@ -9,7 +9,7 @@ The `carbonvoice` plugin marketplace for Claude Code.
 | Plugin | What it does | Source |
 |---|---|---|
 | `cv-channel` | Talk to a running Claude Code session through Carbon Voice | npm: `@carbonvoice/cv-claude-channel` ([repo](https://github.com/PhononX/cv-claude-channels)) |
-| `cos` | A chief of staff with durable memory, reached through Carbon Voice | [`plugins/cos`](plugins/cos) |
+| `cos` | A chief of staff reached through Carbon Voice, with a notebook you can see | [`plugins/cos`](plugins/cos) |
 
 **Getting started with Chief of Staff:** one line in Terminal installs everything:
 ```
@@ -28,5 +28,6 @@ Full instructions: [plugins/cos/README.md](plugins/cos/README.md).
 Test locally before publishing:
 ```
 claude plugin validate . --strict
+bash plugins/cos/tests/test-brain.sh   # the notebook page: builder, escaping, and a browser walk-through
 cd /tmp/test-workspace && claude --plugin-dir /path/to/claude-plugins/plugins/cos
 ```

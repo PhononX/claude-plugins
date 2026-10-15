@@ -41,6 +41,9 @@ NEWER=$(newer_setup)
 if [[ -n "$NEWER" ]] && ! grep -qs 'update-cos.sh' cos/nudges.md; then
   echo "- There's an update for my setup. To install it, run ./update-cos.sh in my folder on your computer." >> cos/nudges.md
 fi
-# Keep 30 days of archived transcripts.
+# Rebuild the notebook page from tonight's notes (the review's edits also rebuild it as they go).
+if [[ -x .cos/build-brain.sh ]]; then .cos/build-brain.sh >> "$LOG" 2>&1 || true; fi
+# Keep 30 days of archived transcripts, and of documents attached to messages.
 find cos/log/transcripts -name '*.jsonl' -mtime +30 -delete 2>/dev/null
+find outbox -name '*.md' -mtime +30 -delete 2>/dev/null
 echo "=== $(date '+%Y-%m-%d %H:%M') exit $STATUS" >> "$LOG"

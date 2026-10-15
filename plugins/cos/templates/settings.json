@@ -11,12 +11,24 @@
       "Bash(ls:*)",
       "mcp__plugin_cv-channel_cv-channel__confirm_channels",
       "mcp__plugin_cv-channel_cv-channel__send_message",
-      "mcp__plugin_cv-channel_cv-channel__list_senders"
+      "mcp__plugin_cv-channel_cv-channel__list_senders",
+      "Read(./.cos/**)",
+      "Bash(./open-brain.sh)",
+      "Bash(./open-brain.sh --link)",
+      "Bash(./.cos/build-brain.sh)",
+      "Read(./outbox/**)",
+      "Write(./outbox/**)",
+      "Edit(./outbox/**)",
+      "CronList",
+      "CronCreate",
+      "CronDelete"
     ],
     "deny": [
       "Read(./.cv/.env)",
       "Edit(./.cv/**)",
-      "Write(./.cv/**)"
+      "Write(./.cv/**)",
+      "Edit(./.cos/**)",
+      "Write(./.cos/**)"
     ]
   }
 }

@@ -1,8 +1,7 @@
+# Now
+
+## Focus
+
 ## This week
--
 
-## In flight
--
-
-## Parked
--
+## Suggested moves
