@@ -145,6 +145,19 @@ a.wl:hover { border-bottom-color: var(--accent); }
 
 .moves { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-left: 4px solid var(--accent); }
 .moves-h { color: var(--accent) !important; }
+section.block > h4 { font: 600 13px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+section.block > h4 .aside { text-transform: none; letter-spacing: 0; font-family: var(--f-body); font-weight: 400; }
+.brief-h { font: 700 21px/1.2 var(--f-display); margin: 4px 0 14px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.brief-h .aside { font: 400 14px var(--f-body); color: var(--muted); }
+.brief-latest { padding-top: 4px; }
+details.brief-old { margin: 0 0 26px; }
+details.brief-old > summary { cursor: pointer; padding: 12px 16px; font: 600 16px var(--f-display); }
+details.brief-old > summary:hover { color: var(--accent); }
+details.brief-old[open] > summary { border-bottom: 1px solid var(--line); }
+.brief-body { padding: 16px 16px 0; }
+.brief-body section.block { margin-bottom: 18px; }
+.catch-group { font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 2px 6px; }
+.catch-group:first-child { margin-top: 0; }
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .two > div > section.block:last-child { margin-bottom: 26px; }
 .focus { counter-reset: f; }
@@ -233,6 +246,12 @@ footer code { overflow-wrap: anywhere; }
   .search { max-width: none; }
   .list > li { padding: 11px 12px; }
   .meet { grid-template-columns: 62px minmax(0, 1fr); }
+  /* Your briefs: name, time and days on one line, what it covers below. */
+  table.briefs-t thead { display: none; }
+  table.briefs-t tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; border-top: 1px solid var(--line); }
+  table.briefs-t tr:first-child { border-top: 0; }
+  table.briefs-t td { border-top: 0; min-width: 0; padding: 10px 12px 2px; }
+  table.briefs-t td:nth-child(4) { grid-column: 1 / -1; padding-top: 0; padding-bottom: 12px; color: var(--muted); }
 }
 @media (prefers-reduced-motion: no-preference) {
   main > * { animation: rise .18s ease-out; }
@@ -393,9 +412,9 @@ function doc(path) {
     if (/^\s*(```|~~~)/.test(ln)) { code = { type: "code", lines: [], section: section }; lastItem = para = null; continue; }
     if (!ln.trim()) { lastItem = para = null; continue; }
     if ((m = ln.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))) {
-      var level = m[1].length;
-      if (level === 1 && !d.title) d.title = m[2]; else section = m[2];
-      d.blocks.push({ type: "h", level: level, text: m[2], section: section });
+      var level = m[1].length, hf = splitFields(m[2]);
+      if (level === 1 && !d.title) d.title = hf.text; else section = hf.text;
+      d.blocks.push({ type: "h", level: level, text: hf.text, fields: hf.fields, section: section });
       lastItem = para = null; continue;
     }
     if (lastItem && (m = ln.match(/^\s*>\s?(.*)$/))) { lastItem.quote.push(m[1]); d.byLine[i] = { quoteOf: lastItem, text: m[1] }; continue; }
@@ -461,7 +480,7 @@ function dueTag(iso, prefix) {
   return '<span class="tag ' + cls + '">' + esc(label) + "</span>";
 }
 function dateish(v) { return isISO(v) ? fmtShort(v) : v; }
-var CHIP_ORDER = ["due", "done", "back", "why", "superseded", "archived", "from", "since", "nudged", "prep", "replaces"];
+var CHIP_ORDER = ["due", "done", "back", "why", "superseded", "archived", "from", "since", "nudged", "prep", "replaces", "kind", "raised"];
 function chips(it, skip) {
   skip = skip || [];
   var f = it.fields, out = "";
@@ -476,6 +495,8 @@ function chips(it, skip) {
   if (want("since")) out += '<span class="tag">Since ' + esc(dateish(f.since)) + "</span>";
   if (want("nudged")) out += '<span class="tag">Reminded you ' + esc(dateish(f.nudged)) + "</span>";
   if (want("prep")) out += prepTag(f.prep);
+  if (want("kind")) out += '<span class="tag">' + T(KIND_LABEL[f.kind.toLowerCase()] || f.kind) + "</span>";
+  if (want("raised")) out += raisedTag(f.raised);
   if (want("replaces")) { var dflt = defaultById(f.replaces); out += '<span class="tag acc">Replaces: ' + T(dflt ? dflt.text : f.replaces) + "</span>"; }
   Object.keys(f).forEach(function (k) {
     if (k === "src" || CHIP_ORDER.indexOf(k) >= 0 || skip.indexOf(k) >= 0 || f[k] === "") return;
@@ -530,11 +551,127 @@ function sources() { return doc("cos/sources.md").items; }
 function isConnected(it) { return /^connected/i.test(String(it.fields.status || "").trim()); }
 function linksTo(it, n) { return it.links.some(function (l) { return resolve(l) === n; }); }
 
+/* ---------- briefs (brief.md, and "My briefs" in my-rules.md) ---------- */
+function minsOf(hm) { var m = String(hm || "").trim().match(/^(\d{1,2}):(\d{2})$/); return m ? +m[1] * 60 + +m[2] : null; }
+var nowParam = new URLSearchParams(location.search).get("now");
+var NOW_MINS = minsOf(nowParam) != null ? minsOf(nowParam) : (function () { var d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+// The sections under the heading at blocks[start]: one per heading one level down, plus one
+// named "" for lines before the first of those.
+function sectionsUnder(d, start, level) {
+  var out = [], cur = null;
+  for (var i = start + 1; i < d.blocks.length; i++) {
+    var b = d.blocks[i];
+    if (b.type === "h" && b.level <= level) break;
+    if (b.type === "h" && b.level === level + 1) { cur = { name: b.text, items: [], paras: [] }; out.push(cur); continue; }
+    if (b.type === "h") continue;
+    if (!cur) { cur = { name: "", items: [], paras: [] }; out.push(cur); }
+    if (b.type === "item") cur.items.push(b); else if (b.type === "p") cur.paras.push(b);
+  }
+  return out.filter(function (s) { return s.name || s.items.length || s.paras.length; });
+}
+var BRIEFS = null;
+function briefs() { // today's briefs in brief.md, latest first
+  if (BRIEFS) return BRIEFS;
+  var d = doc("cos/brief.md"), out = [];
+  d.blocks.forEach(function (b, i) {
+    if (b.type === "h" && b.level === 2 && b.fields && b.fields.sent != null) out.push({ name: b.text, sent: b.fields.sent, order: i, sections: sectionsUnder(d, i, 2) });
+  });
+  if (!out.length) { // the older one-brief layout: ## sections, sent in the front matter
+    var h1 = -1; d.blocks.some(function (b, i) { if (b.type === "h" && b.level === 1) { h1 = i; return true; } return false; });
+    var secs = sectionsUnder(d, h1, 1);
+    if (secs.some(function (x) { return x.items.length; })) out.push({ name: "Morning brief", sent: d.fm.sent || "", order: 0, sections: secs, legacy: true });
+  }
+  out.sort(function (a, b) { var ma = minsOf(a.sent), mb = minsOf(b.sent); if (ma != null && mb != null && ma !== mb) return mb - ma; return b.order - a.order; });
+  return (BRIEFS = out);
+}
+function briefSection(b, name) { var n = norm(name); return b.sections.filter(function (x) { return norm(x.name).indexOf(n) === 0; })[0] || null; }
+var DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function dayList(days) {
+  var s = String(days || "").trim().toLowerCase();
+  if (/^(weekdays?|mon\s*-\s*fri)$/.test(s)) return [1, 2, 3, 4, 5];
+  if (/^(daily|every\s*day|everyday|all)$/.test(s)) return [0, 1, 2, 3, 4, 5, 6];
+  if (/^weekends?$/.test(s)) return [0, 6];
+  if (/^(off|paused|none|never)$/.test(s) || !s) return [];
+  var out = [];
+  s.split(/[\s,;\/]+/).forEach(function (t) { var i = DOW.indexOf(t.slice(0, 3)); if (i >= 0 && out.indexOf(i) < 0) out.push(i); });
+  return out.sort();
+}
+function daysWords(days) {
+  var s = String(days || "").trim().toLowerCase(), list = dayList(days);
+  if (/^weekdays?$/.test(s)) return "Weekdays";
+  if (/^(daily|every\s*day|everyday|all)$/.test(s)) return "Every day";
+  if (/^weekends?$/.test(s)) return "Weekends";
+  if (/^(off|paused|none|never)$/.test(s)) return "Paused";
+  if (list.length === 1) return DAYS_LONG[list[0]] + "s";
+  if (list.length) return list.map(function (i) { return DAYS[i]; }).join(", ");
+  return days || "";
+}
+function myBriefItems() { return sec(doc("cos/my-rules.md"), "My briefs"); }
+function schedule() { // [{name, at, days, covers, item}]
+  var r = doc("cos/my-rules.md"), items = myBriefItems();
+  if (items.length) return items.map(function (it) { return { name: plainText(it.text), at: it.fields.at || "", days: it.fields.days || "", covers: it.fields.covers || "", item: it }; });
+  if (r.fm.brief_time || r.fm.brief_days) return [{ name: "Morning brief", at: r.fm.brief_time || "07:00", days: r.fm.brief_days || "weekdays", covers: "", legacy: true }];
+  return [];
+}
+function scheduleIsDefault(sch) {
+  return sch.length === 1 && norm(sch[0].name) === "morningbrief" && minsOf(sch[0].at) === 420 && dayList(sch[0].days).join() === "1,2,3,4,5";
+}
+function nextBrief() { // "Midday check-in at 12:30pm", or null when every brief is off
+  var sch = schedule(); if (!sch.length) sch = [{ name: "Morning brief", at: "07:00", days: "weekdays" }];
+  sch = sch.filter(function (b) { return minsOf(b.at) != null; });
+  for (var off = 0; off <= 7; off++) {
+    var dow = (TODAY.getDay() + off) % 7;
+    var c = sch.filter(function (b) { return dayList(b.days).indexOf(dow) >= 0 && (off > 0 || minsOf(b.at) > NOW_MINS); })
+      .sort(function (a, b) { return minsOf(a.at) - minsOf(b.at); })[0];
+    if (c) return c.name + (off === 0 ? " at " : off === 1 ? " tomorrow at " : " on " + DAYS_LONG[dow] + " at ") + fmtTime(String(c.at).trim());
+  }
+  return null;
+}
+
+/* ---------- catch up (catch-up.md) ---------- */
+var KIND_LABEL = { reply: "Needs your reply", missed: "You may have missed", changed: "Changed" };
+var KINDS = ["reply", "missed", "changed"];
+function catchKind(it) {
+  var k = String(it.fields.kind || "").trim().toLowerCase();
+  if (KIND_LABEL[k]) return k;
+  var s = norm(it.section);
+  if (/reply/.test(s)) return "reply";
+  if (/missed/.test(s)) return "missed";
+  if (/changed/.test(s)) return "changed";
+  return k || "other";
+}
+function catchItems() { return doc("cos/catch-up.md").items.filter(function (it) { return !it.checked; }); }
+function ageDays(it) { return isISO(it.fields.since) ? -daysFromToday(it.fields.since) : null; }
+function ageTag(it) {
+  var d = ageDays(it); if (d == null) return "";
+  return '<span class="tag' + (d >= 7 ? " late" : d >= 3 ? " due" : "") + '">' + (d <= 0 ? "Today" : d === 1 ? "1 day" : d + " days") + "</span>";
+}
+function raisedTag(v) {
+  var n = parseInt(v, 10); if (!(n >= 1)) return "";
+  return n >= 3 ? '<span class="tag">Raised ' + n + " times \u00b7 now a nudge</span>" : '<span class="tag acc">Raised in ' + n + " brief" + (n === 1 ? "" : "s") + "</span>";
+}
+function catchLi(it) { return itemLi(it, { skip: ["kind", "since", "raised"], before: ageTag(it) + raisedTag(it.fields.raised) }); }
+function catchGroups(items, sub) { // items grouped Needs your reply / You may have missed / Changed
+  var html = "", groups = {};
+  items.forEach(function (it) { var k = catchKind(it); (groups[k] = groups[k] || []).push(it); });
+  KINDS.concat(Object.keys(groups).filter(function (k) { return KINDS.indexOf(k) < 0; })).forEach(function (k) {
+    if (!groups[k]) return;
+    var list = '<ul class="list card">' + groups[k].map(catchLi).join("") + "</ul>";
+    var label = T(KIND_LABEL[k] || (k === "other" ? "Other" : k));
+    html += sub ? '<div class="catch-group">' + label + "</div>" + list : block(label, String(groups[k].length), list);
+  });
+  return html;
+}
+
 /* ---------- the sections ---------- */
 var A = esc(AGENT);
 var VIEWS = [
   { id: "today", label: "Today", group: "Now", files: function () { return ["cos/now.md", "cos/brief.md", "cos/nudges.md"]; },
-    count: function () { return sec(doc("cos/now.md"), "Suggested moves").length + (briefIsToday() ? sec(doc("cos/brief.md"), "Follow-ups").length : 0); } },
+    count: function () { var b = briefIsToday() && briefs()[0], f = b && briefSection(b, "Follow-ups"); return sec(doc("cos/now.md"), "Suggested moves").length + (f ? f.items.length : 0); } },
+  { id: "catchup", label: "Catch up", group: "Now", files: function () { return ["cos/catch-up.md"]; },
+    sub: "What needs your reply or attention in your email, chat and Carbon Voice. " + A + " raises each one in up to three briefs, then keeps it here until you deal with it.",
+    count: function () { return catchItems().filter(function (it) { var k = catchKind(it); return k === "reply" || k === "missed"; }).length; },
+    hot: function () { return catchItems().some(function (it) { return catchKind(it) === "reply" && ageDays(it) >= 3; }); } },
   { id: "inbox", label: "Inbox", group: "Now", files: function () { return ["cos/inbox.md"]; },
     sub: "Captured, not yet sorted. " + A + " suggests where each one goes.",
     count: function () { return doc("cos/inbox.md").items.length; } },
@@ -609,22 +746,47 @@ function head(v, title, sub, files, primary) {
   return '<div class="page-head"><div><h2 tabindex="-1">' + (title || esc(v.label)) + "</h2>" + (sub === "" ? "" : '<p class="sub">' + (sub || v.sub || "") + "</p>") + "</div>" +
     fileBar(files, primary) + "</div>" + rawBlock(files);
 }
-function block(title, aside, body, cls) {
-  return '<section class="block"><h3' + (cls ? ' class="' + cls + '"' : "") + ">" + title + (aside ? ' <span class="aside">' + aside + "</span>" : "") + "</h3>" + body + "</section>";
+function block(title, aside, body, cls, tag) {
+  tag = tag || "h3";
+  return '<section class="block"><' + tag + (cls ? ' class="' + cls + '"' : "") + ">" + title + (aside ? ' <span class="aside">' + aside + "</span>" : "") + "</" + tag + ">" + body + "</section>";
 }
 function briefIsToday() { var b = doc("cos/brief.md"); return b.exists && String(b.fm.date || "").trim() === TODAY_ISO; }
 
 /* ---------- views ---------- */
 var R = {};
+function renderBrief(b, latest) {
+  return b.sections.map(function (x) {
+    var k = norm(x.name), items = x.items, h = "h4";
+    var hints = x.paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("");
+    var title = T(x.name || "Notes");
+    if (k.indexOf("focus") === 0)
+      return block(title, "", hints + '<ul class="list card focus">' + items.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>", "", h);
+    if (k.indexOf("meetings") === 0)
+      return block(title, "from your calendar", hints + '<ul class="list card">' + (items.length ? items.map(function (it) {
+        var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
+        return '<li class="nobox"><div class="meet"><span class="time">' + (m ? esc(fmtTime(m[1])) : "") + '</span><div class="txt">' + inl(m ? m[2] : it.text) +
+          meta(chips(it)) + (it.quote.length ? '<p class="hint" style="margin:6px 0 0">' + it.quote.map(inl).join("<br>") + "</p>" : "") + "</div></div></li>";
+      }).join("") : emptyLi("No meetings.")) + "</ul>", "", h);
+    if (k.indexOf("catchup") === 0)
+      return block(title, "", hints + (items.length ? catchGroups(items, true) : listCard([], "Nothing to catch up on.")), "", h);
+    if (k.indexOf("followups") === 0)
+      return block("Follow-ups " + A + " can send", latest ? "Reply in Carbon Voice with the numbers, like “do 1 and 3”. The numbers mean this brief." : "",
+        hints + '<ul class="list card">' + (items.length ? items.map(function (it, i) {
+          return '<li><span class="num">' + (it.num || i + 1) + '</span><div class="txt">' + inl(it.text) +
+            (it.quote.length ? '<div class="draft">' + it.quote.map(inl).join("<br>") + "</div>" : "") + meta(chips(it)) + "</div></li>";
+        }).join("") : emptyLi("No follow-ups in this brief.")) + "</ul>", "", h);
+    if (k.indexOf("dueelsewhere") === 0) return block(title, "in your other tools", hints + listCard(items, "Nothing due elsewhere."), "", h);
+    return block(title, "", hints + (items.length ? listCard(items, "") : ""), "", h);
+  }).join("");
+}
+function briefLabel(b) { return b.name + (b.sent ? " · sent " + fmtTime(String(b.sent).trim()) : ""); }
 R.today = function () {
-  var v = V("today"), now = doc("cos/now.md"), brief = doc("cos/brief.md"), isToday = briefIsToday();
+  var v = V("today"), now = doc("cos/now.md"), isToday = briefIsToday(), bs = isToday ? briefs() : [], latest = bs[0];
   var title = esc(DAYS_LONG[TODAY.getDay()] + ", " + MONTHS_LONG[TODAY.getMonth()] + " " + TODAY.getDate());
   var sub;
-  if (isToday) sub = A + " sent this as your morning brief" + (brief.fm.sent ? " at " + esc(fmtTime(brief.fm.sent)) : "") + ".";
-  else if (isISO(brief.fm.date)) sub = "No brief yet today. The last one was " + esc(fmtDay(brief.fm.date)) + ".";
-  else sub = "No brief yet. " + A + " sends the first one on the next weekday morning, and it shows up here.";
+  if (latest) sub = bs.length > 1 ? A + " has sent " + bs.length + " briefs today. The latest is first." : A + " sent this brief" + (latest.sent ? " at " + esc(fmtTime(String(latest.sent).trim())) : "") + ".";
+  else { var nb = nextBrief(); sub = "No brief yet today." + (nb ? " Next: " + T(nb) + "." : " Your briefs are paused."); }
   var moves = sec(now, "Suggested moves");
-  var focus = isToday ? sec(brief, "Focus") : sec(now, "Focus");
   var week = sec(now, "This week");
   var nudges = doc("cos/nudges.md").items;
   var dueNow = openActions().filter(function (a) { return isISO(a.fields.due) && daysFromToday(a.fields.due) <= 1; });
@@ -634,40 +796,30 @@ R.today = function () {
     return '<li class="nobox"><div class="meet"><span class="time' + cls + '">' + (d ? esc(DAYS[parseISO(d).getDay()] + " " + parseISO(d).getDate()) : "") + '</span><div class="txt' + cls + '">' +
       inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</div></div></li>";
   };
-  var weekHtml = '<ul class="list card">' + (week.length ? week.map(weekLi).join("") : emptyLi("Key dates for the week show up here when " + A + " learns about them.")) + "</ul>";
   var html = head(v, title, sub);
   html += block("Needs your answer", "Suggested moves. Say yes or no in Carbon Voice.",
     listCard(moves, "Nothing waiting on you. When " + A + " suggests filing something or starting a project, it shows up here."), "moves-h")
     .replace('<ul class="list card">', '<ul class="list card moves">');
-  html += block(isToday ? "Focus today" : "Focus", "",
-    focus.length ? '<ul class="list card focus">' + focus.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>"
-      : listCard([], "No focus set. Tell " + A + " what matters most this week, and it shows up here."));
-  var right = block("Due now", "today, tomorrow and overdue", listCard(dueNow, "Nothing due today or tomorrow.")) +
-    block("Nudges", "", listCard(nudges, "No nudges today. " + A + "'s nightly review adds them here."));
-  var left;
-  if (isToday) {
-    var meetings = sec(brief, "Meetings");
-    left = block("Meetings", "from your calendar", '<ul class="list card">' + (meetings.length ? meetings.map(function (it) {
-      var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
-      return '<li class="nobox"><div class="meet"><span class="time">' + (m ? esc(fmtTime(m[1])) : "") + '</span><div class="txt">' + inl(m ? m[2] : it.text) +
-        meta(chips(it)) + (it.quote.length ? '<p class="hint" style="margin:6px 0 0">' + it.quote.map(inl).join("<br>") + "</p>" : "") + "</div></div></li>";
-    }).join("") : emptyLi("No meetings today.")) + "</ul>");
-  } else {
-    left = block("This week", "", weekHtml);
-  }
-  html += '<div class="two"><div>' + left + "</div><div>" + right + "</div></div>";
-  if (isToday) {
-    var fus = sec(brief, "Follow-ups");
-    html += block("Follow-ups " + A + " can send", "Reply in Carbon Voice with the numbers, like “do 1 and 3”",
-      '<ul class="list card">' + (fus.length ? fus.map(function (it, i) {
-        return '<li><span class="num">' + (it.num || i + 1) + '</span><div class="txt">' + inl(it.text) +
-          (it.quote.length ? '<div class="draft">' + it.quote.map(inl).join("<br>") + "</div>" : "") + meta(chips(it)) + "</div></li>";
-      }).join("") : emptyLi("No follow-ups in today's brief.")) + "</ul>");
-    html += block("This week", "", weekHtml);
-    var elsewhere = sec(brief, "Due elsewhere");
-    if (elsewhere.length) html += block("Due elsewhere", "in your other tools", listCard(elsewhere, ""));
-  }
+  var focusNow = sec(now, "Focus");
+  var focusHtml = block("Focus", "", focusNow.length ? '<ul class="list card focus">' + focusNow.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>"
+    : listCard([], "No focus set. Tell " + A + " what matters most this week, and it shows up here."));
+  if (latest) {
+    html += '<div class="brief brief-latest"><h3 class="brief-h">' + T(latest.name) + (latest.sent ? ' <span class="aside">sent ' + esc(fmtTime(String(latest.sent).trim())) + (bs.length > 1 ? " · latest" : "") + "</span>" : "") + "</h3>" +
+      renderBrief(latest, true) + "</div>";
+    bs.slice(1).forEach(function (b) {
+      html += '<details class="brief-old card"><summary>' + T(briefLabel(b)) + '</summary><div class="brief-body">' + renderBrief(b, false) + "</div></details>";
+    });
+    if (!briefSection(latest, "Focus")) html += focusHtml;
+  } else html += focusHtml;
+  html += '<div class="two"><div>' + block("This week", "", '<ul class="list card">' + (week.length ? week.map(weekLi).join("") : emptyLi("Key dates for the week show up here when " + A + " learns about them.")) + "</ul>") +
+    "</div><div>" + block("Due now", "today, tomorrow and overdue", listCard(dueNow, "Nothing due today or tomorrow.")) +
+    block("Nudges", "", listCard(nudges, "No nudges today. " + A + "'s nightly review adds them here.")) + "</div></div>";
   return html;
+};
+R.catchup = function () {
+  var v = V("catchup"), items = catchItems();
+  if (!items.length) return head(v) + '<div class="card empty">Nothing to catch up on. ' + A + " checks your email, chat and Carbon Voice before each brief.</div>";
+  return head(v) + catchGroups(items, false) + '<p class="hint">Reply, or tell ' + A + " to skip one, and it moves to the archive with the reason.</p>";
 };
 R.inbox = function () {
   var v = V("inbox"), items = doc("cos/inbox.md").items;
@@ -766,7 +918,7 @@ R.people = function () {
       (isISO(d.fm.last_talked) ? '<span class="tag">Last talked ' + esc(fmtShort(d.fm.last_talked)) + "</span>" : "") + "</div></button>";
   }).join("") + "</div>";
 };
-var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
+var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/catch-up.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
 function rankOf(p) {
   var i = FILE_RANK.indexOf(p); if (i >= 0) return [i, ""];
   if (/^cos\/(projects|areas|people)\//.test(p)) return [20, p];
@@ -927,26 +1079,40 @@ R.about = function () {
   var fmKeys = Object.keys(rules.fm);
   var replaced = {};
   rules.items.forEach(function (it) { if (it.fields.replaces) replaced[it.fields.replaces.trim().toLowerCase()] = it; });
+  var sch = schedule(), legacyBriefs = !myBriefItems().length;
+  fmKeys = fmKeys.filter(function (k) { return legacyBriefs || (k !== "brief_time" && k !== "brief_days"); });
   var settings = fmKeys.length ? '<div class="card tscroll"><table class="t"><tbody>' + fmKeys.map(function (k) {
     var s = SETTINGS[k], val = rules.fm[k];
     return '<tr><td style="white-space:nowrap;color:var(--muted)">' + T(s ? s[0] : humanKey(k)) + "</td><td>" + T(s ? s[1](val) : val) + "</td></tr>";
   }).join("") + "</tbody></table></div>" : '<div class="card empty">No settings yet. ' + A + " uses its defaults until you change one.</div>";
   html += block('<span class="layer you">1 · Your settings and rules</span>', 'cos/my-rules.md · say “from now on …” to add one', settings);
-  var KNOWN_RULES = ["myrules", "wherethingsgo"];
+  var briefRows = sch.length ? '<div class="card tscroll"><table class="t briefs-t"><thead><tr><th>Brief</th><th>Time</th><th>Days</th><th>Covers</th></tr></thead><tbody>' + sch.map(function (b) {
+    var off = !dayList(b.days).length;
+    return "<tr" + (off ? ' class="gone"' : "") + "><td><b>" + T(b.name) + "</b>" + (b.item ? meta(chips(b.item, ["at", "days", "covers"])) : b.legacy ? meta('<span class="tag">From your settings</span>') : "") + "</td>" +
+      '<td style="white-space:nowrap">' + (minsOf(b.at) != null ? esc(fmtTime(String(b.at).trim())) : T(b.at || "—")) + "</td>" +
+      '<td style="white-space:nowrap">' + (off ? '<span class="tag">Paused</span>' : T(daysWords(b.days))) + "</td><td>" + (b.covers ? inl(b.covers) : '<span class="muted">—</span>') + "</td></tr>";
+  }).join("") + "</tbody></table></div>"
+    : '<div class="card empty">No briefs set, so ' + A + " uses its default: a morning brief on weekdays at 7:00am.</div>";
+  html += block("Your briefs", "say “add a brief at …” or “move my morning brief to …”", briefRows);
   var secs = sectionNames(rules);
-  if (rules.items.some(function (it) { return !it.section; })) secs.unshift("");
-  ["Where things go", "My rules"].forEach(function (s) { if (!secs.some(function (x) { return norm(x) === norm(s); })) secs.splice(secs[0] === "" ? 1 : 0, 0, s); });
-  var known = secs.filter(function (s) { return s === "" || KNOWN_RULES.indexOf(norm(s)) >= 0; }), other = secs.filter(function (s) { return known.indexOf(s) < 0; });
-  known.concat(other).forEach(function (s) {
-    var bl = sectionBlocks(rules, s), items = bl.filter(function (b) { return b.type === "item"; });
-    if (s && KNOWN_RULES.indexOf(norm(s)) < 0) {
-      if (bl.length) html += block(T(s), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
-      return;
-    }
-    var paras = s ? bl.filter(function (b) { return b.type === "p"; }) : [];
-    var empty = norm(s) === "wherethingsgo" ? "Nothing here yet. Rules like “team tasks live in Linear” show up here." : "No rules yet. Say “from now on …” and " + A + " adds one here.";
-    if (s === "" && !items.length) return;
-    html += block(T(s || "Rules"), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, empty));
+  var LISTS = [
+    ["What goes in my briefs", "Nothing here yet. Preferences for every brief, like “skip newsletters”, show up here."],
+    ["Important people", "No one yet. People whose messages always make it into a brief show up here."],
+    ["My rules", "No rules yet. Say “from now on …” and " + A + " adds one here."],
+    ["Where things go", "Nothing here yet. Rules like “team tasks live in Linear” show up here."]
+  ];
+  var looseItems = rules.items.filter(function (it) { return !it.section; });
+  if (looseItems.length) html += block("Rules", "", listCard(looseItems, ""));
+  LISTS.forEach(function (l) {
+    var s = secs.filter(function (x) { return norm(x) === norm(l[0]); })[0];
+    var bl = s ? sectionBlocks(rules, s) : [], items = bl.filter(function (b) { return b.type === "item"; });
+    var paras = bl.filter(function (b) { return b.type === "p"; });
+    html += block(T(s || l[0]), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, l[1]));
+  });
+  var KNOWN_RULES = ["mybriefs"].concat(LISTS.map(function (l) { return norm(l[0]); }));
+  secs.filter(function (x) { return KNOWN_RULES.indexOf(norm(x)) < 0; }).forEach(function (s) {
+    var bl = sectionBlocks(rules, s);
+    if (bl.length) html += block(T(s), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
   });
   var KNOWN_ME = ["role", "howiwork", "learned"];
   var meSecs = sectionNames(me);
@@ -969,10 +1135,11 @@ R.about = function () {
   var defs = defaults();
   html += block('<span class="layer base">3 · ' + A + "'s defaults</span>", "come with the Chief of Staff" + (META.version ? ", version " + esc(META.version) : "") + " · updated by ./update-cos.sh",
     '<ul class="list card">' + (defs.length ? defs.map(function (d) {
-      var over = replaced[d.id.toLowerCase()];
+      var over = replaced[d.id.toLowerCase()], nowHtml = over ? inl(over.text) : "";
+      if (!over && d.id.toLowerCase() === "brief" && sch.length && !scheduleIsDefault(sch)) { over = true; nowHtml = sch.length + " brief" + (sch.length === 1 ? "" : "s"); }
       var tag = d.fixed ? '<span class="tag">Always on</span>' : over ? '<span class="tag acc">You changed this</span>' : '<span class="tag ok">In use</span>';
       return '<li class="nobox"><div class="txt"><span class="' + (over && !d.fixed ? "overridden" : "") + '">' + inl(d.text) + "</span>" +
-        meta(tag + (over && !d.fixed ? '<span class="tag">Now: ' + inl(over.text) + "</span>" : "")) + "</div></li>";
+        meta(tag + (over && !d.fixed ? '<span class="tag">Now: ' + nowHtml + "</span>" : "")) + "</div></li>";
     }).join("") : emptyLi("The defaults file (.cos/defaults.md) wasn't found. Run ./update-cos.sh to restore it.")) + "</ul>");
   return html;
 };
@@ -992,6 +1159,7 @@ R.sources = function () {
 /* ---------- search ---------- */
 function sectionFor(p) {
   if (/^cos\/(now|brief|nudges)\.md$/.test(p)) return "today";
+  if (p === "cos/catch-up.md") return "catchup";
   var m = p.match(/^cos\/(inbox|actions|waiting|ideas|decisions|sources)\.md$/); if (m) return m[1];
   if (/^cos\/(links|facts)\.md$/.test(p)) return "links";
   if (/^cos\/people\//.test(p)) return "people";
