@@ -76,15 +76,18 @@ account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving 
   printf 'Signed in%s%s%s' "${email:+ as $email}" "${org:+ — $org}" "${plan:+ ($plan plan)}"
 }
 
-# Cleans up a folder name typed by the user: drops a leading "~/" or "$HOME/" and a trailing
-# "/", trims spaces, and turns inner spaces into "-".
+# Cleans up a folder name typed by the user: trims spaces, drops a trailing "/", and turns
+# inner spaces into "-". A path such as "~/agent" is left as is, so it gets refused below
+# rather than quietly created somewhere else.
 clean_name() {
   local n=$1
   n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
-  n=${n#"~/"}; n=${n#"$HOME/"}; n=${n%/}
+  n=${n%/}
   n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
   printf '%s' "${n// /-}"
 }
+shown() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }   # path with ~ for home
+place() { if [[ "$1" == "$HOME" ]]; then printf 'your home folder'; else shown "$1"; fi; }   # where, in words
 
 # Where the "carbonvoice" plugin marketplace comes from, as "<kind> <location>", e.g.
 # "github PhononX/claude-plugins", "git https://github.com/...", "directory /Users/me/...".
@@ -140,7 +143,7 @@ label() {  # status → coloured label
     have)       printf '%salready installed%s' "$green" "$reset" ;;
     update)     printf '%sinstalled — will check for updates%s' "$green" "$reset" ;;
     install)    printf '%swill install%s' "$yellow" "$reset" ;;
-    create)     printf '%swill create%s' "$yellow" "$reset" ;;
+    create)     printf '%swill create%s%s' "$yellow" "${2:+ in $2}" "$reset" ;;
     replace)    printf '%swill replace an older Carbon Voice plugin source%s' "$yellow" "$reset" ;;
     signedin)   printf '%s%s%s' "$green" "$2" "$reset" ;;
     api)        printf '%ssigned in with an API account — will ask you to sign in with your Claude plan%s' "$yellow" "$reset" ;;
@@ -173,6 +176,12 @@ export PATH="$BIN:$PATH"
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_INSTALL_CLEANUP=1
 
 # ---------- look before touching anything ----------
+# The agent's folder goes in the directory this was run from. Inside an existing agent's
+# folder, it goes next to it instead; when the directory can't be used (the filesystem root,
+# or not writable), it goes in the home folder.
+BASE=$PWD; BASE_NOTE=""
+if [[ -f "$BASE/cos/.version" ]]; then BASE=$(dirname "$BASE"); BASE_NOTE="You're inside an agent's folder, so the new one goes next to it."; fi
+if [[ "$BASE" == / || ! -w "$BASE" ]]; then BASE=$HOME; BASE_NOTE="The current folder can't be used, so it goes in your home folder."; fi
 have claude && S_CLAUDE=update || S_CLAUDE=install
 have jq     && S_JQ=have       || S_JQ=install
 node_ok     && S_NODE=have     || S_NODE=install
@@ -217,8 +226,8 @@ info "  Lets your agent keep running after you close the Terminal window."
 printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $([ $S_MKT = replace ] && echo replace || echo install))"
 info "  The Carbon Voice connection, plus the chief-of-staff skills and memory."
 if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from $MARKETPLACE."; fi
-printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create)"
-info "  In your home folder. Your agent's notes are plain text files you can open anytime."
+printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
+info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
 echo
 info "Then Claude starts and asks a few short questions to finish."
 echo
@@ -403,27 +412,27 @@ done
 
 # ---------- workspace ----------
 step "Your agent's folder"
-info "Each agent gets its own folder. Use a different name for each agent you create."
+info "Each agent gets its own folder in $(place "$BASE"). Use a different name for each agent you create."
 NAME=""; REUSE=""
 for try in 1 2 3 4; do   # the first ask, then up to 3 more
   RAW=$(ask "  Folder name [chief-of-staff]:")
   if [[ -z "${RAW//[[:space:]]/}" ]]; then NAME=chief-of-staff; else NAME=$(clean_name "$RAW"); fi
   case "$NAME" in
     "")  info "Type a name, or press Return for chief-of-staff."; NAME=""; continue ;;
-    */*) info "Use just a name, like chief-of-staff. The folder goes in your home folder."; NAME=""; continue ;;
+    */*|"~"*) info "Use just a name, like chief-of-staff. The folder goes in $(place "$BASE")."; NAME=""; continue ;;
     .*)  info "The name can't start with a dot."; NAME=""; continue ;;
   esac
   # A folder that already has an agent: reuse it only if the same name is typed again.
-  if [[ -f "$HOME/$NAME/cos/.version" && "$NAME" != "$REUSE" ]]; then
-    info "~/$NAME already has an agent. Type a different name, or type $NAME again to reuse it."
+  if [[ -f "$BASE/$NAME/cos/.version" && "$NAME" != "$REUSE" ]]; then
+    info "$(shown "$BASE/$NAME") already has an agent. Type a different name, or type $NAME again to reuse it."
     REUSE=$NAME; NAME=""; continue
   fi
   break
 done
 [[ -n "$NAME" ]] || die "No folder name chosen. Run this again when you're ready; everything installed so far stays installed."
-DIR="$HOME/$NAME"
-mkdir -p "$DIR"
-ok "~/$NAME"
+DIR="$BASE/$NAME"
+mkdir -p "$DIR" || die "Couldn't create $(shown "$DIR"). Run this again from a folder you can write to, such as your home folder."
+ok "$(shown "$DIR")"
 
 # ---------- hand off ----------
 step "Everything's installed. Starting Claude to finish setup."
