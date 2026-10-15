@@ -4,10 +4,16 @@
 #   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
 #
 # The older `curl -fsSL .../cos-setup.sh | bash` form still works, but then this script's input
-# isn't the terminal, so at the end it tells you how to open Claude instead of opening it.
+# isn't the terminal, so at the end it tells you how to start your agent instead of starting it.
 #
 # Shows what it will install and why, waits for your OK, then installs what's missing,
-# installs the Carbon Voice plugins, creates your agent's folder, and starts Claude to finish.
+# installs the Carbon Voice plugins, connects your Carbon Voice agent, asks a few questions,
+# builds your agent's folder, and starts your agent. No Claude session is used for setup.
+#
+# Each agent's folder also gets ./update-cos.sh, which downloads this script and runs it as
+#   cos-setup.sh --update <agent folder>
+# to update that agent with the answers saved at setup (cos/setup.conf), asking only about
+# anything missing.
 # Safe to run again: anything already installed is left alone.
 #
 # Everything runs inside main(), called on the last line, so bash has read the whole file
@@ -201,6 +207,67 @@ plugin_version() {  # plugin_version <name>: installed version of <name>@carbonv
   jq -r --arg id "$1@carbonvoice" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0].version // empty' "$WORK/plugins.json" 2>/dev/null || true
 }
 
+plugin_path() {  # plugin_path <name>: folder of <name>@carbonvoice's installed copy. Needs jq.
+  jq -r --arg id "$1@carbonvoice" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0].installPath // empty' "$WORK/plugins.json" 2>/dev/null || true
+}
+# fill <template> <dest> KEY=value...: copies a template, replacing each {{KEY}} with its value
+# literally. Values go through the environment, so any character in them is safe.
+fill() {
+  local src=$1 dst=$2 keys="" kv
+  shift 2
+  local envs=()
+  for kv in "$@"; do keys="$keys${kv%%=*} "; envs+=("FILL_$kv"); done
+  env "${envs[@]}" FILL_KEYS="$keys" awk '
+    BEGIN { n = split(ENVIRON["FILL_KEYS"], k, " ") }
+    {
+      for (i = 1; i <= n; i++) {
+        p = "{{" k[i] "}}"; v = ENVIRON["FILL_" k[i]]; out = ""; s = $0
+        while ((j = index(s, p)) > 0) { out = out substr(s, 1, j - 1) v; s = substr(s, j + length(p)) }
+        $0 = out s
+      }
+      print
+    }' "$src" > "$dst"
+}
+xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }   # text for a plist
+version_ge() {  # version_ge <a> <b>: is version a (like 2.1.300) at least b?
+  local IFS=. i
+  local a=($1) b=($2)
+  for i in 0 1 2; do
+    if (( ${a[i]:-0} > ${b[i]:-0} )); then return 0; fi
+    if (( ${a[i]:-0} < ${b[i]:-0} )); then return 1; fi
+  done
+  return 0
+}
+trim() { local s=$1; s="${s#"${s%%[![:space:]]*}"}"; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
+# ask_name <prompt> <default> <nudge>: asks until there's an answer (up to 4 times); prints it.
+ask_name() {
+  local v try
+  for try in 1 2 3 4; do
+    v=$(trim "$(ask "$1${2:+ [$2]}:")"); v=${v:-$2}
+    if [[ -n "$v" ]]; then printf '%s' "$v"; return 0; fi
+    info "$3" >&2
+  done
+  return 1
+}
+my_first_name() {  # the first name on this computer's user account, if there is one
+  local n=""
+  if [[ "$PLATFORM" == mac ]]; then n=$(id -F 2>/dev/null || true)
+  elif have getent; then n=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5 | cut -d, -f1 || true); fi
+  printf '%s' "${n%% *}"
+}
+warn() { printf '  %s!%s %s\n' "$yellow" "$reset" "$1"; }
+# saved <key>: an answer saved at setup, from $DIR/cos/setup.conf. Plain key=value lines, read
+# as text and never run.
+saved() {
+  local k v
+  if [[ -f "$DIR/cos/setup.conf" ]]; then
+    while IFS='=' read -r k v; do
+      if [[ "$k" == "$1" ]]; then printf '%s' "$v"; return 0; fi
+    done < "$DIR/cos/setup.conf"
+  fi
+  return 0
+}
+
 # The carbonvoice marketplace's local copy of its catalog (.claude-plugin/marketplace.json),
 # or nothing if it can't be found. Its folder comes from `claude plugin marketplace list`, or
 # the usual place under ~/.claude/plugins/marketplaces/. Needs jq.
@@ -225,6 +292,8 @@ label() {  # status → coloured label
     api)        printf '%ssigned in with an API account — will ask you to sign in with your Claude plan%s' "$yellow" "$reset" ;;
     signin)     printf '%swill open your browser to sign in%s' "$yellow" "$reset" ;;
     needs-brew) printf '%soptional — needs Homebrew (asked next)%s' "$yellow" "$reset" ;;
+    later)      printf '%soptional — asked later%s' "$yellow" "$reset" ;;
+    refresh)    printf '%swill update%s' "$yellow" "$reset" ;;
   esac
 }
 where() { have brew && echo "with Homebrew" || echo "into ~/.local (no password needed)"; }
@@ -234,6 +303,14 @@ main() {
 # read back, never piped or captured: on macOS, output to a pipe can be cut off at the pipe
 # buffer (about 64 KB) when Claude exits.
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
+
+# ./update-cos.sh runs this as `--update <agent folder>`: update that agent.
+MODE=setup; DIR=""
+if [[ "${1:-}" == --update ]]; then
+  MODE=update
+  [[ -n "${2:-}" && -f "${2:-}/cos/.version" ]] || die "${2:-That folder} isn't an agent's folder. Run ./update-cos.sh from inside your agent's folder."
+  DIR=$(cd "$2" && pwd)
+fi
 
 # ---------- platform ----------
 OS=$(uname -s); ARCH=$(uname -m)
@@ -291,9 +368,16 @@ elif [[ "$(plugin_state cv-channel)" != missing && "$(plugin_state cos)" != miss
 else S_PLUGINS=install; fi
 
 clear 2>/dev/null || true
-printf '%sChief of Staff for Carbon Voice — setup%s\n\n' "$bold" "$reset"
-echo "This sets up a chief of staff you talk to through Carbon Voice."
-echo "Here's what will happen on this computer:"
+if [[ $MODE == update ]]; then
+  UPD_NAME=$(saved AGENT_NAME); [[ -n "$UPD_NAME" ]] || UPD_NAME=$(cat "$DIR/.cv/agent-name" 2>/dev/null || true)
+  printf '%sChief of Staff for Carbon Voice — update%s\n\n' "$bold" "$reset"
+  echo "This updates ${UPD_NAME:-your agent} in $(shown "$DIR") to the latest version."
+  echo "Here's what will happen on this computer:"
+else
+  printf '%sChief of Staff for Carbon Voice — setup%s\n\n' "$bold" "$reset"
+  echo "This sets up a chief of staff you talk to through Carbon Voice."
+  echo "Here's what will happen on this computer:"
+fi
 echo
 printf '  %sClaude Code%s — %s\n'  "$bold" "$reset" "$(label $S_CLAUDE)"
 info "  The AI agent itself. Your chief of staff runs inside it."
@@ -308,13 +392,22 @@ info "  Lets your agent keep running after you close the Terminal window."
 printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $S_PLUGINS)"
 info "  The Carbon Voice connection, plus the chief-of-staff skills and memory."
 if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from $MARKETPLACE."; fi
-printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
-info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
-printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
-info "  Create a Personal Agent Account in Carbon Voice; it's who you'll talk to."
-echo
-info "Then Claude opens. You type /cos:setup there, and it asks a few short questions to finish."
-echo
+if [[ $MODE == update ]]; then
+  printf '  %sYour agent'"'"'s folder%s — %s\n' "$bold" "$reset" "$(label refresh)"
+  info "  Rebuilds its instructions and scripts from the latest version. Keeps its notes, its"
+  info "  token, my-instructions.md and your answers to setup."
+  echo
+else
+  printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
+  info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
+  printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
+  info "  Create a Personal Agent Account in Carbon Voice; it's who you'll talk to."
+  printf '  %sNightly review%s — %s\n' "$bold" "$reset" "$(label later)"
+  info "  A scheduled job that tidies your agent's notes at 2:15 each night."
+  echo
+  info "Along the way: a few questions about you and your agent. At the end, your agent starts."
+  echo
+fi
 yes "Continue? [Y/n]" || { echo "No changes made."; exit 0; }
 
 mkdir -p "${LOG%/*}"
@@ -326,7 +419,7 @@ printf '\n=== cos-setup %s ===\n' "$(date)" >>"$LOG"
 # The question names the Claude account so it isn't mistaken for the Carbon Voice one.
 # No step heading here: "Claude account" prints once, in the sign-in step below.
 ACCOUNT_NAME=$(account_name)
-if [[ $S_AUTH == signedin ]] && ! yes "Use this Claude account${ACCOUNT_NAME:+ ($ACCOUNT_NAME)} for your agent? [Y/n]"; then
+if [[ $MODE == setup && $S_AUTH == signedin ]] && ! yes "Use this Claude account${ACCOUNT_NAME:+ ($ACCOUNT_NAME)} for your agent? [Y/n]"; then
   echo "  You'll be signed out, then your browser opens so you can sign in again."
   echo "  If your email belongs to more than one Claude organization, choose the one for your agent there."
   claude auth logout </dev/tty >/dev/null 2>&1 || true
@@ -513,6 +606,8 @@ for p in cv-channel cos; do
 done
 
 # ---------- workspace ----------
+# (An update already knows its folder.)
+if [[ $MODE == setup ]]; then
 step "Your agent's folder"
 info "Each agent gets its own folder in $(place "$BASE"). Use a different name for each agent you create."
 NAME=""; REUSE=""
@@ -535,6 +630,7 @@ done
 DIR="$BASE/$NAME"
 mkdir -p "$DIR" || die "Couldn't create $(shown "$DIR"). Run this again from a folder you can write to, such as your home folder."
 ok "$(shown "$DIR")"
+fi
 
 # ---------- Carbon Voice agent ----------
 # Done here, before Claude starts, so the token never enters a Claude session. It's saved where
@@ -542,8 +638,8 @@ ok "$(shown "$DIR")"
 step "Your Carbon Voice agent"
 CV_DIR="$DIR/.cv"; PAT=""; AGENT_NAME=""
 if [[ -s "$CV_DIR/.env" ]]; then
-  info "This folder already has a Carbon Voice token saved."
-  if yes "  Keep it? [Y/n]"; then
+  if [[ $MODE == setup ]]; then info "This folder already has a Carbon Voice token saved."; fi
+  if [[ $MODE == update ]] || yes "  Keep it? [Y/n]"; then
     PAT=$(sed -n 's/^[[:space:]]*CV_PAT[[:space:]]*=[[:space:]]*//p' "$CV_DIR/.env" | head -1)
     case "$(cv_whoami "$PAT")" in
       200) AGENT_NAME=$(cv_user name); ok "Keeping the saved token${AGENT_NAME:+ for $AGENT_NAME}" ;;
@@ -578,45 +674,257 @@ if [[ -z "$PAT" ]]; then
   ok "Token saved for ${AGENT_NAME:-your agent}"
 fi
 PAT=""; unset PAT
-# /cos:setup reads the agent's name from here instead of asking for it.
-if [[ -n "$AGENT_NAME" ]]; then printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-name"; fi
 # TODO(owner allowlist): /whoami has a created_by user ID, but it isn't documented as the
 # Agent Account's owner (and user_type is "user" for Agent Accounts too, so it can't tell them
 # apart from people). Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
 # {"dmPolicy": "allowlist", "allowFrom": ["<owner user ID>"], "blockedFrom": []} to
 # $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
 
-# ---------- hand off ----------
-# What to do once Claude opens, shown just before it does: the user finishes setup there.
-next_steps() {
-  printf '  • Your agent will use %s%s.\n' "${ORG:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
-  echo '  • Claude will ask whether you trust this folder. Choose "Yes, I trust this folder".'
-  printf '  • Then type  %s/cos:setup%s  and press Return.\n' "$bold" "$reset"
-}
-if [[ -t 0 ]]; then
-  step "Everything's installed. Opening Claude to finish setup."
-  next_steps
-  echo
-  ask "  Press Return to open Claude." >/dev/null
-  cd "$DIR"
-  rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
-  # Plain `claude`, with no first message, on purpose. In a folder that isn't trusted yet,
-  # `claude "/cos:setup"` shows the folder-trust prompt but then ignores every key (Enter,
-  # arrows, Ctrl+C), so the user is stuck. Plain `claude` handles the prompt fine, and the
-  # user types /cos:setup after trusting the folder. Don't pass a first message here.
-  exec claude </dev/tty
+# ---------- about you and your agent ----------
+# Answers saved at an earlier setup are reused by an update, and offered as defaults by a
+# setup that reuses a folder.
+OWNER_NAME=$(saved OWNER_NAME); SAVED_AGENT=$(saved AGENT_NAME)
+if [[ $MODE == update && -n "$OWNER_NAME" && -n "$SAVED_AGENT" ]]; then
+  AGENT_NAME=$SAVED_AGENT
 else
-  # Our input isn't the terminal (run as `curl ... | bash`), so don't open Claude from here:
-  # tell the user how to open it, and what to do once it's open.
-  CD_PATH=$(shown "$DIR")
-  if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
-  step "Everything's installed. One last step: open Claude to finish setup."
-  echo "  Run these two lines in Terminal:"
-  printf '      %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
-  printf '      %sclaude%s\n' "$bold" "$reset"
-  next_steps
+  step "About you and your agent"
+  OWNER_NAME=$(ask_name "  Your name, as your agent should call you" "${OWNER_NAME:-$(my_first_name)}" \
+    "Type your name, so your agent knows what to call you.") \
+    || die "No name given. Run this again when you're ready; everything installed so far stays installed."
+  AGENT_NAME=$(ask_name "  Your agent's name" "${SAVED_AGENT:-$AGENT_NAME}" "Type a name for your agent.") \
+    || die "No agent name given. Run this again when you're ready; everything installed so far stays installed."
+fi
+printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-name"   # used when the token can't be checked on a re-run
+
+# How the agent connects to Carbon Voice depends on the Claude plan.
+case "$PLAN" in
+  team|enterprise) TEAM=1 ;;
+  pro|max) TEAM="" ;;
+  *) case "$(saved TEAM)" in
+       1) TEAM=1 ;;
+       0) TEAM="" ;;
+       *) if no "  Is your Claude plan Team or Enterprise? [y/N]"; then TEAM=""; else TEAM=1; fi ;;
+     esac ;;
+esac
+if [[ -n "$TEAM" ]]; then
+  CHANNEL_ARGS="--channels plugin:cv-channel@carbonvoice"
+  if [[ $MODE == setup ]]; then
+    info "On Team and Enterprise plans, an admin must turn on channels (channelsEnabled) and"
+    info "allow the Carbon Voice plugin (allowedChannelPlugins) before your agent can connect."
+  fi
+else
+  CHANNEL_ARGS="--dangerously-load-development-channels plugin:cv-channel@carbonvoice"
+fi
+
+# Optionally show the agent's session in the Claude app (Remote Control, Claude Code 2.1.51+).
+REMOTE_ARGS=""
+CLAUDE_VER=$(claude --version </dev/null 2>/dev/null | head -1 || true); CLAUDE_VER=${CLAUDE_VER%% *}
+SAVED_REMOTE=$(saved REMOTE)
+if [[ $MODE == update && -n "$SAVED_REMOTE" ]]; then
+  if [[ "$SAVED_REMOTE" == 1 ]]; then
+    if [[ -n "$CLAUDE_VER" ]] && version_ge "$CLAUDE_VER" 2.1.51; then REMOTE_ARGS="--remote-control"
+    else warn "This version of Claude Code can't show your agent in the Claude app, so that's off for now."; fi
+  fi
+elif [[ -n "$CLAUDE_VER" ]] && version_ge "$CLAUDE_VER" 2.1.51; then
+  echo "  Your agent can also appear in the Claude app (Code tab) and at claude.ai/code, so you can"
+  echo "  watch what it's doing, approve its requests, or type instead of talk. While it's"
+  echo "  connected, the session transcript is kept on Anthropic's servers."
+  if yes "  Show your agent in the Claude app? [Y/n]"; then REMOTE_ARGS="--remote-control"; fi
+  if [[ -n "$REMOTE_ARGS" && -n "$TEAM" ]]; then
+    info "On Team and Enterprise plans, an Owner must turn on Remote Control in Claude Code's admin settings."
+  fi
+else
+  info "This version of Claude Code can't show your agent in the Claude app. After updating it,"
+  info "run /cos:doctor in your agent's folder to turn that on."
+fi
+
+# ---------- build the agent's folder ----------
+# Everything the agent needs, from the installed cos plugin's templates. For a folder that
+# already has an agent, its notes, CLAUDE.md and .gitignore are kept, its settings are merged,
+# and its start and nightly scripts are rebuilt (the old ones saved as .bak if they differ).
+step "Setting up your agent's folder"
+refresh_plugins
+PLUGIN_ROOT=$(plugin_path cos); TEMPLATES="$PLUGIN_ROOT/templates"
+[[ -n "$PLUGIN_ROOT" && -d "$TEMPLATES" ]] \
+  || die "Couldn't find the Chief of Staff plugin's files. Run this again; the details are in $LOG_SHOWN."
+CLAUDE_BIN=$(command -v claude)
+COS_VERSION=$(jq -r '.version // empty' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null || true)
+if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
+# The agent's name goes into its start and nightly scripts inside double quotes, so leave out
+# the characters that would break them there.
+SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
+
+mkdir -p "$DIR/cos/log/transcripts" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+(cd "$TEMPLATES/cos" && find . -type f </dev/null) | while IFS= read -r f; do
+  if [[ ! -e "$DIR/cos/$f" ]]; then mkdir -p "$(dirname "$DIR/cos/$f")"; cp "$TEMPLATES/cos/$f" "$DIR/cos/$f"; fi
+done
+# CLAUDE.md is generated and replaced on every update; the user's own instructions live in
+# my-instructions.md, which CLAUDE.md pulls in and nothing here ever overwrites. A CLAUDE.md
+# from before this split (no "Generated by" line) may hold the user's edits: keep a copy.
+if [[ -e "$DIR/CLAUDE.md" ]] && ! grep -q 'Generated by the Chief of Staff installer' "$DIR/CLAUDE.md"; then
+  cp "$DIR/CLAUDE.md" "$DIR/CLAUDE.md.bak"
+  warn "Your previous CLAUDE.md is saved as CLAUDE.md.bak. If you added your own instructions"
+  warn "to it, move them into my-instructions.md, where updates won't touch them."
+fi
+fill "$TEMPLATES/CLAUDE.md" "$DIR/CLAUDE.md" AGENT_NAME="$AGENT_NAME" OWNER_NAME="$OWNER_NAME"
+if [[ ! -e "$DIR/my-instructions.md" && -f "$TEMPLATES/my-instructions.md" ]]; then
+  fill "$TEMPLATES/my-instructions.md" "$DIR/my-instructions.md" AGENT_NAME="$AGENT_NAME"
+fi
+if [[ -e "$DIR/.claude/settings.json" ]]; then
+  if jq -s '.[0] as $t | .[1] | .permissions.allow = ((.permissions.allow // []) + ($t.permissions.allow // []) | unique)
+              | .permissions.deny = ((.permissions.deny // []) + ($t.permissions.deny // []) | unique)' \
+       "$TEMPLATES/settings.json" "$DIR/.claude/settings.json" > "$WORK/settings.json" 2>>"$LOG"; then
+    mv "$WORK/settings.json" "$DIR/.claude/settings.json"
+  else
+    warn "Couldn't read the folder's .claude/settings.json, so it was left as it was."
+  fi
+else
+  cp "$TEMPLATES/settings.json" "$DIR/.claude/settings.json"
+fi
+touch "$DIR/.gitignore"
+while IFS= read -r line; do
+  grep -qxF -- "$line" "$DIR/.gitignore" || printf '%s\n' "$line" >> "$DIR/.gitignore"
+done < "$TEMPLATES/gitignore"
+for s in start-cos.sh nightly.sh update-cos.sh; do
+  [[ -f "$TEMPLATES/$s" ]] || continue
+  fill "$TEMPLATES/$s" "$WORK/$s" AGENT_NAME="$SCRIPT_NAME" CLAUDE_BIN="$CLAUDE_BIN" \
+    CHANNEL_ARGS="$CHANNEL_ARGS" REMOTE_ARGS="$REMOTE_ARGS"
+  if [[ -e "$DIR/$s" ]] && ! cmp -s "$WORK/$s" "$DIR/$s"; then cp "$DIR/$s" "$DIR/$s.bak"; fi
+  mv "$WORK/$s" "$DIR/$s"; chmod +x "$DIR/$s"
+done
+printf '%s\n' "$COS_VERSION" > "$DIR/cos/.version"
+if [[ -n "$NEW_AGENT" ]]; then printf 'stage: not-started\n' > "$DIR/cos/.onboarding-pending"; fi
+LEFT=$(cd "$DIR" && grep -l '{{' CLAUDE.md start-cos.sh nightly.sh .claude/settings.json </dev/null 2>/dev/null || true)
+rm -f "$DIR/cos/.update-check"   # the version just changed, so check again next start
+[[ -z "$LEFT" ]] || die "Setting up the folder left blanks in: $LEFT. Run this again; the details are in $LOG_SHOWN."
+ok "Instructions, notes, settings and start script in $(shown "$DIR")"
+
+# ---------- check the agent's note-keeping ----------
+# Runs the cos plugin's two hooks the way Claude will: the start-up one must load the agent's
+# notes, and the pre-compaction one must keep tokens out of saved transcripts. Test data only,
+# removed afterwards.
+step "Checking your agent's note-keeping"
+HOOKS_OK=1
+OUT=$(printf '{"source":"startup"}' | CLAUDE_PROJECT_DIR="$DIR" bash "$PLUGIN_ROOT/scripts/session-start.sh" 2>>"$LOG" || true)
+[[ "$OUT" == *"Chief-of-staff state"* ]] || HOOKS_OK=""
+if [[ -n "$NEW_AGENT" && "$OUT" != *"Onboarding not finished"* ]]; then HOOKS_OK=""; fi
+printf '{"text":"/cv-channel:configure abc123secret"}\n' > "$WORK/transcript.jsonl"
+DAYLOG="$DIR/cos/log/$(date '+%Y-%m-%d').md"; HAD_DAYLOG=""; [[ -e "$DAYLOG" ]] && HAD_DAYLOG=1
+printf '{"transcript_path":"%s","session_id":"setupchk"}' "$WORK/transcript.jsonl" \
+  | CLAUDE_PROJECT_DIR="$DIR" bash "$PLUGIN_ROOT/scripts/pre-compact.sh" >>"$LOG" 2>&1 || true
+ARCHIVE=$(cat "$DIR/cos/.pending-reconcile" 2>/dev/null || true)
+if [[ -z "$ARCHIVE" || ! -f "$ARCHIVE" ]] || ! grep -q '\[REDACTED\]' "$ARCHIVE" || grep -q abc123secret "$ARCHIVE"; then HOOKS_OK=""; fi
+if [[ -n "$ARCHIVE" ]]; then
+  rm -f "$ARCHIVE"
+  if [[ -e "$DAYLOG" ]]; then
+    grep -vF -- "$(basename "$ARCHIVE")" "$DAYLOG" > "$WORK/daylog" || true
+    if [[ -z "$HAD_DAYLOG" && ! -s "$WORK/daylog" ]]; then rm -f "$DAYLOG"; else mv "$WORK/daylog" "$DAYLOG"; fi
+  fi
+fi
+rm -f "$DIR/cos/.pending-reconcile"
+if [[ -n "$HOOKS_OK" ]]; then ok "Notes load when your agent starts, and tokens stay out of saved transcripts"
+else warn "The note-keeping check didn't pass. Your agent will still start; run /cos:doctor in its folder for details."; fi
+
+# ---------- nightly review ----------
+step "Nightly review"
+NIGHTLY=""; WANT_NIGHTLY=$(saved NIGHTLY)
+if [[ $MODE == setup || -z "$WANT_NIGHTLY" ]]; then
+  echo "  Every night at 2:15 your agent reviews its notes, tidies them and flags anything stale,"
+  echo "  in a run separate from the live session. This adds a scheduled job to your computer"
+  if [[ "$PLATFORM" == mac ]]; then echo "  (a file in ~/Library/LaunchAgents/), which you can remove anytime."
+  else echo "  (a line in your crontab), which you can remove anytime."; fi
+  if yes "  Set up the nightly review? [Y/n]"; then WANT_NIGHTLY=1; else WANT_NIGHTLY=0; fi
+fi
+if [[ "$WANT_NIGHTLY" == 1 ]]; then
+  JOB_PATH="$(dirname "$CLAUDE_BIN"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+  if [[ "$PLATFORM" == mac ]]; then
+    LABEL="com.phononx.cos.$(basename "$DIR")"; PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+    mkdir -p "$HOME/Library/LaunchAgents"
+    fill "$TEMPLATES/launchd.plist" "$PLIST" JOB_LABEL="$(xml "$LABEL")" WORKSPACE="$(xml "$DIR")" PATH="$(xml "$JOB_PATH")"
+    launchctl bootout "gui/$(id -u)/$LABEL" </dev/null >/dev/null 2>&1 || true   # a re-run replaces it
+    if launchctl bootstrap "gui/$(id -u)" "$PLIST" </dev/null >>"$LOG" 2>&1; then NIGHTLY=1
+    else warn "Couldn't schedule the nightly review. The details are in $LOG_SHOWN."; fi
+  elif have crontab; then
+    CRON_CMD="cd \"$DIR\" && /bin/bash ./nightly.sh"
+    if { crontab -l 2>/dev/null | grep -vF -- "$CRON_CMD" || true; echo "15 2 * * * $CRON_CMD"; } | crontab - 2>>"$LOG"; then NIGHTLY=1
+    else warn "Couldn't schedule the nightly review. The details are in $LOG_SHOWN."; fi
+  else
+    warn "This computer has no crontab, so the nightly review wasn't scheduled."
+  fi
+  if [[ -n "$NIGHTLY" ]]; then ok "Scheduled for 2:15 every night"; fi
+elif [[ $MODE == update ]]; then
+  info "Off, as chosen at setup. To turn it on, set NIGHTLY=1 in cos/setup.conf and run ./update-cos.sh."
+else
+  info "Skipped. Run this setup again to add it later."
+fi
+
+# Save the answers, so ./update-cos.sh can update this agent without asking again.
+{
+  echo "# Your answers to setup. ./update-cos.sh reuses them; you can edit them (1 = yes, 0 = no)."
+  echo "OWNER_NAME=$OWNER_NAME"
+  echo "AGENT_NAME=$AGENT_NAME"
+  echo "TEAM=$([ -n "$TEAM" ] && echo 1 || echo 0)"
+  echo "REMOTE=$([ -n "$REMOTE_ARGS" ] && echo 1 || echo 0)"
+  echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
+} > "$DIR/cos/setup.conf"
+
+# ---------- hand off ----------
+# First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this
+# script can start the agent itself: it can when its input is the terminal
+# (/bin/bash -c "$(curl ...)"), not under `curl ... | bash`, where the user runs two lines.
+if [[ $MODE == update ]]; then
+  step "$AGENT_NAME is up to date."
+  printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
+  printf '  %-20s %s\n' "Version:" "${COS_VERSION:-unknown}"
+  printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
+  printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
+  echo
+  echo "  If $AGENT_NAME is running, restart it to use the update: in its window, type /exit,"
+  echo "  then run ./start-cos.sh."
+  printf '  To start it now:  %scd %s && ./start-cos.sh%s\n' "$bold" "$(shown "$DIR")" "$reset"
+  echo
+  return 0
+fi
+step "Your agent is ready."
+ACCOUNT=$(account_name)
+printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
+printf '  %-20s %s\n' "Your agent:" "$AGENT_NAME"
+printf '  %-20s %s%s\n' "Claude account:" "${ACCOUNT:-your Claude account}" "${PLAN:+ ($PLAN plan)}"
+printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
+printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
+echo
+echo "  To start talking to $AGENT_NAME:"
+CD_PATH=$(shown "$DIR")
+if [[ "$DIR" == *[[:space:]]* ]]; then CD_PATH="\"$DIR\""; fi
+if [[ -t 0 ]]; then
+  echo "    1. Press Return below to start $AGENT_NAME. Keep that window open while you use it."
+else
+  echo "    1. Start $AGENT_NAME by running these two lines in Terminal, and keep that window open:"
+  printf '         %scd %s%s\n' "$bold" "$CD_PATH" "$reset"
+  printf '         %s./start-cos.sh%s\n' "$bold" "$reset"
+fi
+echo '    2. Claude asks whether you trust this folder. Choose "Yes, I trust this folder".'
+echo "    3. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
+printf '    4. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$bold" "$reset"
+echo "       Then message $AGENT_NAME again. It starts a short voice conversation to learn about your work."
+echo
+if [[ -n "$REMOTE_ARGS" ]]; then
+  echo "  To watch from your phone, open the Claude app and tap Code. Make sure the app is in"
+  echo "  ${ORG:-the same account as Claude Code}, or your agent won't appear there. No app yet? Type /mobile once Claude starts."
   echo
 fi
+printf '  Next time, start it with  %scd %s && ./start-cos.sh%s\n' "$bold" "$CD_PATH" "$reset"
+echo
+if [[ -t 0 ]]; then
+  ask "  Press Return to start $AGENT_NAME." >/dev/null
+  cd "$DIR"
+  rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
+  # start-cos.sh opens Claude with no first message. Keep it that way: in a folder that isn't
+  # trusted yet, `claude "<first message>"` shows the folder-trust prompt but then ignores
+  # every key (Enter, arrows, Ctrl+C). Plain `claude` handles the prompt fine.
+  exec ./start-cos.sh </dev/tty
+fi
+# Otherwise (input isn't the terminal) the steps above say how to start it.
 }
 
 main "$@"

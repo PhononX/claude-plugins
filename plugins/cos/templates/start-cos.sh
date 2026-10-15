@@ -43,6 +43,27 @@ export CV_PROJECT_NAME="{{AGENT_NAME}}"
 
 CMD=("{{CLAUDE_BIN}}" {{CHANNEL_ARGS}} ${REMOTE[@]+"${REMOTE[@]}"})
 
+# newer_setup: prints the newest published Chief of Staff version if it's newer than this
+# folder's, or nothing. Asks GitHub at most once a day, with a 2-second limit, and stays quiet
+# when offline.
+newer_setup() {
+  local mine latest
+  mine=$(cat cos/.version 2>/dev/null || true)
+  if [[ -z "$mine" ]] || ! command -v jq >/dev/null 2>&1; then return 0; fi
+  if [[ -z "$(find cos/.update-check -mtime -1 2>/dev/null)" ]]; then
+    latest=$(curl -fsS --max-time 2 https://raw.githubusercontent.com/PhononX/claude-plugins/main/.claude-plugin/marketplace.json 2>/dev/null \
+      | jq -r '.plugins[]? | select(.name == "cos") | .version // empty' 2>/dev/null || true)
+    if [[ -n "$latest" ]]; then printf '%s\n' "$latest" > cos/.update-check; fi
+  fi
+  latest=$(cat cos/.update-check 2>/dev/null || true)
+  if [[ -n "$latest" && "$latest" != "$mine" \
+        && "$(printf '%s\n%s\n' "$mine" "$latest" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)" == "$latest" ]]; then
+    printf '%s' "$latest"
+  fi
+}
+NEWER=$(newer_setup)
+if [[ -n "$NEWER" ]]; then echo "An update is available (version $NEWER). To install it, run ./update-cos.sh"; fi
+
 if [[ $BACKGROUND == 1 ]]; then
   command -v tmux >/dev/null || { echo "tmux is not installed. Run without --background."; exit 1; }
   exec tmux new-session -A -s "cos-$(basename "$PWD")" "${CMD[@]}"

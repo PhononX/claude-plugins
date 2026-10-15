@@ -1,131 +1,51 @@
 ---
 name: setup
-description: Set up a Chief of Staff workspace in the current folder — checks the system, writes CLAUDE.md, permissions, state files and start script, installs the nightly review, and verifies everything. Use when the user runs /cos:setup or asks to set up, install, or create a chief of staff.
+description: Quick check of whether this folder is a set-up Chief of Staff, with directions from there. Setup itself is done by the one-line installer in Terminal. Use when the user runs /cos:setup or asks how to set up, install, or create a chief of staff.
 user-invocable: true
+allowed-tools:
+  - Bash(test -e *)
 ---
 
-# /cos:setup — Chief of Staff setup
+# /cos:setup — quick check and directions
 
-You are setting up a workspace where the user's chief of staff will live. This runs at the
-terminal. Work through the phases in order, tell the user what you are doing in one line per
-step, and stop at any failure with a clear fix. Finish with the checklist in Phase 7.
+Setup happens in Terminal, not in this conversation: the installer installs what's needed,
+connects the Carbon Voice agent (its token is pasted there, never into Claude), asks a few
+questions, builds the agent's folder and starts the agent. Don't build the workspace yourself,
+and don't run the installer for the user: it asks them questions directly.
 
-## Ground rules
-- **Never accept a Carbon Voice token in this conversation.** If the user pastes one, do not
-  save or repeat it. Say it is now in this session's transcript, suggest regenerating it in
-  Carbon Voice, and explain that `./start-cos.sh` will ask for it privately.
-- Do not overwrite an existing `CLAUDE.md`, `.claude/settings.json` or `cos/` without asking.
-  If `cos/.version` already exists, this folder is already set up: offer `/cos:doctor` instead.
-- Locate the plugin's templates relative to this skill: `<this skill's base directory>/../../templates`.
-  Call that `TEMPLATES` below, and the folder two levels above this skill `PLUGIN_ROOT`.
-  Confirm `TEMPLATES` exists with `ls` before continuing.
+## 1. Quick check
+Tell the user you're taking a quick look at this folder. Then check which of these exist in the
+current folder with `test -e <path>`, one file per command (it only checks that a file is there;
+don't open any of them):
+- `cos/.version` (the folder was set up)
+- `CLAUDE.md`
+- `start-cos.sh`
+- `nightly.sh`
+- `.claude/settings.json`
+- `.cv/.env` (the saved Carbon Voice token; check it exists, never read it)
 
-## Phase 1 — Where are we?
-Show the current directory. If it's a folder the installer just created (empty apart from
-`.cv/`, which holds the saved Carbon Voice token), continue. If it is the home directory, a code repository, or a folder with
-unrelated files, recommend a dedicated folder (`mkdir ~/chief-of-staff && cd ~/chief-of-staff`,
-then relaunch `claude` there) and stop unless the user confirms.
+Show the result as a short ✓/✗ list.
 
-## Phase 2 — System check
-Users normally arrive here from the installer, which has already installed everything, so this
-should be a quick confirmation. If anything required (Node.js 18+, `jq`, the channel plugin) is
-missing, offer to fix it by re-running the installer:
-`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
-Run and report each:
-- OS: `uname -s` (Darwin → launchd; Linux → cron).
-- Node.js 18 or later: `node --version`.
-- `jq`: `command -v jq`.
-- Claude binary: `command -v claude`. Record the absolute path as `CLAUDE_BIN`.
-- Signed in: `claude auth status` prints JSON with `loggedIn`, `authMethod`, `email`, `orgName`
-  and `subscriptionType`. `loggedIn` should be `true` and `authMethod` should be `claude.ai`. If
-  not signed in, or signed in with an API account, tell the user to run `claude auth login`
-  with their Claude plan account, or re-run the setup script. Record `orgName` as `ORG_NAME`
-  (it may be missing). One email can belong to several Claude organizations, and the agent's
-  session only appears in the Claude app's Code tab when the app is switched to the same one.
-- Claude Code version: `claude --version`. Note whether it is 2.1.51 or later (needed for
-  Remote Control in Phase 3).
-- `tmux` (optional, only needed for `--background`): `command -v tmux`.
-- Channel plugin: check that `cv-channel` from the `carbonvoice` marketplace is installed. If not,
-  tell the user to run `/plugin install cv-channel@carbonvoice` and rerun setup.
-- Carbon Voice token: check that `.cv/.env` exists (`test -s .cv/.env`). Never read or print it.
-  If it's missing, setup was run without the installer: tell the user to run the installer
-  (above), or that `./start-cos.sh` will ask for the token privately the first time it runs.
+## 2. Point the way
+- **Everything is there:** this agent is set up. To start it, type `/exit` and run
+  `./start-cos.sh` in this folder. For a full health check (token, access, hooks, nightly
+  review, Claude app connection), run `/cos:doctor`.
+- **Some of it is missing:** the setup is incomplete. If `update-cos.sh` is in this folder, type
+  `/exit` and run `./update-cos.sh`; it rebuilds what's missing and keeps the agent's notes and
+  token. Otherwise run the installer again from the folder that contains this one, and give it
+  this folder's name (typed twice to confirm reusing it). To see in detail what's wrong first,
+  run `/cos:doctor`.
+- **None of it is there:** this folder isn't an agent. Tell the user, in about these words:
+  > To set up your chief of staff:
+  > 1. In Carbon Voice, create a Personal Agent Account for it (it's who you'll talk to). The
+  >    installer asks for its Personal Access Token, so keep Carbon Voice open.
+  > 2. Type `/exit` to leave Claude.
+  > 3. In Terminal, go to the folder where your agent's folder should be created, then run:
+  >    `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
+  > 4. Answer its questions. When it's done, it starts your agent and says how to connect.
 
-## Phase 3 — Questions
-Ask these together, briefly:
-1. **Your name**, as the agent should address you. → `OWNER_NAME`
-2. **Your agent's name:** read `.cv/agent-name`, which the installer wrote from the Agent
-   Account's name in Carbon Voice. Don't ask for it; confirm it in the same message ("Your agent
-   is <name>, from its Carbon Voice account"), and use what they say if they correct it.
-   → `AGENT_NAME`. Only if the file is missing, ask for the agent's name.
-3. **Your Claude plan:** first run `claude auth status` and read `subscriptionType`. If it's
-   `pro` or `max`, or `team` or `enterprise`, use it and don't ask. Only ask if it's missing.
-   - Pro/Max → `CHANNEL_ARGS` = `--dangerously-load-development-channels plugin:cv-channel@carbonvoice`
-   - Team/Enterprise → `CHANNEL_ARGS` = `--channels plugin:cv-channel@carbonvoice`. Tell them an
-     admin must turn on `channelsEnabled` and allow the plugin in `allowedChannelPlugins` first.
-   Explain once, in one sentence, that the "dangerously" flag only allows a channel plugin that
-   isn't on Anthropic's approved list yet; it does not skip permission prompts.
-4. **Also show this session in the Claude app?** (recommended) It lets them watch what their
-   chief of staff is doing, approve prompts, or type instead of talk, from the Claude app's Code
-   tab or claude.ai/code. Mention in one sentence that while connected, the session transcript is
-   kept on Anthropic's servers.
-   - Yes → `REMOTE_ARGS` = `--remote-control`. Ask whether they already have the Claude app on
-     their phone. If not, tell them to run `/mobile` now, which shows a QR code to download it
-     for iOS or Android, and to sign in with the email they use for Claude Code. Either way, say:
-     "In the Claude app, make sure you're in <ORG_NAME>, or your agent won't appear under Code."
-     If `ORG_NAME` is missing, say "make sure the app is signed in to the same account" instead.
-   - No, or Claude Code older than 2.1.51 → `REMOTE_ARGS` empty. If the version is too old, say
-     they can update Claude Code and rerun `/cos:doctor` to turn it on later.
-   - On Team/Enterprise, an Owner must enable Remote Control in Claude Code admin settings.
+The installer command is the same in every case.
 
-## Phase 4 — Build the workspace
-Let `WORKSPACE` be the absolute path of the current directory.
-1. `mkdir -p cos/log/transcripts .claude .cv && chmod 700 .cv`
-2. Copy `TEMPLATES/cos/` contents (including `log/consolidation.md`) into `cos/`.
-3. Copy `TEMPLATES/CLAUDE.md` to `./CLAUDE.md`, replacing `{{AGENT_NAME}}` and `{{OWNER_NAME}}`.
-4. Copy `TEMPLATES/settings.json` to `./.claude/settings.json`. If one exists, merge the
-   `permissions.allow` and `permissions.deny` arrays instead of overwriting.
-5. Copy `TEMPLATES/gitignore` to `./.gitignore` (append if one exists).
-6. Copy `TEMPLATES/start-cos.sh` and `TEMPLATES/nightly.sh` to the workspace root, replacing
-   `{{AGENT_NAME}}`, `{{CLAUDE_BIN}}`, `{{CHANNEL_ARGS}}` and `{{REMOTE_ARGS}}` (which may be
-   empty), then `chmod +x` both.
-7. Write the version from `PLUGIN_ROOT/.claude-plugin/plugin.json` to `cos/.version`.
-8. Write `cos/.onboarding-pending` containing `stage: not-started`.
-Confirm no placeholders remain:
-`grep -n '{{' CLAUDE.md start-cos.sh nightly.sh .claude/settings.json` should print nothing.
-
-## Phase 5 — Verify the hooks
-Run each hook script from `PLUGIN_ROOT/scripts/` with `CLAUDE_PROJECT_DIR="$WORKSPACE"`:
-- `echo '{"source":"startup"}' | CLAUDE_PROJECT_DIR="$WORKSPACE" "$PLUGIN_ROOT/scripts/session-start.sh"`
-  must print a "Chief-of-staff state" block that includes "Onboarding not finished".
-- Make a temp transcript containing `/cv-channel:configure abc123secret`, run `pre-compact.sh`
-  with `{"transcript_path":"<temp file>","session_id":"test1234"}`, and confirm the archived
-  copy contains `[REDACTED]` and not `abc123secret`. Then remove the test archive,
-  `cos/.pending-reconcile`, and the test line in today's `cos/log/` file.
-
-## Phase 6 — Nightly review (needs the user's approval)
-Explain in one or two sentences: every night at 2:15 the agent reviews its notes, tidies them,
-and flags anything stale, in a run separate from the live session. Ask before installing.
-- **macOS:** label `com.phononx.cos.<folder-name>`. Fill `TEMPLATES/launchd.plist`
-  (`{{JOB_LABEL}}`, `{{WORKSPACE}}`, and `{{PATH}}` = the directory of `CLAUDE_BIN` followed by
-  `:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin`), write it to
-  `~/Library/LaunchAgents/<label>.plist`, then run
-  `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<label>.plist`.
-- **Linux:** add `15 2 * * * cd "<WORKSPACE>" && /bin/bash ./nightly.sh` to the user's crontab,
-  keeping existing entries.
-Then run `./nightly.sh` once and read `cos/log/nightly-run.log`. If it shows an authentication
-error, tell the user scheduled runs need Claude Code to be logged in, and that `/cos:doctor`
-will recheck. On a fresh workspace the review should report nothing to consolidate.
-
-## Phase 7 — Hand-off
-Print a short checklist with ✓ or ✗ for: system check, workspace files, hooks, nightly review.
-Then give exactly these next steps:
-1. Type `/exit`.
-2. Run `./start-cos.sh`. (If the token wasn't saved during install, it asks for it first.)
-3. In Carbon Voice, message your agent from your own account. You'll get a pairing code back.
-4. In this terminal, run `/cv-channel:access pair <code>`, then message your agent again.
-   It will start a short voice conversation to get to know your work.
-If Remote Control is on, add: "You can also watch it in the Claude app under Code. No app yet?
-Run `/mobile` for a download QR code. In the Claude app, make sure you're in <ORG_NAME>, or your
-agent won't appear under Code." If `ORG_NAME` is missing, end with "sign in with the same
-account" instead of naming the organization.
+Never ask for or accept a Carbon Voice token in this conversation. If the user pastes one, don't
+repeat it. Say it's now in this session's transcript, suggest regenerating it in Carbon Voice,
+and to paste the new one into the installer instead.

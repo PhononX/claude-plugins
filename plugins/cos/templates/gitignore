@@ -3,3 +3,4 @@
 # Raw transcripts can contain anything said in conversation
 cos/log/transcripts/
 cos/.pending-reconcile
+cos/.update-check

@@ -9,9 +9,12 @@ user-invocable: true
 Read-only unless the user approves a fix. Report each check as ✓, ⚠ or ✗ with a one-line fix.
 Locate the plugin root as two levels above this skill's base directory (`PLUGIN_ROOT`).
 
-1. **Workspace:** `cos/.version` exists; `CLAUDE.md`, `.claude/settings.json`, `start-cos.sh` and
-   `nightly.sh` exist; no `{{` placeholders remain. Compare `cos/.version` with the version in
-   `PLUGIN_ROOT/.claude-plugin/plugin.json` and mention any difference.
+1. **Workspace:** `cos/.version` exists; `CLAUDE.md`, `my-instructions.md`,
+   `.claude/settings.json`, `start-cos.sh`, `nightly.sh` and `update-cos.sh` exist; no `{{`
+   placeholders remain. Compare `cos/.version` with the version in
+   `PLUGIN_ROOT/.claude-plugin/plugin.json`. If they differ, or `update-cos.sh` is missing, the
+   fix is: type `/exit`, then run `./update-cos.sh` (or, without it, re-run the installer for
+   this folder).
 2. **System:** `jq` is installed; the Claude path inside `start-cos.sh` still exists.
 3. **Hooks:** run `PLUGIN_ROOT/scripts/session-start.sh` with `{"source":"startup"}` and
    `CLAUDE_PROJECT_DIR` set to this folder; confirm it prints state.
