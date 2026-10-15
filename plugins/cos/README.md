@@ -59,7 +59,14 @@ transcript is kept on Anthropic's servers. Your Carbon Voice token never appears
   Run the same command to reconnect.
 - `./start-cos.sh --reset-token` — replace the saved token.
 - `./start-cos.sh --no-remote` — start without the Claude app connection this time.
+- `./update-cos.sh` — update to the latest version. `./start-cos.sh` tells you when there's an
+  update, and your agent mentions it too. Your notes, token and setup answers are kept, so it
+  only asks about anything missing. Restart your agent afterwards.
 - `/cos:doctor` (in Claude) — check that everything is healthy.
+
+Want your agent to behave differently? Write it in `my-instructions.md` in its folder.
+`CLAUDE.md` holds the standard instructions and is replaced by updates; `my-instructions.md`
+is never changed.
 
 ## More than one agent
 Each folder is its own agent with its own token, memory and allowlist. Create another Agent
@@ -68,7 +75,10 @@ Account in Carbon Voice and run the installer again with a new folder name.
 ## What's in the workspace
 | Path | What it is |
 |---|---|
-| `CLAUDE.md` | Your agent's role and how it should talk to you |
+| `CLAUDE.md` | Your agent's role and how it should talk to you (replaced by updates) |
+| `my-instructions.md` | Your own instructions for your agent (updates never change it) |
+| `start-cos.sh`, `update-cos.sh`, `nightly.sh` | Start it, update it, and its nightly review |
+| `cos/setup.conf` | Your answers to setup, reused by updates |
 | `cos/now.md`, `open-loops.md`, `decisions.md`, `people.md` | The curated picture, kept short |
 | `cos/nudges.md` | What the nightly review wants you to know |
 | `cos/log/` | Daily notes, nightly review history, archived transcripts (30 days) |

@@ -30,9 +30,11 @@ Show the result as a short ✓/✗ list.
 - **Everything is there:** this agent is set up. To start it, type `/exit` and run
   `./start-cos.sh` in this folder. For a full health check (token, access, hooks, nightly
   review, Claude app connection), run `/cos:doctor`.
-- **Some of it is missing:** the setup is incomplete. Run the installer again from the folder
-  that contains this one, and give it this folder's name (typed twice to confirm reusing it); it
-  keeps the agent's notes and token. To see in detail what's wrong first, run `/cos:doctor`.
+- **Some of it is missing:** the setup is incomplete. If `update-cos.sh` is in this folder, type
+  `/exit` and run `./update-cos.sh`; it rebuilds what's missing and keeps the agent's notes and
+  token. Otherwise run the installer again from the folder that contains this one, and give it
+  this folder's name (typed twice to confirm reusing it). To see in detail what's wrong first,
+  run `/cos:doctor`.
 - **None of it is there:** this folder isn't an agent. Tell the user, in about these words:
   > To set up your chief of staff:
   > 1. In Carbon Voice, create a Personal Agent Account for it (it's who you'll talk to). The
