@@ -925,12 +925,20 @@ else
   printf '         %s./start-cos.sh%s\n' "$bold" "$reset"
 fi
 echo '    2. Claude asks whether you trust this folder. Choose "Yes, I trust this folder".'
+N=3
+if [[ -z "$TEAM" ]]; then
+  # Pro/Max start with --dangerously-load-development-channels, because cv-channel isn't on
+  # Anthropic's approved channels list yet; Claude Code asks to confirm that on every start.
+  echo "    3. Claude warns about loading a development channel, because the Carbon Voice connection"
+  echo "       isn't on Anthropic's approved list yet. Choose \"I am using this for local development\"."
+  N=4
+fi
 if [[ -n "$OWNER_ALLOWED" ]]; then
-  echo "    3. In Carbon Voice, message $AGENT_NAME from your own account. It starts a short voice"
+  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. It starts a short voice"
   echo "       conversation to learn about your work."
 else
-  echo "    3. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
-  printf '    4. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$bold" "$reset"
+  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
+  printf '    %s. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$((N + 1))" "$bold" "$reset"
   echo "       Then message $AGENT_NAME again. It starts a short voice conversation to learn about your work."
 fi
 echo

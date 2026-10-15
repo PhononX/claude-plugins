@@ -31,7 +31,10 @@ whether to also show your agent in the Claude app, and whether to set up the nig
 The installer then builds your agent's folder and checks it.
 
 **4. Start your Chief of Staff.** The installer ends by starting your agent. When Claude asks
-whether you trust the folder, choose **Yes, I trust this folder**. Keep this window open: you
+whether you trust the folder, choose **Yes, I trust this folder**. On Pro and Max plans, Claude
+then warns about loading a development channel, because the Carbon Voice connection isn't on
+Anthropic's approved list yet: choose **I am using this for local development**. It asks this
+each time your agent starts. Keep this window open: you
 can watch messages arrive and see what your chief of staff does. Next time, start it from its
 folder with:
 ```
