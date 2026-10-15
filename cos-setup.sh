@@ -104,12 +104,29 @@ cv_whoami() {
   printf 'header = "Authorization: Bearer %s"\n' "$1" \
     | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
 }
-cv_user() {  # cv_user <field>: id, name or type of the user in $WORK/whoami.json
+cv_user() {  # cv_user <field>: id or name of the user in $WORK/whoami.json
   case "$1" in
     id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
     name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
-    type) jq -r '.user.user_type // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
   esac
+}
+# Reads the token into PAT, one character at a time and hidden, printing a • for each so a
+# paste visibly lands; Backspace removes one. The markers some terminals wrap around pasted
+# text (ESC [200~ ... ESC [201~) are skipped. Works with macOS's bash 3.2: whole-second
+# timeouts only.
+read_token() {
+  local c
+  PAT=""
+  printf '  Token (hidden): '
+  while IFS= read -rsn1 c </dev/tty; do
+    case "$c" in
+      "") break ;;                                                   # Return
+      $'\177'|$'\b') if [[ -n "$PAT" ]]; then PAT=${PAT%?}; printf '\b \b'; fi ;;
+      $'\033') read -rsn5 -t 1 c </dev/tty || true ;;                # a paste marker or arrow key
+      *) PAT+=$c; printf '•' ;;
+    esac
+  done
+  echo
 }
 open_url() { if have open; then open "$1" </dev/null >/dev/null 2>&1; elif have xdg-open; then xdg-open "$1" </dev/null >/dev/null 2>&1; fi; }
 
@@ -148,6 +165,40 @@ cv_marketplace() {
   re='"source": *"([^"]*)"';             [[ $json =~ $re ]] && kind=${BASH_REMATCH[1]}
   re='"(repo|url|path)": *"([^"]*)"';    [[ $json =~ $re ]] && loc=${BASH_REMATCH[2]}
   echo "$kind $loc"
+}
+
+# Installed plugins, from `claude plugin list --json` (written to a file, see WORK in main()).
+# Each entry is a flat object: {"id": "cos@carbonvoice", "version": "0.1.1", "scope": "user",
+# "enabled": true, ...}. Run again after anything changes what's installed.
+refresh_plugins() {
+  if ! have claude || ! claude plugin list --json </dev/null >"$WORK/plugins.json" 2>/dev/null; then
+    printf '[]' >"$WORK/plugins.json"
+  fi
+}
+# plugin_state <name>: "enabled", "disabled" or "missing" for <name>@carbonvoice installed for
+# this user (scope user or managed; a project-only install doesn't reach the agent's folder).
+# Uses jq when it's installed; before that, pattern matching on the flat entries.
+plugin_state() {
+  local id="$1@carbonvoice" json re s=""
+  if have jq; then
+    s=$(jq -r --arg id "$id" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0]
+      | if . == null then empty elif .enabled == false then "disabled" else "enabled" end' "$WORK/plugins.json" 2>/dev/null || true)
+  else
+    json=$(<"$WORK/plugins.json"); json=${json//$'\n'/ }
+    re="\{[^{}]*\"id\": *\"$id\"[^{}]*\}"
+    if [[ $json =~ $re ]]; then
+      json=${BASH_REMATCH[0]}
+      re='"scope": *"(user|managed)"'
+      if [[ $json =~ $re ]]; then
+        re='"enabled": *false'
+        if [[ $json =~ $re ]]; then s=disabled; else s=enabled; fi
+      fi
+    fi
+  fi
+  printf '%s' "${s:-missing}"
+}
+plugin_version() {  # plugin_version <name>: installed version of <name>@carbonvoice. Needs jq.
+  jq -r --arg id "$1@carbonvoice" '[.[]? | select(.id == $id and (.scope == "user" or .scope == "managed"))][0].version // empty' "$WORK/plugins.json" 2>/dev/null || true
 }
 
 # The carbonvoice marketplace's local copy of its catalog (.claude-plugin/marketplace.json),
@@ -232,6 +283,12 @@ case "$(printf '%s' "$CV_SOURCE" | tr '[:upper:]' '[:lower:]')" in
   | "git "*"github.com:phononx/claude-plugins" | "git "*"github.com:phononx/claude-plugins.git") S_MKT=update ;;
   *) S_MKT=replace ;;
 esac
+# Are both plugins already installed? Then setup only checks them for updates. Replacing the
+# plugin source reinstalls them, and anything missing gets installed.
+refresh_plugins
+if [[ $S_MKT == replace ]]; then S_PLUGINS=replace
+elif [[ "$(plugin_state cv-channel)" != missing && "$(plugin_state cos)" != missing ]]; then S_PLUGINS=update
+else S_PLUGINS=install; fi
 
 clear 2>/dev/null || true
 printf '%sChief of Staff for Carbon Voice — setup%s\n\n' "$bold" "$reset"
@@ -248,13 +305,13 @@ printf '  %sjq%s — %s\n'           "$bold" "$reset" "$(label $S_JQ)"
 info "  A small tool your agent uses to manage its memory.$([ $S_JQ = install ] && echo " Installed $(where).")"
 printf '  %stmux%s — %s\n'         "$bold" "$reset" "$(label $S_TMUX)"
 info "  Lets your agent keep running after you close the Terminal window."
-printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $([ $S_MKT = replace ] && echo replace || echo install))"
+printf '  %sCarbon Voice plugins%s — %s\n' "$bold" "$reset" "$(label $S_PLUGINS)"
 info "  The Carbon Voice connection, plus the chief-of-staff skills and memory."
 if [[ $S_MKT == replace ]]; then info "  The Carbon Voice plugins now come from $MARKETPLACE."; fi
 printf '  %sA folder for your agent%s — %s\n' "$bold" "$reset" "$(label create "$(place "$BASE")")"
 info "  Your agent's notes are plain text files you can open anytime.${BASE_NOTE:+ $BASE_NOTE}"
 printf '  %sYour Carbon Voice agent%s — %s\n' "$bold" "$reset" "$(label token)"
-info "  Create an Agent Account in Carbon Voice; it's who you'll talk to."
+info "  Create a Personal Agent Account in Carbon Voice; it's who you'll talk to."
 echo
 info "Then Claude opens. You type /cos:setup there, and it asks a few short questions to finish."
 echo
@@ -428,12 +485,30 @@ if [[ -n "$CATALOG" ]] && jq empty "$CATALOG" >/dev/null 2>&1; then
 else
   echo "Skipped the Chief of Staff plugin check: couldn't read the carbonvoice catalog${CATALOG:+ ($CATALOG)}." >>"$LOG"
 fi
+# Install what's missing. For what's already installed, `plugin install` does nothing, not even
+# pick up a newer version, so run `plugin update` instead (and turn it back on if it was off).
+refresh_plugins
 for p in cv-channel cos; do
-  if quiet claude plugin install "$p@carbonvoice" --scope user \
-     || quiet claude plugin install "$p@carbonvoice"; then
-    ok "$p"
+  state=$(plugin_state "$p")
+  if [[ $state == missing ]]; then
+    if quiet claude plugin install "$p@carbonvoice" --scope user \
+       || quiet claude plugin install "$p@carbonvoice"; then
+      refresh_plugins; v=$(plugin_version "$p"); ok "$p — installed${v:+ ($v)}"
+    else
+      die "Couldn't install the $p plugin. The details are in $LOG_SHOWN. Run this again, or in Claude type: /plugin install $p@carbonvoice"
+    fi
+    continue
+  fi
+  if [[ $state == disabled ]]; then
+    quiet claude plugin enable "$p@carbonvoice" && info "Turned $p back on." \
+      || info "Couldn't turn $p back on. In Claude, type: /plugin enable $p@carbonvoice"
+  fi
+  before=$(plugin_version "$p")
+  if quiet claude plugin update "$p@carbonvoice"; then
+    refresh_plugins; after=$(plugin_version "$p")
+    if [[ -n "$after" && "$after" != "$before" ]]; then ok "$p — updated to $after"; else ok "$p — up to date${after:+ ($after)}"; fi
   else
-    die "Couldn't install the $p plugin. The details are in $LOG_SHOWN. Run this again, or in Claude type: /plugin install $p@carbonvoice"
+    info "Couldn't check $p for updates; keeping ${before:-the installed version}. The details are in $LOG_SHOWN."
   fi
 done
 
@@ -479,14 +554,15 @@ if [[ -s "$CV_DIR/.env" ]]; then
   fi
 fi
 if [[ -z "$PAT" ]]; then
-  echo "  In Carbon Voice, create an Agent Account for your chief of staff."
+  echo "  In Carbon Voice, create a Personal Agent Account for your chief of staff."
   echo "  Then copy its Personal Access Token. You'll paste it here, and it stays hidden."
   if [[ -n "$CV_AGENT_URL" ]] && yes "  Open the Carbon Voice page for this now? [Y/n]"; then open_url "$CV_AGENT_URL"; fi
   for try in 1 2 3 4; do   # the first ask, then up to 3 more
-    read -rsp "  Token (hidden): " PAT </dev/tty || true; echo
+    read_token
     PAT="${PAT#"${PAT%%[![:space:]]*}"}"; PAT="${PAT%"${PAT##*[![:space:]]}"}"
     if [[ -z "$PAT" ]]; then info "Nothing was pasted. Copy the token in Carbon Voice, then paste it here."; continue; fi
     if [[ "$PAT" == *[[:space:]\"\\]* ]]; then info "That doesn't look like a token. Copy just the token and paste it again."; PAT=""; continue; fi
+    info "Got ${#PAT} characters. Checking with Carbon Voice..."
     case "$(cv_whoami "$PAT")" in
       200) ;;
       401|403) info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue ;;
@@ -494,11 +570,6 @@ if [[ -z "$PAT" ]]; then
     esac
     if [[ -z "$(cv_user id)" ]]; then info "That token didn't work. Copy the Agent Account's Personal Access Token again and paste it."; PAT=""; continue; fi
     AGENT_NAME=$(cv_user name)
-    if [[ "$(cv_user type)" == user ]]; then
-      printf '  %s!%s That token belongs to a person%s, not an Agent Account.\n' "$yellow" "$reset" "${AGENT_NAME:+ ($AGENT_NAME)}"
-      echo "    Your agent would send messages as that person."
-      if no "  Use it anyway? [y/N]"; then PAT=""; AGENT_NAME=""; continue; fi
-    fi
     break
   done
   [[ -n "$PAT" ]] || die "No working token. Run this again when you have your Agent Account's token; everything installed so far stays installed."
@@ -509,9 +580,9 @@ fi
 PAT=""; unset PAT
 # /cos:setup reads the agent's name from here instead of asking for it.
 if [[ -n "$AGENT_NAME" ]]; then printf '%s\n' "$AGENT_NAME" > "$CV_DIR/agent-name"; fi
-# TODO(owner allowlist): /whoami says what kind of account the token is for (user_type "bot" or
-# "user") and has a created_by user ID, but created_by isn't documented as the Agent Account's
-# owner. Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
+# TODO(owner allowlist): /whoami has a created_by user ID, but it isn't documented as the
+# Agent Account's owner (and user_type is "user" for Agent Accounts too, so it can't tell them
+# apart from people). Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
 # {"dmPolicy": "allowlist", "allowFrom": ["<owner user ID>"], "blockedFrom": []} to
 # $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
 

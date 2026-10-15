@@ -21,8 +21,8 @@ to your Claude account if you aren't already, installs the Carbon Voice plugins,
 folder for your agent. Anything you already
 have is left alone, and it's safe to run again.
 
-**2. Connect your Carbon Voice agent.** The installer asks you to create an Agent Account in
-Carbon Voice for your chief of staff (it's who you'll talk to), copy its Personal Access Token,
+**2. Connect your Carbon Voice agent.** The installer asks you to create a Personal Agent
+Account in Carbon Voice for your chief of staff (it's who you'll talk to), copy its Personal Access Token,
 and paste it in Terminal. The token is hidden as you paste it, checked with Carbon Voice, and
 saved only in your agent's folder. It never goes into a Claude conversation.
 
