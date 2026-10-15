@@ -2,6 +2,14 @@
 name: setup
 description: Set up a Chief of Staff workspace in the current folder — checks the system, writes CLAUDE.md, permissions, state files and start script, installs the nightly review, and verifies everything. Use when the user runs /cos:setup or asks to set up, install, or create a chief of staff.
 user-invocable: true
+allowed-tools:
+  - Bash(uname -s)
+  - Bash(node --version)
+  - Bash(command -v *)
+  - Bash(claude --version)
+  - Bash(claude auth status)
+  - Bash(claude plugin list --json)
+  - Bash(test -s .cv/.env)
 ---
 
 # /cos:setup — Chief of Staff setup
@@ -10,7 +18,21 @@ You are setting up a workspace where the user's chief of staff will live. This r
 terminal. Work through the phases in order, tell the user what you are doing in one line per
 step, and stop at any failure with a clear fix. Finish with the checklist in Phase 7.
 
+**Start by telling the user what will happen**, before running anything, in about these words:
+> Here's what happens next:
+> 1. A quick check that this computer has what your agent needs. These commands only look;
+>    they don't change anything.
+> 2. A few short questions.
+> 3. I create your agent's files in this folder: its instructions, its notes and its start
+>    script. Claude Code asks before each change, so you'll see some approval prompts. That's
+>    expected; each one says what it's for.
+> 4. With your OK, a nightly review: a scheduled job that tidies your agent's notes at 2:15.
+> 5. A final check, then how to start your agent.
+
 ## Ground rules
+- **Be transparent.** Before each phase, say in one line what you're about to do and why.
+  Give every command a plain description of why it's needed (it's shown in the approval
+  prompt), and say before running anything that changes files outside this folder.
 - **Never accept a Carbon Voice token in this conversation.** If the user pastes one, do not
   save or repeat it. Say it is now in this session's transcript, suggest regenerating it in
   Carbon Voice, and explain that `./start-cos.sh` will ask for it privately.
@@ -31,7 +53,8 @@ Users normally arrive here from the installer, which has already installed every
 should be a quick confirmation. If anything required (Node.js 18+, `jq`, the channel plugin) is
 missing, offer to fix it by re-running the installer:
 `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
-Run and report each:
+Tell the user these commands only read. Run each one as its own command (not chained with `&&`)
+and report each:
 - OS: `uname -s` (Darwin → launchd; Linux → cron).
 - Node.js 18 or later: `node --version`.
 - `jq`: `command -v jq`.
@@ -45,8 +68,10 @@ Run and report each:
 - Claude Code version: `claude --version`. Note whether it is 2.1.51 or later (needed for
   Remote Control in Phase 3).
 - `tmux` (optional, only needed for `--background`): `command -v tmux`.
-- Channel plugin: check that `cv-channel` from the `carbonvoice` marketplace is installed. If not,
-  tell the user to run `/plugin install cv-channel@carbonvoice` and rerun setup.
+- Channel plugin: run `claude plugin list --json` and check it lists `cv-channel@carbonvoice`
+  with `"enabled": true`. Don't look through `~/.claude/plugins/` directly. If it's missing, tell
+  the user to run `/plugin install cv-channel@carbonvoice` and rerun setup; if it's turned off,
+  `/plugin enable cv-channel@carbonvoice`.
 - Carbon Voice token: check that `.cv/.env` exists (`test -s .cv/.env`). Never read or print it.
   If it's missing, setup was run without the installer: tell the user to run the installer
   (above), or that `./start-cos.sh` will ask for the token privately the first time it runs.
@@ -79,7 +104,8 @@ Ask these together, briefly:
    - On Team/Enterprise, an Owner must enable Remote Control in Claude Code admin settings.
 
 ## Phase 4 — Build the workspace
-Let `WORKSPACE` be the absolute path of the current directory.
+Tell the user you're now creating the agent's files in this folder, and that Claude Code will
+ask before each change. Let `WORKSPACE` be the absolute path of the current directory.
 1. `mkdir -p cos/log/transcripts .claude .cv && chmod 700 .cv`
 2. Copy `TEMPLATES/cos/` contents (including `log/consolidation.md`) into `cos/`.
 3. Copy `TEMPLATES/CLAUDE.md` to `./CLAUDE.md`, replacing `{{AGENT_NAME}}` and `{{OWNER_NAME}}`.
@@ -95,7 +121,8 @@ Confirm no placeholders remain:
 `grep -n '{{' CLAUDE.md start-cos.sh nightly.sh .claude/settings.json` should print nothing.
 
 ## Phase 5 — Verify the hooks
-Run each hook script from `PLUGIN_ROOT/scripts/` with `CLAUDE_PROJECT_DIR="$WORKSPACE"`:
+Tell the user you're checking that the agent's automatic note-keeping works, using test data
+that you remove afterwards. Run each hook script from `PLUGIN_ROOT/scripts/` with `CLAUDE_PROJECT_DIR="$WORKSPACE"`:
 - `echo '{"source":"startup"}' | CLAUDE_PROJECT_DIR="$WORKSPACE" "$PLUGIN_ROOT/scripts/session-start.sh"`
   must print a "Chief-of-staff state" block that includes "Onboarding not finished".
 - Make a temp transcript containing `/cv-channel:configure abc123secret`, run `pre-compact.sh`
@@ -105,7 +132,9 @@ Run each hook script from `PLUGIN_ROOT/scripts/` with `CLAUDE_PROJECT_DIR="$WORK
 
 ## Phase 6 — Nightly review (needs the user's approval)
 Explain in one or two sentences: every night at 2:15 the agent reviews its notes, tidies them,
-and flags anything stale, in a run separate from the live session. Ask before installing.
+and flags anything stale, in a run separate from the live session. Say that this adds a
+scheduled job to their computer (outside this folder; on a Mac, a file in
+`~/Library/LaunchAgents/`) and that they can remove it later. Ask before installing.
 - **macOS:** label `com.phononx.cos.<folder-name>`. Fill `TEMPLATES/launchd.plist`
   (`{{JOB_LABEL}}`, `{{WORKSPACE}}`, and `{{PATH}}` = the directory of `CLAUDE_BIN` followed by
   `:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin`), write it to
