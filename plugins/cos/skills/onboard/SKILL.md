@@ -42,20 +42,28 @@ isn't `not-started`, welcome them back in one line and continue from that stage.
    recent email, chat and Carbon Voice conversations from about the last two weeks, in the places
    they named. Look for meetings with the people and projects they mentioned, things they
    promised, and things they're waiting for. Don't file any of it yet: keep it for the readback.
-8. **style** — "How do you like me to talk to you: short and blunt, or more detail?" Then: "I'll
-   send you a morning brief on weekdays at seven. Does that time work?" Record their style in
-   `about-me.md` under "How I work", and any change to the brief as a rule in `my-rules.md`
-   (update its front matter too).
-9. **readback** — Summarise what you'll file in a few spoken sentences: focus, projects, what
+8. **style** — "How do you like me to talk to you: short and blunt, or more detail?" Record it in
+   `about-me.md` under "How I work".
+9. **briefs** — Show, don't just ask. In two or three sentences, say what a brief can hold: their
+   focus, today's meetings with prep, emails and messages that need a reply or that they may
+   have missed, what changed, what's due in their other tools, and follow-ups you've drafted
+   for them to approve by number. Say the default is a morning brief on weekdays at seven, and
+   that some people add a midday check-in or a Friday wrap-up. Then ask, one at a time:
+   "What should your morning brief cover, and does seven work?", "Want any other briefs during
+   the day or week?", "Who should I always tell you about?", and "Anything I should always
+   leave out?" Write the answers into "My briefs", "What goes in my briefs" and "Important
+   people" in `my-rules.md`. Start "Important people" with the key people from stage 5 they
+   agree to.
+10. **readback** — Summarise what you'll file in a few spoken sentences: focus, projects, what
    they owe and what they're waiting on, key people, and what you found in step 7, which they
    must confirm item by item ("I also saw you told Dana you'd send the deck Thursday. Should I
    track that?"). Ask what you got wrong, and fix it.
-10. **done** — Write everything in the notebook format: `now.md`, `projects/`, `areas/`,
+11. **done** — Write everything in the notebook format: `now.md`, `projects/`, `areas/`,
     `actions.md` (with "Elsewhere" for their other to-do lists), `waiting.md`, `people/`,
     `sources.md`, `about-me.md` ("Role"), `my-rules.md`, and today's log. Use `src:: onboarding
     <today>` for what they told you, and the real source for what you found and they confirmed.
     Then:
-    - Schedule the morning brief, as described under "Scheduling" in the cos:brief skill.
+    - Schedule the next brief, as described under "Scheduling" in the cos:brief skill.
     - Delete `cos/.onboarding-pending`.
     - Run `./open-brain.sh --link` to build the notebook page and get its link. Tell them it's
       everything you know, in one place, kept up to date as you go, and that it opens on the
@@ -63,7 +71,8 @@ isn't `not-started`, welcome them back in one line and continue from that stage.
       message, so it's easy to copy. If Obsidian is installed (`/Applications/Obsidian.app`),
       add that they can also open their `cos` folder as an Obsidian vault.
     - Close with one line on how to use you, such as: "Just message me whenever something comes
-      up, or ask me where things stand. Your first brief comes tomorrow morning."
+      up, or ask me where things stand. Your first brief comes tomorrow morning, and you can
+      change what's in it any time."
 
 ## Rules
 - File only what they said or confirmed. Your suggestions, and what you found in their tools,

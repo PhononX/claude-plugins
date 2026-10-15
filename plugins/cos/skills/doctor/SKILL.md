@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Health check for a Chief of Staff workspace — system, files, notebook layout and page, hooks, channel token and access, the morning brief and the nightly review. Use when the user runs /cos:doctor, or says the chief of staff isn't responding, forgot something, or seems broken.
+description: Health check for a Chief of Staff workspace — system, files, notebook layout and page, hooks, channel token and access, the briefs and the nightly review. Use when the user runs /cos:doctor, or says the chief of staff isn't responding, forgot something, or seems broken.
 user-invocable: true
 ---
 
@@ -44,14 +44,16 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    make sure the app is signed in to the same account as Claude Code.
 9. **Notebook:** if `cos/.layout` is missing and `cos/open-loops.md` or `cos/people.md` exists,
    the notes are still in the old layout: offer to run the cos:migrate skill. Check that the
-   front matter of `cos/my-rules.md` parses (`brief_time` is `HH:MM`, `brief_days` is `weekdays`,
-   `daily` or `off`).
+   briefs in `cos/my-rules.md` parse: each line under "My briefs" has `at:: HH:MM` and `days::`
+   (`weekdays`, `daily`, `weekends`, `off`, or days like `mon, wed, fri`). An older file with
+   only `brief_time` and `brief_days` in its front matter still works as one morning brief.
    **Notebook page:** run `./open-brain.sh --link`. It should print a `file://` link; report it,
    and how old `brain.html` was before the rebuild. If the build fails, show the error.
-10. **Morning brief:** only in a session started by `./start-cos.sh` (`CV_ACCESS_PATH` is set).
-   List your scheduled tasks (CronList) and report whether one has the prompt "Use the cos:brief
-   skill now." and its schedule. If it's missing and `brief_days` isn't `off`, offer to schedule
-   it as the cos:brief skill describes. Report the date in `cos/brief.md`'s front matter as the
-   last brief sent.
+10. **Briefs:** list the briefs from "My briefs". Only in a session started by `./start-cos.sh`
+   (`CV_ACCESS_PATH` is set): list your scheduled tasks (CronList) and report the one whose
+   prompt starts with "Use the cos:brief skill now", and when it runs. It should be the next
+   brief due; if it's missing or wrong, offer to fix it as "Scheduling" in the cos:brief skill
+   describes. Report the briefs sent today from `cos/brief.md`, and how many lines
+   `cos/catch-up.md` holds.
 11. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
 12. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

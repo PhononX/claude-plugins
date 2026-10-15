@@ -3,8 +3,9 @@
 A chief of staff you talk to through Carbon Voice. It keeps a notebook of what you're focused
 on, what you owe and what you're waiting on, your projects, people, decisions, ideas, links and
 facts. You can see everything it knows on one page in your browser, or open the notebook in
-Obsidian. It sends you a morning brief, reviews its notes every night, and remembers across
-weeks of conversation instead of starting fresh each time.
+Obsidian. It sends you briefs when you want them, catches you up on what needs your reply,
+reviews its notes every night, and remembers across weeks of conversation instead of starting
+fresh each time.
 
 ## Set up
 
@@ -55,11 +56,18 @@ again. Only add people you'd trust to approve your agent's actions.
 Just talk to your agent in Carbon Voice. Ask where things stand, tell it what changed, mention
 an idea or a link you'll want later, or have it keep track of something.
 
-- **Morning brief.** On weekdays at 7:00 it sends you a short brief: your focus, today's
-  meetings (with prep if you want it), what's due, and numbered follow-ups it has drafted.
-  Reply with the numbers, like "do 1 and 3", and it sends those. It reads the tools connected
-  to your Claude account (email, calendar, Slack, task trackers, Carbon Voice) to put this
-  together, and never sends anything you didn't ask for. Change the time by telling it.
+- **Briefs.** On weekdays at 7:00 it sends you a short brief in Carbon Voice: your focus,
+  today's meetings (with prep if you want it), a catch-up on your email, chat and Carbon Voice
+  (what needs your reply, what you may have missed, what changed), what's due in your other
+  tools, and numbered follow-ups it has drafted. Reply with the numbers, like "do 1 and 3", and
+  it sends those; it never sends anything you didn't ask for. It reads the tools connected to
+  your Claude account to put this together.
+- **Your briefs, your way.** Tell it what you want: "add a midday check-in at 12:30 that covers
+  what came in since the morning", "add a Friday wrap-up at 4:30", "always tell me about
+  anything from Jordan", "leave out GitHub notifications". It keeps these under "My briefs",
+  "What goes in my briefs" and "Important people" in `cos/my-rules.md`. After your first week
+  it asks what you'd want more or less of, and it suggests changes based on what you use.
+  Back from time off? Ask it to "catch me up since Friday".
 - **Your notebook page.** Everything it knows, on one page: today, your actions, what you're
   waiting on, projects, people, ideas to come back to, links and facts, decisions, a daily log,
   the archive, and how it works for you. Run `./open-brain.sh` to open it (your agent also
@@ -113,8 +121,9 @@ Account in Carbon Voice and run the installer again with a new folder name.
 | `.cos/` | The defaults and the notebook page's builder (replaced by updates) |
 | `cos/` | The notebook: an Obsidian-compatible folder of plain Markdown |
 | `cos/my-rules.md`, `cos/about-me.md` | Your rules, and what your agent knows about you (updates never change them) |
-| `cos/now.md`, `cos/brief.md`, `cos/nudges.md` | Today: focus, the latest brief, reminders |
+| `cos/now.md`, `cos/brief.md`, `cos/nudges.md` | Today: focus, today's briefs, reminders |
 | `cos/inbox.md`, `actions.md`, `waiting.md`, `ideas.md`, `links.md`, `facts.md`, `decisions.md` | What you owe, what you're waiting on, and what to find again |
+| `cos/catch-up.md` | What needs your reply or attention in your email, chat and Carbon Voice |
 | `cos/projects/`, `cos/areas/`, `cos/people/` | One note per project, ongoing area, and person |
 | `cos/log/`, `cos/archive/` | Daily notes and archived transcripts (30 days); finished and stale items |
 | `cos/sources.md` | Where your conversations and to-do lists live, and what your agent reads |

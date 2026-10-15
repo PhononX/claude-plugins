@@ -25,6 +25,8 @@ that doesn't follow the format doesn't show up properly.
 | News about a person | `people/<Name>.md` |
 | News about a project or an ongoing area | `projects/<Name>.md`, `areas/<Name>.md` |
 | "From now on…", or how they want you to work | `my-rules.md` |
+| A change to their briefs: a new brief, a time, what to include or skip, someone to always mention | `my-rules.md` ("My briefs", "What goes in my briefs", "Important people"), then reschedule as the cos:brief skill describes |
+| They replied to, or want to skip, something from a brief's catch-up | `catch-up.md`: archive the line with `why:: replied` or `why:: skipped` |
 | Something you learned about how they work, without being told | `about-me.md`, under "Learned" |
 | A tool or place where their conversations or to-dos happen | `sources.md`, and "Elsewhere" in `actions.md` for to-do lists |
 | Worth keeping, but you're not sure where | `inbox.md` |

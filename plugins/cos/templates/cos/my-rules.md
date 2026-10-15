@@ -1,6 +1,4 @@
 ---
-brief_time: "07:00"
-brief_days: weekdays
 nudges_per_day: 3
 stale_days: 30
 meeting_prep: offer
@@ -13,3 +11,10 @@ These win over {{AGENT_NAME}}'s defaults, and updates never change this file. Te
 ## My rules
 
 ## Where things go
+
+## My briefs
+- Morning brief [at:: 07:00] [days:: weekdays] [covers:: focus, meetings, catch up, follow-ups, due elsewhere]
+
+## What goes in my briefs
+
+## Important people

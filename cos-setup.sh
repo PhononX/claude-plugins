@@ -826,6 +826,26 @@ done
 if [[ ! -f "$DIR/cos/.layout" && ! -f "$DIR/cos/open-loops.md" && ! -f "$DIR/cos/people.md" ]]; then
   printf '2\n' > "$DIR/cos/.layout"
 fi
+# Briefs used to be one setting (brief_time and brief_days in my-rules.md's front matter). Turn
+# that into a "My briefs" list with one "Morning brief", and add the other brief sections.
+RULES="$DIR/cos/my-rules.md"
+if [[ -f "$RULES" ]] && ! grep -q '^## My briefs' "$RULES"; then
+  front() {  # front <key> <default>: a value from the front matter of my-rules.md
+    local v
+    v=$(awk -v k="$1" 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+          NR > 1 { i = index($0, ":"); if (i && substr($0, 1, i - 1) == k) { v = substr($0, i + 1); gsub(/^[ \t"]+|[ \t"]+$/, "", v); print v; exit } }' "$RULES")
+    printf '%s' "${v:-$2}"
+  }
+  B_AT=$(front brief_time 07:00); B_DAYS=$(front brief_days weekdays)
+  awk 'NR == 1 && $0 == "---" { fm = 1; print; next }
+       fm && $0 == "---" { fm = 0 }
+       fm && (/^brief_time:/ || /^brief_days:/) { next }
+       { print }' "$RULES" > "$WORK/my-rules" && cat "$WORK/my-rules" > "$RULES"
+  printf '\n## My briefs\n- Morning brief [at:: %s] [days:: %s] [covers:: focus, meetings, catch up, follow-ups, due elsewhere]\n' \
+    "$B_AT" "$B_DAYS" >> "$RULES"
+  grep -q '^## What goes in my briefs' "$RULES" || printf '\n## What goes in my briefs\n' >> "$RULES"
+  grep -q '^## Important people' "$RULES" || printf '\n## Important people\n' >> "$RULES"
+fi
 # Before 0.2, the user's own instructions lived in my-instructions.md. Move anything they wrote
 # there into cos/my-rules.md, and keep the old file as my-instructions.md.bak.
 if [[ -f "$DIR/my-instructions.md" ]]; then

@@ -12,7 +12,8 @@ Dates are always `YYYY-MM-DD`. Times are 24-hour `HH:MM`.
 | File | What it holds |
 |---|---|
 | `now.md` | Focus (at most 3), this week's key dates, and suggested moves for the user to approve |
-| `brief.md` | The latest morning brief, rewritten each morning |
+| `brief.md` | Today's briefs, one section per brief; started fresh each day |
+| `catch-up.md` | What needs the user's reply or attention in their email, chat and Carbon Voice |
 | `nudges.md` | Short reminders to raise once, cleared after they're raised |
 | `inbox.md` | Captured, not yet sorted |
 | `actions.md` | What the user owes, plus pointers to to-do lists kept in other tools |
@@ -66,6 +67,10 @@ draft:
 | `archived` | archive | the date it was archived |
 | `from` | archive | the file it came from, like `actions` |
 | `prep` | brief meetings | `ready`, `offered`, or `HH:MM` when prep will be sent |
+| `sent` | brief headings | the time that brief was sent, `HH:MM` |
+| `kind` | catch-up | `reply` (someone asked the user something), `missed` (unread or unanswered and worth seeing), or `changed` (news that moves a project, action or waiting item) |
+| `raised` | catch-up | how many briefs have mentioned it |
+| `at`, `days`, `covers` | my-rules briefs | a brief's time, its days, and what it covers |
 | `src` | anything | where it came from: `<source> <YYYY-MM-DD>`, then a link if there is one |
 | `replaces` | my-rules rules | the id of the default it replaces |
 | `status`, `via`, `reads` | sources | connected or not, through what, and what the agent reads there |
@@ -137,32 +142,68 @@ note. `facts.md` holds the rest. Never store passwords, access codes or keys any
 "Suggested moves" are proposals the user hasn't agreed to yet: an inbox item to file, an idea to
 promote into a project, a project to close. Remove each once the user answers.
 
-**brief.md**: rewritten by each morning brief.
+**brief.md**: one section per brief sent today, under the brief's name and the time it was
+sent. The first brief of the day starts the file again.
 ```
 ---
 date: 2026-10-15
-sent: "07:02"
 ---
-# Brief for Thursday, October 15
+# Briefs for Thursday, October 15
 
-## Focus
+## Morning brief [sent:: 07:02]
+
+### Focus
 - Lock v3 pricing before Friday's [[Q4 Launch]] review
 
-## Meetings
+### Meetings
 - 09:30 Pricing review with [[Dana Whitfield]] and [[Priya Natarajan]] [prep:: ready]
   > The three open questions on the Team tier, and Dana's discount ask from Tuesday.
 - 13:00 Acme renewal call with [[Lena Fischer]] [prep:: 12:45]
 
-## Follow-ups
+### Catch up
+- [[Jordan Kim]] asked for the Q3 churn numbers [kind:: reply] [since:: 2026-10-12] [src:: gmail 2026-10-12 https://mail.google.com/...]
+- Acme moved the renewal call to Dec 3 [kind:: changed] [src:: gmail 2026-10-14]
+
+### Follow-ups
 1. Send the v3 pricing deck to [[Dana Whitfield]] [src:: cv 2026-10-13]
    > Dana, here's the v3 deck. Slide 6 has the Team tier change we talked about.
 2. Answer [[Jordan Kim]]'s question on Q3 churn [src:: gmail 2026-10-12]
    > Jordan, Q3 logo churn was 2.1%, down from 2.8%.
 
-## Due elsewhere
+### Due elsewhere
 - PRD-398 Sign off on SSO release notes [due:: 2026-10-15] [src:: linear 2026-10-15 https://linear.app/...]
+
+## Midday check-in [sent:: 12:31]
+
+### Catch up
+- [[Priya Natarajan]] asked whether SSO can ship Thursday [kind:: reply] [since:: 2026-10-15] [src:: slack 2026-10-15]
+
+### Follow-ups
+1. Tell [[Priya Natarajan]] SSO can ship Thursday [src:: slack 2026-10-15]
+   > Yes, ship it Thursday.
 ```
-Follow-ups are numbered so the user can answer "do 1 and 3". The quote under each is the draft.
+Section names inside a brief are free: use the ones its `covers` asks for (Focus, Meetings,
+Catch up, Follow-ups, Due elsewhere, This week, Done this week, …), and leave out empty ones.
+Follow-ups are numbered from 1 in each brief, so the user can answer "do 1 and 3"; the numbers
+always mean the latest brief. The quote under each is the draft.
+
+**catch-up.md**: what needs the user's reply or attention, kept between briefs so an item isn't
+forgotten after one mention, and isn't repeated forever. One line per thread, linking to it.
+```
+# Catch up
+
+## Needs your reply
+- [[Jordan Kim]] asked for the Q3 churn numbers [kind:: reply] [since:: 2026-10-12] [raised:: 2] [src:: gmail 2026-10-12 https://mail.google.com/...]
+
+## You may have missed
+- Three unread emails from [[Lena Fischer]] about seat counts [kind:: missed] [since:: 2026-10-14] [raised:: 1] [src:: gmail 2026-10-14 https://mail.google.com/...]
+
+## Changed
+- Acme moved the renewal call to Dec 3, for [[Acme Logistics renewal]] [kind:: changed] [since:: 2026-10-14] [raised:: 1] [src:: gmail 2026-10-14]
+```
+When the user replies, says to skip it, or the thread is dealt with, the line moves to the
+archive with the reason (`why:: replied`, `why:: skipped`). "Changed" lines move to the archive
+once they've been in one brief and filed into the notebook.
 
 **people/<Name>.md**, **projects/<Name>.md**, **areas/<Name>.md** start with front matter, then
 free Markdown. Everything that links to the note shows up on its page, so don't repeat those
@@ -196,12 +237,10 @@ Project `status` is `active`, `paused`, `done` or `dropped`. A finished project 
 with `status: done` and a line saying how it ended; the notebook page lists it under Archive.
 Areas have no status or due date.
 
-**my-rules.md**: settings in the front matter, rules as lines. A rule that changes a default
-names it with `replaces`; the default ids are in `.cos/defaults.md`.
+**my-rules.md**: settings in the front matter, rules and preferences as lines. A rule that
+changes a default names it with `replaces`; the default ids are in `.cos/defaults.md`.
 ```
 ---
-brief_time: "07:00"
-brief_days: weekdays
 nudges_per_day: 3
 stale_days: 30
 meeting_prep: offer
@@ -209,15 +248,34 @@ meeting_prep: offer
 # My rules for Ada
 
 ## My rules
-- Send the morning brief at 6:45 [replaces:: brief] [src:: cv 2026-10-05]
 - Drafts should sound like me: plain, short, no exclamation marks [src:: cv 2026-10-04]
 
 ## Where things go
 - Team tasks live in Linear. Point to them; don't copy them [replaces:: todos] [src:: cv 2026-10-13]
+
+## My briefs
+- Morning brief [at:: 06:45] [days:: weekdays] [covers:: focus, meetings, catch up, follow-ups, due elsewhere] [src:: cv 2026-10-05]
+- Midday check-in [at:: 12:30] [days:: weekdays] [covers:: what came in since the morning, afternoon meetings, follow-ups] [src:: cv 2026-10-14]
+- Friday wrap-up [at:: 16:30] [days:: fri] [covers:: what got done, what slipped, next week] [src:: cv 2026-10-09]
+
+## What goes in my briefs
+- Keep each brief under a minute [src:: onboarding 2026-10-01]
+- Skip newsletters, GitHub notifications and anything from #random [src:: cv 2026-10-07]
+
+## Important people
+- [[Jordan Kim]]: anything from him, always [src:: onboarding 2026-10-01]
+- Anything from the board [src:: cv 2026-10-06]
 ```
-`brief_days` is `weekdays`, `daily` or `off`. `meeting_prep` is `offer` (offer it in the brief),
-`auto` (send prep before meetings with people who have a note) or `off`. When a rule changes a
-setting, change the front matter too.
+**My briefs** has one line per brief: its name, then `at` (`HH:MM`), `days` (`weekdays`, `daily`,
+`weekends`, `off`, or days like `mon, wed, fri`) and `covers` (what it's for, in plain words).
+**What goes in my briefs** holds preferences for every brief; a brief's own `covers` wins where
+they differ. **Important people** always make it into a brief.
+
+`meeting_prep` is `offer` (offer it in the brief), `auto` (send prep before meetings with people
+who have a note) or `off`. When a rule changes a setting, change the front matter too.
+
+An older `my-rules.md` may still have `brief_time` and `brief_days` in its front matter and no
+"My briefs" section. Treat that as a single "Morning brief" at that time on those days.
 
 **about-me.md**
 ```

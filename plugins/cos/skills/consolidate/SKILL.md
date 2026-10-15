@@ -31,13 +31,19 @@ cos:migrate skill first.
    - unchecked items with no due date, untouched for `stale_days` days (30 unless set), and
      ideas past their `back` time that never came up again (`why:: no mention for N days`).
      Before archiving one of these, check the logs and transcripts for any mention.
+   - lines in `catch-up.md` with `kind:: changed` that have been in a brief, and any line older
+     than 14 days that the user never took up (`why:: not taken up in 14 days`);
    - Items past due but still relevant stay, and become a nudge.
 5. **Decisions.** Never edit a past decision. If a new one replaces an old one, add
    `[superseded:: <date>]` to the old line.
 6. **Suggest moves.** Under "Suggested moves" in `now.md`, add at most three proposals, one line
    each, phrased as a question: inbox items that clearly belong somewhere, an idea that has come
    up three or more times or gathered people and dates ("make it a project?"), a project whose
-   work all looks finished ("close it?"), a person who now deserves their own note. Don't
+   work all looks finished ("close it?"), a person who now deserves their own note, or a change
+   to their briefs based on how they use them over the last two weeks: a part they never use
+   ("you never pick follow-ups at midday; drop them?"), something they keep asking for after a
+   brief ("you often ask about Slack; add it to the morning brief?"), or a brief they ignore.
+   Don
    reorganize anything yourself; the user decides. Leave existing suggestions they haven't
    answered.
 7. **Nudges.** Overwrite `cos/nudges.md` with at most `nudges_per_day` items (3 unless set) for
