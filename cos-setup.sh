@@ -63,10 +63,25 @@ auth_field() {  # auth_field <name>: a text field from AUTH_JSON, e.g. email, or
 # Signed in with an Anthropic API (Console) account rather than a Claude plan? A saved Claude
 # sign-in token (oauth_token, from CLAUDE_CODE_OAUTH_TOKEN) isn't one.
 api_account() { case "$(auth_field authMethod)" in ""|claude.ai|oauth_token) return 1 ;; *) return 0 ;; esac; }
+account_name() {  # "<email> — <orgName>", leaving out what's unknown
+  local email org
+  email=$(auth_field email); org=$(auth_field orgName)
+  printf '%s%s%s' "$email" "${email:+${org:+ — }}" "$org"
+}
 account_desc() {  # "Signed in as <email> — <orgName> (<plan> plan)", leaving out what's unknown
   local email org plan
   email=$(auth_field email); org=$(auth_field orgName); plan=$(auth_field subscriptionType)
   printf 'Signed in%s%s%s' "${email:+ as $email}" "${org:+ — $org}" "${plan:+ ($plan plan)}"
+}
+
+# Cleans up a folder name typed by the user: drops a leading "~/" or "$HOME/" and a trailing
+# "/", trims spaces, and turns inner spaces into "-".
+clean_name() {
+  local n=$1
+  n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
+  n=${n#"~/"}; n=${n#"$HOME/"}; n=${n%/}
+  n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"
+  printf '%s' "${n// /-}"
 }
 
 # Where the "carbonvoice" plugin marketplace comes from, as "<kind> <location>", e.g.
@@ -195,8 +210,10 @@ printf '\n=== cos-setup %s ===\n' "$(date)" >>"$LOG"
 # ---------- which Claude account ----------
 # One email can belong to several Claude organizations (say, personal and work), and Claude
 # Code is signed in to one at a time, so check it's the one the agent should use.
-if [[ $S_AUTH == signedin ]] && ! yes "Use this account for your agent? [Y/n]"; then
-  step "Claude account"
+# The question names the Claude account so it isn't mistaken for the Carbon Voice one.
+# No step heading here: "Claude account" prints once, in the sign-in step below.
+ACCOUNT_NAME=$(account_name)
+if [[ $S_AUTH == signedin ]] && ! yes "Use this Claude account${ACCOUNT_NAME:+ ($ACCOUNT_NAME)} for your agent? [Y/n]"; then
   echo "  You'll be signed out, then your browser opens so you can sign in again."
   echo "  If your email belongs to more than one Claude organization, choose the one for your agent there."
   claude auth logout </dev/tty >/dev/null 2>&1 || true
@@ -346,10 +363,16 @@ case $S_MKT in
 esac
 # Make sure the catalog we now have really offers the chief-of-staff plugin before installing.
 # (--available lists only plugins not yet installed, so on a re-run cos shows as installed.)
-claude plugin list --available --json </dev/null 2>>"$LOG" \
-  | jq -e '[.installed[]?.id, .available[]?.pluginId] | index("cos@carbonvoice") != null' >/dev/null 2>&1 \
-  || die "The Carbon Voice plugin list on this computer doesn't include the Chief of Staff plugin.
+# Older Claude Code may not have this command; then skip the check and let the install speak.
+if AVAILABLE=$(claude plugin list --available --json </dev/null 2>>"$LOG") \
+   && printf '%s' "$AVAILABLE" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  printf '%s' "$AVAILABLE" \
+    | jq -e '[.installed[]?.id, .available[]?.pluginId] | index("cos@carbonvoice") != null' >/dev/null 2>&1 \
+    || die "The Carbon Voice plugin list on this computer doesn't include the Chief of Staff plugin.
   To fix it, $FIX"
+else
+  echo "Skipped the plugin availability check: 'claude plugin list --available --json' failed or didn't print JSON." >>"$LOG"
+fi
 for p in cv-channel cos; do
   if quiet claude plugin install "$p@carbonvoice" --scope user \
      || quiet claude plugin install "$p@carbonvoice"; then
@@ -362,8 +385,23 @@ done
 # ---------- workspace ----------
 step "Your agent's folder"
 info "Each agent gets its own folder. Use a different name for each agent you create."
-NAME=$(ask "  Folder name [chief-of-staff]:")
-NAME=${NAME:-chief-of-staff}; NAME=${NAME// /-}
+NAME=""; REUSE=""
+for try in 1 2 3 4; do   # the first ask, then up to 3 more
+  RAW=$(ask "  Folder name [chief-of-staff]:")
+  if [[ -z "${RAW//[[:space:]]/}" ]]; then NAME=chief-of-staff; else NAME=$(clean_name "$RAW"); fi
+  case "$NAME" in
+    "")  info "Type a name, or press Return for chief-of-staff."; NAME=""; continue ;;
+    */*) info "Use just a name, like chief-of-staff. The folder goes in your home folder."; NAME=""; continue ;;
+    .*)  info "The name can't start with a dot."; NAME=""; continue ;;
+  esac
+  # A folder that already has an agent: reuse it only if the same name is typed again.
+  if [[ -f "$HOME/$NAME/cos/.version" && "$NAME" != "$REUSE" ]]; then
+    info "~/$NAME already has an agent. Type a different name, or type $NAME again to reuse it."
+    REUSE=$NAME; NAME=""; continue
+  fi
+  break
+done
+[[ -n "$NAME" ]] || die "No folder name chosen. Run this again when you're ready; everything installed so far stays installed."
 DIR="$HOME/$NAME"
 mkdir -p "$DIR"
 ok "~/$NAME"
