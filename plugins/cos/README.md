@@ -18,25 +18,25 @@ and press Return. Paste this line and press Return:
 It shows what it will install and why, and waits for your OK. Then it sets up everything this
 needs (Claude Code, Node.js, and a couple of small tools), opens your browser so you can sign in
 to your Claude account if you aren't already, installs the Carbon Voice plugins, and creates a
-folder for your agent. Anything you already
-have is left alone, and it's safe to run again.
+folder for your agent inside the folder you ran it from. Anything you already have is left
+alone, and it's safe to run again.
 
 **2. Connect your Carbon Voice agent.** The installer asks you to create a Personal Agent
 Account in Carbon Voice for your chief of staff (it's who you'll talk to), copy its Personal Access Token,
 and paste it in Terminal. The token is hidden as you paste it, checked with Carbon Voice, and
 saved only in your agent's folder. It never goes into a Claude conversation.
 
-**3. Finish setup in Claude.** The installer finishes by opening Claude in your agent's folder.
-When Claude asks whether you trust the folder, choose **Yes, I trust this folder**. Then type
-`/cos:setup` and press Return. Claude asks a few short questions: your name, your agent's name,
-whether to also show the session in the Claude app, and approval for the nightly review.
+**3. Answer a few questions.** Your name, your agent's name (filled in from Carbon Voice),
+whether to also show your agent in the Claude app, and whether to set up the nightly review.
+The installer then builds your agent's folder and checks it.
 
-**4. Start your Chief of Staff.** When setup finishes, type `/exit`, then run:
+**4. Start your Chief of Staff.** The installer ends by starting your agent. When Claude asks
+whether you trust the folder, choose **Yes, I trust this folder**. Keep this window open: you
+can watch messages arrive and see what your chief of staff does. Next time, start it from its
+folder with:
 ```
 ./start-cos.sh
 ```
-Keep this window open: you can watch messages arrive and see what your chief of staff does.
-(If you ran `/cos:setup` without the installer, it asks for your agent's token the first time.)
 
 **5. Say hello in Carbon Voice.** Message your agent from your own account. You'll get a
 pairing code back. In Terminal, type `/cv-channel:access pair <code>`, then message your agent

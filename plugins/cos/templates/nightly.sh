@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nightly review for {{AGENT_NAME}}. Installed by /cos:setup as a scheduled job.
+# Nightly review for {{AGENT_NAME}}. Scheduled by the Chief of Staff installer (cos-setup.sh).
 # Runs headless, without the Carbon Voice channel, so it never competes with the live session.
 set -uo pipefail
 cd "$(dirname "$0")"
