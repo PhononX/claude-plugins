@@ -38,9 +38,13 @@ folder with:
 ./start-cos.sh
 ```
 
-**5. Say hello in Carbon Voice.** Message your agent from your own account. You'll get a
-pairing code back. In Terminal, type `/cv-channel:access pair <code>`, then message your agent
-again. It starts a short voice conversation to learn about your work.
+**5. Say hello in Carbon Voice.** Message your agent from your own account, the one that owns
+the Agent Account. The installer already allowed that account, so your agent starts a short
+voice conversation to learn about your work.
+
+If your agent replies with a pairing code instead (for example, you messaged from a different
+account), type `/cv-channel:access pair <code>` in your agent's Terminal window, then message it
+again. Only add people you'd trust to approve your agent's actions.
 
 ## Day to day
 Just talk to your agent in Carbon Voice. Ask where things stand, tell it what changed, or have
