@@ -110,10 +110,11 @@ cv_whoami() {
   printf 'header = "Authorization: Bearer %s"\n' "$1" \
     | curl -sS -K - -o "$WORK/whoami.json" -w '%{http_code}' --max-time 20 "$CV_API/whoami" 2>>"$LOG" || true
 }
-cv_user() {  # cv_user <field>: id or name of the user in $WORK/whoami.json
+cv_user() {  # cv_user <field>: id, name or owner of the user in $WORK/whoami.json
   case "$1" in
     id)   jq -r '.user.user_guid // empty' "$WORK/whoami.json" 2>/dev/null || true ;;
     name) jq -r '[.user.first_name, .user.last_name] | map(select(. != null and . != "")) | join(" ")' "$WORK/whoami.json" 2>/dev/null || true ;;
+    owner) jq -r '.user.owner_id // .owner_id // empty' "$WORK/whoami.json" 2>/dev/null || true ;;   # set for Agent Accounts
   esac
 }
 # Reads the token into PAT, one character at a time and hidden, printing a • for each so a
@@ -674,11 +675,9 @@ if [[ -z "$PAT" ]]; then
   ok "Token saved for ${AGENT_NAME:-your agent}"
 fi
 PAT=""; unset PAT
-# TODO(owner allowlist): /whoami has a created_by user ID, but it isn't documented as the
-# Agent Account's owner (and user_type is "user" for Agent Accounts too, so it can't tell them
-# apart from people). Once Carbon Voice confirms /whoami (or another call) returns the owning user, write
-# {"dmPolicy": "allowlist", "allowFrom": ["<owner user ID>"], "blockedFrom": []} to
-# $CV_DIR/access.json here (mode 600) and drop the pairing step. Until then the owner pairs once.
+# The Agent Account's owner, from the /whoami response for the token just checked (owner_id;
+# empty for a person's token, or when Carbon Voice couldn't be reached).
+OWNER_ID=$(cv_user owner)
 
 # ---------- about you and your agent ----------
 # Answers saved at an earlier setup are reused by an update, and offered as defaults by a
@@ -726,9 +725,8 @@ if [[ $MODE == update && -n "$SAVED_REMOTE" ]]; then
     else warn "This version of Claude Code can't show your agent in the Claude app, so that's off for now."; fi
   fi
 elif [[ -n "$CLAUDE_VER" ]] && version_ge "$CLAUDE_VER" 2.1.51; then
-  echo "  Your agent can also appear in the Claude app (Code tab) and at claude.ai/code, so you can"
-  echo "  watch what it's doing, approve its requests, or type instead of talk. While it's"
-  echo "  connected, the session transcript is kept on Anthropic's servers."
+  echo "  Your chats with the agent can also appear in the Claude app (Code tab) and at"
+  echo "  claude.ai/code, so you can watch what it's doing and approve its requests."
   if yes "  Show your agent in the Claude app? [Y/n]"; then REMOTE_ARGS="--remote-control"; fi
   if [[ -n "$REMOTE_ARGS" && -n "$TEAM" ]]; then
     info "On Team and Enterprise plans, an Owner must turn on Remote Control in Claude Code's admin settings."
@@ -755,6 +753,28 @@ if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
 SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
 
 mkdir -p "$DIR/cos/log/transcripts" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+# Let the Agent Account's owner message the agent straight away instead of pairing with a code:
+# add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
+# A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
+# policy and other entries; an owner the user deliberately blocked stays blocked. Anyone else
+# still pairs, which the owner approves at the terminal.
+OWNER_ALLOWED=""
+if [[ -n "$OWNER_ID" ]]; then
+  ACCESS="$CV_DIR/access.json"
+  if [[ -s "$ACCESS" ]]; then
+    if jq -e --arg o "$OWNER_ID" '(.blockedFrom // []) | index($o)' "$ACCESS" >/dev/null 2>&1; then
+      warn "Your Carbon Voice account is blocked from messaging this agent, so it was left that way."
+    elif jq --arg o "$OWNER_ID" '.allowFrom = ((.allowFrom // []) + [$o] | unique)' "$ACCESS" > "$WORK/access.json" 2>>"$LOG"; then
+      cat "$WORK/access.json" > "$ACCESS"; OWNER_ALLOWED=1
+    else
+      warn "Couldn't read .cv/access.json, so who can message your agent was left as it was."
+    fi
+  else
+    (umask 077; jq -n --arg o "$OWNER_ID" '{dmPolicy: "allowlist", allowFrom: [$o], blockedFrom: []}' > "$ACCESS")
+    OWNER_ALLOWED=1
+  fi
+  chmod 600 "$ACCESS" 2>/dev/null || true
+fi
 (cd "$TEMPLATES/cos" && find . -type f </dev/null) | while IFS= read -r f; do
   if [[ ! -e "$DIR/cos/$f" ]]; then mkdir -p "$(dirname "$DIR/cos/$f")"; cp "$TEMPLATES/cos/$f" "$DIR/cos/$f"; fi
 done
@@ -785,7 +805,7 @@ touch "$DIR/.gitignore"
 while IFS= read -r line; do
   grep -qxF -- "$line" "$DIR/.gitignore" || printf '%s\n' "$line" >> "$DIR/.gitignore"
 done < "$TEMPLATES/gitignore"
-for s in start-cos.sh nightly.sh update-cos.sh; do
+for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh; do
   [[ -f "$TEMPLATES/$s" ]] || continue
   fill "$TEMPLATES/$s" "$WORK/$s" AGENT_NAME="$SCRIPT_NAME" CLAUDE_BIN="$CLAUDE_BIN" \
     CHANNEL_ARGS="$CHANNEL_ARGS" REMOTE_ARGS="$REMOTE_ARGS"
@@ -798,6 +818,7 @@ LEFT=$(cd "$DIR" && grep -l '{{' CLAUDE.md start-cos.sh nightly.sh .claude/setti
 rm -f "$DIR/cos/.update-check"   # the version just changed, so check again next start
 [[ -z "$LEFT" ]] || die "Setting up the folder left blanks in: $LEFT. Run this again; the details are in $LOG_SHOWN."
 ok "Instructions, notes, settings and start script in $(shown "$DIR")"
+if [[ -n "$OWNER_ALLOWED" ]]; then ok "Your Carbon Voice account can message $AGENT_NAME, with no pairing code needed"; fi
 
 # ---------- check the agent's note-keeping ----------
 # Runs the cos plugin's two hooks the way Claude will: the start-up one must load the agent's
@@ -904,9 +925,22 @@ else
   printf '         %s./start-cos.sh%s\n' "$bold" "$reset"
 fi
 echo '    2. Claude asks whether you trust this folder. Choose "Yes, I trust this folder".'
-echo "    3. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
-printf '    4. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$bold" "$reset"
-echo "       Then message $AGENT_NAME again. It starts a short voice conversation to learn about your work."
+N=3
+if [[ -z "$TEAM" ]]; then
+  # Pro/Max start with --dangerously-load-development-channels, because cv-channel isn't on
+  # Anthropic's approved channels list yet; Claude Code asks to confirm that on every start.
+  echo "    3. Claude warns about loading a development channel, because the Carbon Voice connection"
+  echo "       isn't on Anthropic's approved list yet. Choose \"I am using this for local development\"."
+  N=4
+fi
+if [[ -n "$OWNER_ALLOWED" ]]; then
+  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. It starts a short voice"
+  echo "       conversation to learn about your work."
+else
+  echo "    $N. In Carbon Voice, message $AGENT_NAME from your own account. You'll get a pairing code back."
+  printf '    %s. In the Claude window, type  %s/cv-channel:access pair <code>%s  and press Return.\n' "$((N + 1))" "$bold" "$reset"
+  echo "       Then message $AGENT_NAME again. It starts a short voice conversation to learn about your work."
+fi
 echo
 if [[ -n "$REMOTE_ARGS" ]]; then
   echo "  To watch from your phone, open the Claude app and tap Code. Make sure the app is in"

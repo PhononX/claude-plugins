@@ -40,6 +40,13 @@ export CV_ACCESS_PATH="$CV_DIR/access.json"
 export CV_PENDING_PATH="$CV_DIR/pending.json"
 export CV_ATTACHMENTS_DIR="$CV_DIR/attachments"
 export CV_PROJECT_NAME="{{AGENT_NAME}}"
+# ./cv-channel-log.sh on|off turns on a log of the Carbon Voice connection in .cv/channel.log.
+# Past 5 MB a new log starts, keeping the previous one as channel.log.1.
+if [[ -e "$CV_DIR/channel-log.on" ]]; then
+  export CV_LOG_FILE="$CV_DIR/channel.log"
+  if [[ -f "$CV_LOG_FILE" && $(wc -c < "$CV_LOG_FILE") -gt 5000000 ]]; then mv -f "$CV_LOG_FILE" "$CV_LOG_FILE.1"; fi
+  echo "Logging the Carbon Voice connection to .cv/channel.log (./cv-channel-log.sh off to stop)."
+fi
 
 CMD=("{{CLAUDE_BIN}}" {{CHANNEL_ARGS}} ${REMOTE[@]+"${REMOTE[@]}"})
 
@@ -63,6 +70,12 @@ newer_setup() {
 }
 NEWER=$(newer_setup)
 if [[ -n "$NEWER" ]]; then echo "An update is available (version $NEWER). To install it, run ./update-cos.sh"; fi
+# On Pro and Max plans the Carbon Voice channel loads as a development channel (it isn't on
+# Anthropic's approved list yet), and Claude Code asks to confirm that every time it starts.
+if [[ " ${CMD[*]} " == *" --dangerously-load-development-channels "* ]]; then
+  echo "Claude will warn about loading a development channel, because the Carbon Voice connection"
+  echo "isn't on Anthropic's approved list yet. Choose \"I am using this for local development\"."
+fi
 
 if [[ $BACKGROUND == 1 ]]; then
   command -v tmux >/dev/null || { echo "tmux is not installed. Run without --background."; exit 1; }

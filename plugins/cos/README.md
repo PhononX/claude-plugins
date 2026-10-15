@@ -31,16 +31,23 @@ whether to also show your agent in the Claude app, and whether to set up the nig
 The installer then builds your agent's folder and checks it.
 
 **4. Start your Chief of Staff.** The installer ends by starting your agent. When Claude asks
-whether you trust the folder, choose **Yes, I trust this folder**. Keep this window open: you
+whether you trust the folder, choose **Yes, I trust this folder**. On Pro and Max plans, Claude
+then warns about loading a development channel, because the Carbon Voice connection isn't on
+Anthropic's approved list yet: choose **I am using this for local development**. It asks this
+each time your agent starts. Keep this window open: you
 can watch messages arrive and see what your chief of staff does. Next time, start it from its
 folder with:
 ```
 ./start-cos.sh
 ```
 
-**5. Say hello in Carbon Voice.** Message your agent from your own account. You'll get a
-pairing code back. In Terminal, type `/cv-channel:access pair <code>`, then message your agent
-again. It starts a short voice conversation to learn about your work.
+**5. Say hello in Carbon Voice.** Message your agent from your own account, the one that owns
+the Agent Account. The installer already allowed that account, so your agent starts a short
+voice conversation to learn about your work.
+
+If your agent replies with a pairing code instead (for example, you messaged from a different
+account), type `/cv-channel:access pair <code>` in your agent's Terminal window, then message it
+again. Only add people you'd trust to approve your agent's actions.
 
 ## Day to day
 Just talk to your agent in Carbon Voice. Ask where things stand, tell it what changed, or have
@@ -62,6 +69,9 @@ transcript is kept on Anthropic's servers. Your Carbon Voice token never appears
 - `./update-cos.sh` — update to the latest version. `./start-cos.sh` tells you when there's an
   update, and your agent mentions it too. Your notes, token and setup answers are kept, so it
   only asks about anything missing. Restart your agent afterwards.
+- `./cv-channel-log.sh on` — keep a log of the Carbon Voice connection in `.cv/channel.log`, to
+  see why messages aren't getting through; `./cv-channel-log.sh` shows it, `off` stops it.
+  It records IDs and what happened, never your token or what was said.
 - `/cos:doctor` (in Claude) — check that everything is healthy.
 
 Want your agent to behave differently? Write it in `my-instructions.md` in its folder.
