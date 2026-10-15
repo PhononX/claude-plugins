@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Notebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* The notebook page for the Chief of Staff. Built by .cos/build-brain.sh from the notes in cos/;
+   the notes are embedded below as text/markdown script elements and rendered here.
+   Layout: a binder. Section index on the left, one open page on the right; on a phone the index
+   becomes a row of tabs. */
+:root {
+  --bg: #F1F4F2;
+  --surface: #FFFFFF;
+  --ink: #17201E;
+  --muted: #5A6864;
+  --line: #D9E0DC;
+  --chip: #E8EDEA;
+  --accent: #1D5C77;
+  --accent-soft: #E0EDF2;
+  --due: #8E5600;
+  --due-soft: #FAEED6;
+  --late: #A23726;
+  --late-soft: #F6E0DB;
+  --ok: #2B6641;
+  --ok-soft: #DFEFE4;
+  --obs: #6B4FA0;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101615; --surface: #171F1D; --ink: #E3EAE7; --muted: #92A29D; --line: #283330; --chip: #212B28;
+    --accent: #7DB9D3; --accent-soft: #1A3440; --due: #E6B45C; --due-soft: #372B14; --late: #EF8C79; --late-soft: #3B1F1A;
+    --ok: #82C79C; --ok-soft: #173123; --obs: #C1A8EC; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); overflow-wrap: break-word; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code { font: 0.9em var(--f-mono); background: var(--chip); padding: 0 4px; border-radius: 4px; }
+
+.top {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+}
+.top-in { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.who { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 280px; }
+.mark { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--surface); display: grid; place-items: center; font: 700 16px var(--f-display); flex: none; }
+.who h1 { margin: 0; font: 700 19px/1.2 var(--f-display); letter-spacing: -0.01em; }
+.who p { margin: 0; color: var(--muted); font-size: 13px; }
+.search { flex: 1 1 260px; max-width: 380px; position: relative; }
+.search input {
+  width: 100%; padding: 8px 12px 8px 34px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: 14px var(--f-body);
+}
+.search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 2; }
+.notice {
+  max-width: 1180px; margin: 14px auto 0; font-size: 13.5px; color: var(--due); background: var(--due-soft);
+  border-radius: 8px; padding: 8px 12px;
+}
+.wrap { padding: 0 max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); }
+.shell { max-width: 1180px; margin: 18px auto 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+
+nav.index { position: sticky; top: 76px; display: grid; gap: 2px; }
+nav.index .grp { font: 500 11px var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 14px 10px 4px; }
+nav.index .grp:first-child { padding-top: 0; }
+nav.index button {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
+  text-align: left; background: none; border: 0; border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: 14px;
+}
+nav.index button:hover { background: var(--chip); }
+nav.index button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+nav.index .n { font: 12px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+nav.index button[aria-current="page"] .n { color: var(--accent); }
+nav.index .n.hot { color: var(--late); font-weight: 500; }
+
+main { min-width: 0; }
+main h2:focus { outline: none; }
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px; }
+.page-head > div:first-child { min-width: 0; }
+.page-head h2 { margin: 0; font: 700 28px/1.15 var(--f-display); letter-spacing: -0.015em; text-wrap: balance; }
+.page-head .sub { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+.file { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.path { font: 12.5px var(--f-mono); color: var(--muted); background: var(--chip); padding: 3px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.toggle { font-size: 12.5px; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; color: var(--muted); }
+.toggle[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.obs { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; cursor: pointer; color: var(--ink); white-space: nowrap; text-decoration: none; }
+.obs:hover { border-color: var(--obs); }
+.obs svg { width: 15px; height: 15px; fill: var(--obs); }
+.obs.small { font-size: 12.5px; padding: 3px 9px; border-radius: 6px; font-weight: 400; color: var(--muted); }
+.url { font: 12.5px var(--f-mono); color: var(--accent); overflow-wrap: anywhere; }
+.copy { font-size: 12px; background: none; border: 1px solid var(--line); border-radius: 5px; padding: 0 7px; cursor: pointer; color: var(--muted); line-height: 1.7; }
+.layer { font: 500 11px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 7px; border-radius: 5px; }
+.layer.you { background: var(--accent-soft); color: var(--accent); }
+.layer.learned { background: var(--due-soft); color: var(--due); }
+.layer.base { background: var(--chip); color: var(--muted); }
+.overridden { text-decoration: line-through; color: var(--muted); }
+.rawfile { margin: 0 0 18px; }
+.rawfile .path { display: inline-block; margin-bottom: 6px; }
+pre.raw {
+  margin: 0; padding: 14px 16px; background: var(--surface); border: 1px dashed var(--line); border-radius: 10px;
+  font: 12.5px/1.6 var(--f-mono); color: var(--ink); overflow-x: auto; white-space: pre; max-height: 70vh;
+}
+
+section.block { margin-bottom: 26px; }
+section.block > h3, .h3 { font: 600 13px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+section.block > h3 .aside, .h3 .aside { text-transform: none; letter-spacing: 0; font-family: var(--f-body); font-weight: 400; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li { padding: 12px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+.list > li:first-child { border-top: 0; }
+.list > li.nobox { grid-template-columns: minmax(0, 1fr); }
+.box { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; margin-top: 3px; position: relative; }
+.box.done { background: var(--ok); border-color: var(--ok); }
+.box.done::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--surface); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.num { font: 600 15px var(--f-display); color: var(--accent); width: 22px; text-align: center; margin-top: 1px; }
+.txt { min-width: 0; }
+.muted { color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; align-items: center; }
+.tag { font: 12px/1.6 var(--f-body); padding: 0 7px; border-radius: 5px; background: var(--chip); color: var(--muted); max-width: 100%; }
+.tag.due { background: var(--due-soft); color: var(--due); font-weight: 500; }
+.tag.late { background: var(--late-soft); color: var(--late); font-weight: 500; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); font-weight: 500; }
+.tag.acc { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.src { font: 11.5px/1.7 var(--f-mono); padding: 0 6px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; text-decoration: none; }
+a.src:hover { border-color: var(--accent); color: var(--accent); }
+a.wl { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+a.wl:hover { border-bottom-color: var(--accent); }
+.wl-none { border-bottom: 1px dotted var(--muted); cursor: help; }
+.quote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); font-style: italic; }
+.draft { margin-top: 6px; font-size: 13.5px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.hint { font-size: 13px; color: var(--muted); margin: 8px 2px 0; }
+
+.moves { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-left: 4px solid var(--accent); }
+.moves-h { color: var(--accent) !important; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.two > div > section.block:last-child { margin-bottom: 26px; }
+.focus { counter-reset: f; }
+.focus > li::before { counter-increment: f; content: counter(f); font: 700 20px/1 var(--f-display); color: var(--accent); width: 22px; }
+.focus > li { grid-template-columns: 22px minmax(0, 1fr); }
+.meet { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 4px 12px; }
+.time { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink); padding-top: 1px; }
+
+.people-grid, .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.pcard { padding: 14px 16px; text-align: left; cursor: pointer; display: grid; gap: 6px; align-content: start; width: 100%; }
+.pcard:hover { border-color: var(--accent); }
+.pcard h4 { margin: 0; font: 600 17px/1.25 var(--f-display); }
+.pcard .role { color: var(--muted); font-size: 13.5px; margin: 0; }
+.pcard .row { display: flex; flex-wrap: wrap; gap: 6px; }
+.detail { padding: 18px 20px; margin-bottom: 18px; }
+.detail dl { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px 14px; margin: 0 0 14px; }
+.detail dt { color: var(--muted); font-size: 13.5px; }
+.detail dd { margin: 0; min-width: 0; }
+.back { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; margin-bottom: 10px; font-size: 14px; }
+.backlinks { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.backlinks h4 { font: 600 13px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 4px; }
+.backlinks .list > li { padding: 9px 0; }
+.bl-file { font: 12px var(--f-mono); color: var(--muted); }
+
+.md { min-width: 0; }
+.md > :first-child { margin-top: 0; }
+.md h3 { font: 700 20px/1.25 var(--f-display); margin: 16px 0 6px; }
+.md h4 { font: 600 13px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
+.md h5 { font: 600 15px var(--f-body); margin: 14px 0 4px; }
+.md p { margin: 6px 0; }
+.md ul.md-list { list-style: none; margin: 4px 0 8px; padding: 0; }
+.md ul.md-list > li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; padding: 4px 0; }
+.md .bullet { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); margin: 9px 5px 0; }
+.md .num { width: auto; min-width: 16px; font-size: 14px; }
+.md blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md pre { background: var(--bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font: 12.5px/1.6 var(--f-mono); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+
+.ext { padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: start; border-top: 1px solid var(--line); }
+.ext:first-child { border-top: 0; }
+.ext h4 { margin: 0; font: 600 16px var(--f-display); }
+
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tscroll { overflow-x: auto; }
+table.t th { text-align: left; font: 500 12px var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding: 10px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.t td { padding: 11px 16px; border-top: 1px solid var(--line); vertical-align: top; min-width: 90px; }
+table.t tr:first-child td { border-top: 0; }
+table.t tr.gone td { color: var(--muted); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.on { background: var(--ok); }
+.dot.off { background: var(--due); }
+
+.day { padding: 14px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 16px; }
+.day:first-child { border-top: 0; }
+.day .d { font: 600 15px var(--f-display); }
+.day .d small { display: block; font: 12px var(--f-mono); color: var(--muted); }
+.day ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.day .time { font-size: 12.5px; color: var(--muted); margin-right: 6px; }
+
+details.done { margin-top: 12px; }
+details.done > summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 2px; width: fit-content; }
+details.done > .card { margin-top: 6px; }
+.grouplink { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.grouplink:hover { color: var(--accent); }
+
+.empty { padding: 22px 16px; text-align: center; color: var(--muted); }
+mark { background: var(--due-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+footer { max-width: 1180px; margin: 28px auto 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+footer code { overflow-wrap: anywhere; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  nav.index { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 6px; scrollbar-width: thin; }
+  nav.index .grp { display: none; }
+  nav.index button { width: auto; flex: none; white-space: nowrap; border: 1px solid var(--line); background: var(--surface); }
+  .two { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .top { position: static; }
+}
+@media (max-width: 520px) {
+  .detail { padding: 14px; }
+  .detail dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .detail dd { margin-bottom: 8px; }
+  .day { grid-template-columns: minmax(0, 1fr); }
+  .page-head h2 { font-size: 24px; }
+  .search { max-width: none; }
+  .list > li { padding: 11px 12px; }
+  .meet { grid-template-columns: 62px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  main > * { animation: rise .18s ease-out; }
+  @keyframes rise { from { transform: translateY(3px); } to { transform: none; } }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="who">
+      <div class="mark" aria-hidden="true" id="mark"></div>
+      <div>
+        <h1 id="agent-title">Notebook</h1>
+        <p id="byline"></p>
+      </div>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" autocomplete="off" spellcheck="false">
+    </label>
+    <span id="obs-top"></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="notice"></div>
+  <div class="shell">
+    <nav class="index" id="nav" aria-label="Sections"></nav>
+    <main id="main"></main>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<!--COS-NOTES-->
+
+<script>
+(function () {
+"use strict";
+
+/* ---------- the embedded files ---------- */
+var FILES = {}, ORDER = [];
+Array.prototype.forEach.call(document.querySelectorAll('script[type="text/markdown"][data-path]'), function (s) {
+  var p = s.getAttribute("data-path");
+  // The builder put a backslash after the "<" of every closing script tag and comment opener; undo both.
+  FILES[p] = s.textContent.replace(/<\\(\/script)/gi, "<$1").replace(/<\\(!--)/g, "<$1").replace(/\r\n?/g, "\n");
+  ORDER.push(p);
+});
+var META = {};
+try { var mEl = document.getElementById("cos-meta"); if (mEl) META = JSON.parse(mEl.textContent) || {}; } catch (e) { META = {}; }
+var AGENT = META.agent || "Your agent";
+var OWNER = META.owner || "";
+var WS = META.workspace || "";
+
+/* ---------- dates ---------- */
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+function isoOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function isISO(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim()); }
+function parseISO(s) { var m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+var todayParam = new URLSearchParams(location.search).get("today");
+var TODAY = isISO(todayParam) ? parseISO(todayParam) : (function () { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); })();
+var TODAY_ISO = isoOf(TODAY);
+function daysFromToday(iso) { var d = parseISO(iso); return d ? Math.round((d - TODAY) / 86400000) : null; }
+var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+var MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function fmtShort(iso) { var d = parseISO(iso); if (!d) return iso; return MONTHS[d.getMonth()] + " " + d.getDate() + (d.getFullYear() !== TODAY.getFullYear() ? ", " + d.getFullYear() : ""); }
+function fmtDay(iso) { var d = parseISO(iso); return d ? DAYS[d.getDay()] + ", " + fmtShort(iso) : iso; }
+function fmtTime(hm) {
+  var m = String(hm).match(/^(\d{1,2}):(\d{2})$/); if (!m) return hm;
+  var h = +m[1], ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
+  return h + ":" + m[2] + ap;
+}
+
+/* ---------- escaping and inline Markdown ---------- */
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+var QUERY = "", QRE = null;
+function T(s) { // escaped text, with search matches highlighted
+  s = String(s == null ? "" : s);
+  if (!QRE) return esc(s);
+  return s.split(QRE).map(function (part, i) { return i % 2 ? "<mark>" + esc(part) + "</mark>" : esc(part); }).join("");
+}
+function safeHref(u) { return /^(https?:|mailto:)/i.test(u) ? u : null; }
+
+var NOTES = {}; // lower-case name -> {kind, name, path}
+ORDER.forEach(function (p) {
+  var m = p.match(/^cos\/(people|projects|areas)\/(?:.*\/)?([^\/]+)\.md$/);
+  if (m) NOTES[m[2].toLowerCase()] = { kind: m[1], name: m[2], path: p };
+});
+function resolve(name) { return NOTES[String(name).trim().toLowerCase()] || null; }
+function noteHash(n) { return n.kind + "/" + encodeURIComponent(n.name); }
+function wl(name, alias) {
+  var n = resolve(name), label = T(alias || name);
+  return n ? '<a class="wl" href="#' + esc(noteHash(n)) + '">' + label + "</a>"
+           : '<span class="wl-none" title="No note yet">' + label + "</span>";
+}
+var INL_SRC = "\\[\\[([^\\]|#]+)(?:#[^\\]|]*)?(?:\\|([^\\]]+))?\\]\\]" +      // 1,2 wikilink
+  "|\\[([^\\]]+)\\]\\(([^)\\s]+)\\)" +                                       // 3,4 md link
+  "|`([^`]+)`" +                                                             // 5 code
+  "|\\*\\*(\\S(?:.*?\\S)?)\\*\\*" +                                          // 6 bold
+  "|(https?:\\/\\/[^\\s<>()\\]]*[^\\s<>()\\].,;:!?'\"])" +                  // 7 bare url
+  "|(?<![\\w*\\\\])\\*(\\S(?:.*?\\S)?)\\*(?![\\w*])" +                       // 8 italic *
+  "|(?<![\\w\\\\])_(\\S(?:.*?\\S)?)_(?!\\w)";                                // 9 italic _
+function inl(s) {
+  s = String(s == null ? "" : s);
+  var re = new RegExp(INL_SRC, "g"), out = "", last = 0, m;
+  while ((m = re.exec(s))) {
+    out += T(s.slice(last, m.index)); last = m.index + m[0].length;
+    if (m[1] != null) out += wl(m[1], m[2]);
+    else if (m[3] != null) { var h = safeHref(m[4]); out += h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + inl(m[3]) + "</a>" : inl(m[3]); }
+    else if (m[5] != null) out += "<code>" + T(m[5]) + "</code>";
+    else if (m[6] != null) out += "<b>" + inl(m[6]) + "</b>";
+    else if (m[7] != null) out += '<a href="' + esc(m[7]) + '" target="_blank" rel="noopener" class="url">' + T(m[7]) + "</a>";
+    else if (m[8] != null) out += "<i>" + inl(m[8]) + "</i>";
+    else if (m[9] != null) out += "<i>" + inl(m[9]) + "</i>";
+  }
+  return out + T(s.slice(last));
+}
+function plainText(s) { // for places that can't hold links, like inside a card button
+  return String(s || "").replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, function (_, n, a) { return a || n; })
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1").replace(/\*\*(.+?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1");
+}
+function plain(s) { return T(plainText(s)); }
+
+/* ---------- parsing the notes (notes-format.md) ---------- */
+var FIELD_RE = /\[([A-Za-z_][\w-]*)::[ \t]*((?:\[\[[^\]]*\]\]|[^\[\]])*?)[ \t]*\]/g;
+var LINK_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g;
+function splitFields(s) {
+  var fields = {};
+  var text = s.replace(FIELD_RE, function (_, k, v) { fields[k.toLowerCase()] = v.trim(); return " "; }).replace(/\s+/g, " ").trim();
+  return { text: text, fields: fields };
+}
+function linksIn(s) { var out = [], m; LINK_RE.lastIndex = 0; while ((m = LINK_RE.exec(s))) out.push(m[1].trim()); return out; }
+function unquote(v) { var m = v.match(/^"(.*)"$/) || v.match(/^'(.*)'$/); return m ? m[1] : v; }
+function norm(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+
+var DOCS = {};
+function doc(path) {
+  if (DOCS[path]) return DOCS[path];
+  var src = FILES[path] == null ? "" : FILES[path];
+  var lines = src.split("\n"), i = 0, fm = {}, fmEnd = 0;
+  if (lines[0] != null && lines[0].trim() === "---") {
+    for (var j = 1; j < lines.length; j++) if (lines[j].trim() === "---") { fmEnd = j + 1; break; }
+    if (fmEnd) {
+      for (j = 1; j < fmEnd - 1; j++) {
+        var fmm = lines[j].match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+        if (fmm) fm[fmm[1].toLowerCase()] = unquote(fmm[2].trim());
+      }
+      i = fmEnd;
+    }
+  }
+  var d = { path: path, exists: FILES[path] != null, fm: fm, fmEnd: fmEnd, title: "", blocks: [], items: [], lines: lines, byLine: {} };
+  var section = "", lastItem = null, para = null, code = null, m;
+  for (; i < lines.length; i++) {
+    var ln = lines[i];
+    if (code) { if (/^\s*(```|~~~)/.test(ln)) { d.blocks.push(code); code = null; } else code.lines.push(ln); continue; }
+    if (/^\s*(```|~~~)/.test(ln)) { code = { type: "code", lines: [], section: section }; lastItem = para = null; continue; }
+    if (!ln.trim()) { lastItem = para = null; continue; }
+    if ((m = ln.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))) {
+      var level = m[1].length;
+      if (level === 1 && !d.title) d.title = m[2]; else section = m[2];
+      d.blocks.push({ type: "h", level: level, text: m[2], section: section });
+      lastItem = para = null; continue;
+    }
+    if (lastItem && (m = ln.match(/^\s*>\s?(.*)$/))) { lastItem.quote.push(m[1]); d.byLine[i] = { quoteOf: lastItem, text: m[1] }; continue; }
+    if ((m = ln.match(/^(\s*)(?:[-*+]|(\d+)[.)])\s+(?:\[([ xX])\](?:\s+|$))?(.*)$/))) {
+      var f = splitFields(m[4]);
+      var it = {
+        type: "item", path: path, line: i, indent: m[1].replace(/\t/g, "    ").length,
+        num: m[2] ? +m[2] : null, checked: m[3] == null ? null : m[3] !== " ",
+        raw: m[4], text: f.text, fields: f.fields, quote: [], section: section, links: linksIn(m[4])
+      };
+      d.blocks.push(it); d.items.push(it); d.byLine[i] = { item: it };
+      lastItem = it; para = null; continue;
+    }
+    if ((m = ln.match(/^\s*>\s?(.*)$/))) {
+      var prev = d.blocks[d.blocks.length - 1];
+      if (prev && prev.type === "quote" && para === prev) prev.lines.push(m[1]);
+      else { para = { type: "quote", lines: [m[1]], section: section }; d.blocks.push(para); }
+      lastItem = null; continue;
+    }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln)) { d.blocks.push({ type: "hr", section: section }); lastItem = para = null; continue; }
+    if (lastItem && /^\s{2,}\S/.test(ln)) { // a wrapped list line
+      lastItem.raw += " " + ln.trim(); var f2 = splitFields(lastItem.raw);
+      lastItem.text = f2.text; lastItem.fields = f2.fields; lastItem.links = linksIn(lastItem.raw); continue;
+    }
+    if (para && para.type === "p") para.text += "\n" + ln.trim();
+    else { para = { type: "p", text: ln.trim(), section: section }; d.blocks.push(para); }
+    lastItem = null;
+  }
+  if (code) d.blocks.push(code);
+  DOCS[path] = d;
+  return d;
+}
+function sec(d, name) { var n = norm(name); return d.items.filter(function (it) { return norm(it.section).indexOf(n) === 0; }); }
+function secParas(d, name) { var n = norm(name); return d.blocks.filter(function (b) { return b.type === "p" && norm(b.section).indexOf(n) === 0; }); }
+function has(p) { return FILES[p] != null; }
+function filesUnder(dir) { return ORDER.filter(function (p) { return p.indexOf(dir) === 0; }); }
+function notesOf(kind) { return Object.keys(NOTES).map(function (k) { return NOTES[k]; }).filter(function (n) { return n.kind === kind; }).sort(function (a, b) { return a.name.localeCompare(b.name); }); }
+
+/* ---------- chips ---------- */
+var SRC_NAMES = { cv: "Carbon Voice", gmail: "Gmail", cal: "Calendar", slack: "Slack", linear: "Linear", asana: "Asana", notion: "Notion", jira: "Jira", drive: "Drive", file: "File", onboarding: "Onboarding" };
+function parseSrc(v) {
+  var toks = String(v || "").trim().split(/\s+/), key = toks.shift() || "", date = null, url = null, rest = [];
+  toks.forEach(function (t) {
+    if (!date && isISO(t)) date = t;
+    else if (!url && /^https?:\/\//i.test(t)) url = t;
+    else rest.push(t);
+  });
+  var name = SRC_NAMES[key.toLowerCase()] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : "");
+  return { key: key, name: name, date: date, url: url, rest: rest.join(" ") };
+}
+function srcChip(v) {
+  if (!v) return "";
+  var s = parseSrc(v); if (!s.name) return "";
+  var label = T(s.name + (s.date ? " · " + fmtShort(s.date) : ""));
+  if (s.url) return '<a class="src" href="' + esc(s.url) + '" target="_blank" rel="noopener" title="Open the original in ' + esc(s.name) + '">' + label + "</a>";
+  return '<span class="src" title="' + esc("Came from " + s.name + (s.rest ? ": " + s.rest : "")) + '">' + label + "</span>";
+}
+function dueTag(iso, prefix) {
+  if (!isISO(iso)) return iso ? '<span class="tag">' + T((prefix || "Due") + " " + iso) + "</span>" : "";
+  var days = daysFromToday(iso);
+  var label = days < -1 ? -days + " days late" : days === -1 ? "Due yesterday" : days === 0 ? "Due today" : days === 1 ? "Due tomorrow" : (prefix || "Due") + " " + fmtDay(iso);
+  var cls = days < 0 ? "late" : days <= 2 ? "due" : "";
+  return '<span class="tag ' + cls + '">' + esc(label) + "</span>";
+}
+function dateish(v) { return isISO(v) ? fmtShort(v) : v; }
+var CHIP_ORDER = ["due", "done", "back", "why", "superseded", "archived", "from", "since", "nudged", "prep", "replaces"];
+function chips(it, skip) {
+  skip = skip || [];
+  var f = it.fields, out = "";
+  function want(k) { return f[k] != null && f[k] !== "" && skip.indexOf(k) < 0; }
+  if (want("due")) out += it.checked ? '<span class="tag">Was due ' + esc(dateish(f.due)) + "</span>" : dueTag(f.due);
+  if (want("done")) out += '<span class="tag ok">Done ' + esc(dateish(f.done)) + "</span>";
+  if (want("back")) out += '<span class="tag acc">Bring back: ' + inl(dateish(f.back)) + "</span>";
+  if (want("why")) out += '<span class="tag">Why: ' + inl(f.why) + "</span>";
+  if (want("superseded")) out += '<span class="tag late">Replaced ' + esc(dateish(f.superseded)) + "</span>";
+  if (want("archived")) out += '<span class="tag">Archived ' + esc(dateish(f.archived)) + "</span>";
+  if (want("from")) out += '<span class="tag">From ' + T(f.from) + "</span>";
+  if (want("since")) out += '<span class="tag">Since ' + esc(dateish(f.since)) + "</span>";
+  if (want("nudged")) out += '<span class="tag">Reminded you ' + esc(dateish(f.nudged)) + "</span>";
+  if (want("prep")) out += prepTag(f.prep);
+  if (want("replaces")) { var dflt = defaultById(f.replaces); out += '<span class="tag acc">Replaces: ' + T(dflt ? dflt.text : f.replaces) + "</span>"; }
+  Object.keys(f).forEach(function (k) {
+    if (k === "src" || CHIP_ORDER.indexOf(k) >= 0 || skip.indexOf(k) >= 0 || f[k] === "") return;
+    out += '<span class="tag">' + T(k.replace(/_/g, " ")) + ": " + inl(dateish(f[k])) + "</span>";
+  });
+  if (want("src")) out += srcChip(f.src);
+  return out;
+}
+function prepTag(p) {
+  p = String(p || "").trim();
+  if (/^ready$/i.test(p)) return '<span class="tag ok">Prep ready</span>';
+  if (/^offered$/i.test(p)) return '<span class="tag">Prep offered. Just ask</span>';
+  if (/^\d{1,2}:\d{2}$/.test(p)) return '<span class="tag acc">Prep at ' + esc(fmtTime(p)) + "</span>";
+  return p ? '<span class="tag">Prep: ' + T(p) + "</span>" : "";
+}
+function meta(html) { return html ? '<div class="meta">' + html + "</div>" : ""; }
+function quoteHtml(it, cls) { return it.quote.length ? '<p class="' + (cls || "quote") + '">' + it.quote.map(inl).join("<br>") + "</p>" : ""; }
+function box(it) { return it.checked == null ? "" : '<span class="box' + (it.checked ? " done" : "") + '" aria-hidden="true"></span>'; }
+function itemLi(it, opts) {
+  opts = opts || {};
+  var b = opts.nobox ? "" : box(it);
+  return '<li class="' + (b ? "" : "nobox") + '">' + b + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) +
+    quoteHtml(it, opts.quoteClass) + meta((opts.before || "") + chips(it, opts.skip) + (opts.after || "")) + "</div></li>";
+}
+function emptyLi(msg) { return '<li class="nobox empty">' + msg + "</li>"; }
+function listCard(items, empty, opts) {
+  return '<ul class="list card">' + (items.length ? items.map(function (it) { return itemLi(it, opts); }).join("") : emptyLi(empty)) + "</ul>";
+}
+
+/* ---------- shared lookups ---------- */
+function actionsDoc() { return doc("cos/actions.md"); }
+function isElsewhere(it) { return norm(it.section).indexOf("elsewhere") === 0; }
+function myActions() { return actionsDoc().items.filter(function (it) { return !isElsewhere(it); }); }
+function openActions() {
+  return myActions().filter(function (it) { return !it.checked; }).map(function (it, i) { return [it, i]; }).sort(function (a, b) {
+    var da = isISO(a[0].fields.due) ? daysFromToday(a[0].fields.due) : Infinity, db = isISO(b[0].fields.due) ? daysFromToday(b[0].fields.due) : Infinity;
+    return da === db ? a[1] - b[1] : da < db ? -1 : 1;
+  }).map(function (x) { return x[0]; });
+}
+function isOverdue(it) { return !it.checked && isISO(it.fields.due) && daysFromToday(it.fields.due) < 0; }
+function waitingItems() { return doc("cos/waiting.md").items; }
+var DEFAULTS = null;
+function defaults() { if (!DEFAULTS) DEFAULTS = doc(".cos/defaults.md").items.map(function (it) { return { id: it.fields.id || "", text: it.text, fixed: /^(yes|true)$/i.test(it.fields.fixed || ""), item: it }; }); return DEFAULTS; }
+function defaultById(id) { id = String(id || "").trim().toLowerCase(); return defaults().filter(function (d) { return d.id.toLowerCase() === id; })[0] || null; }
+function projectStatus(n) { return String(doc(n.path).fm.status || "active").trim().toLowerCase(); }
+function liveProjects() { return notesOf("projects").filter(function (n) { var s = projectStatus(n); return s !== "done" && s !== "dropped"; }); }
+function finishedProjects() { return notesOf("projects").filter(function (n) { var s = projectStatus(n); return s === "done" || s === "dropped"; }); }
+function logFiles() { return ORDER.filter(function (p) { return /^cos\/log\/\d{4}-\d{2}-\d{2}\.md$/.test(p); }).sort().reverse(); }
+function archiveFiles() { return ORDER.filter(function (p) { return /^cos\/archive\/.+\.md$/.test(p); }).sort().reverse(); }
+function archiveItems() { var out = []; archiveFiles().forEach(function (p) { out = out.concat(doc(p).items); }); return out; }
+function sources() { return doc("cos/sources.md").items; }
+function isConnected(it) { return /^connected/i.test(String(it.fields.status || "").trim()); }
+function linksTo(it, n) { return it.links.some(function (l) { return resolve(l) === n; }); }
+
+/* ---------- the sections ---------- */
+var A = esc(AGENT);
+var VIEWS = [
+  { id: "today", label: "Today", group: "Now", files: function () { return ["cos/now.md", "cos/brief.md", "cos/nudges.md"]; },
+    count: function () { return sec(doc("cos/now.md"), "Suggested moves").length + (briefIsToday() ? sec(doc("cos/brief.md"), "Follow-ups").length : 0); } },
+  { id: "inbox", label: "Inbox", group: "Now", files: function () { return ["cos/inbox.md"]; },
+    sub: "Captured, not yet sorted. " + A + " suggests where each one goes.",
+    count: function () { return doc("cos/inbox.md").items.length; } },
+  { id: "actions", label: "My actions", group: "Now", files: function () { return ["cos/actions.md"]; },
+    sub: "What you owe. " + A + " keeps your own list here and points to the lists you keep in other tools.",
+    count: function () { return openActions().length; }, hot: function () { return myActions().some(isOverdue); } },
+  { id: "waiting", label: "Waiting on others", group: "Now", files: function () { return ["cos/waiting.md"]; },
+    sub: "What other people owe you, and how long it's been.",
+    count: function () { return waitingItems().filter(function (w) { return !w.checked; }).length; } },
+  { id: "projects", label: "Projects", group: "Your world", files: function () { return filesUnder("cos/projects/").concat(filesUnder("cos/areas/")); },
+    sub: "Projects are outcomes with an end. Areas are responsibilities that never finish. Open one to see everything linked to it.",
+    count: function () { return liveProjects().length; } },
+  { id: "people", label: "People", group: "Your world", files: function () { return filesUnder("cos/people/"); },
+    sub: "One note per person. Open one to see everything that mentions them.",
+    count: function () { return notesOf("people").length; } },
+  { id: "ideas", label: "Come back to", group: "Your world", files: function () { return ["cos/ideas.md"]; },
+    sub: "Ideas, and things you mentioned once, with when " + A + " should bring each one back.",
+    count: function () { return doc("cos/ideas.md").items.length; } },
+  { id: "links", label: "Links & facts", group: "Your world", files: function () { return ["cos/links.md", "cos/facts.md"]; },
+    sub: "Things you'll want to find again, each with where it came from.",
+    count: function () { return doc("cos/links.md").items.length + doc("cos/facts.md").items.length; } },
+  { id: "decisions", label: "Decisions", group: "Your world", files: function () { return ["cos/decisions.md"]; },
+    sub: "What was decided, why, and with whom. Past decisions are never edited; a later one replaces them.",
+    count: function () { return doc("cos/decisions.md").items.length; } },
+  { id: "log", label: "Daily log", group: "Record", files: logFiles,
+    sub: "One note per day: what " + A + " captured, and what it changed.",
+    count: function () { return logFiles().length; } },
+  { id: "archive", label: "Archive", group: "Record", files: function () { return archiveFiles().concat(finishedProjects().map(function (n) { return n.path; })); },
+    sub: "Finished, dropped and stale items, each with the reason. Nothing is deleted. Say “bring back …” to restore one.",
+    count: function () { return archiveItems().length + finishedProjects().length; } },
+  { id: "about", label: "How " + AGENT + " works for you", group: "About " + AGENT, files: function () { return ["cos/my-rules.md", "cos/about-me.md", ".cos/defaults.md"]; },
+    sub: "Your rules come first, then what " + A + " knows about you, then the defaults that come with " + A + ". Updates change only the defaults.",
+    count: function () { return doc("cos/my-rules.md").items.length; } },
+  { id: "sources", label: "Where you talk", group: "About " + AGENT, files: function () { return ["cos/sources.md"]; },
+    sub: "The places " + A + " listens, and what it reads in each.",
+    count: function () { return sources().filter(isConnected).length; } }
+];
+function V(id) { return VIEWS.filter(function (v) { return v.id === id; })[0]; }
+
+/* ---------- state ---------- */
+var state = { view: "today", kind: null, name: null };
+var RAW = false;
+var SKEY = "cos-brain-page";
+function readHash() {
+  var h = location.hash.replace(/^#/, ""), slash = h.indexOf("/");
+  var id = slash < 0 ? h : h.slice(0, slash), name = null;
+  if (slash >= 0) { try { name = decodeURIComponent(h.slice(slash + 1)); } catch (e) { name = h.slice(slash + 1); } }
+  if ((id === "people" || id === "projects" || id === "areas") && name) return { view: id === "people" ? "people" : "projects", kind: id, name: name };
+  if (id === "areas") id = "projects";
+  return { view: V(id) ? id : "today", kind: null, name: null };
+}
+
+/* ---------- page pieces ---------- */
+function obsHref(rel) { return "obsidian://open?path=" + encodeURIComponent(WS + "/" + rel); }
+var OBS_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 2 4 9.5l3 10.5 5.5 2 6.5-6-1-9.5L13 2z"/></svg>';
+function fileBar(files, primary) {
+  var shown = files.length > 3 ? files[0].replace(/[^\/]+$/, "") : files.join(" · ");
+  var obs = META.obsidian && primary ? '<a class="obs small" href="' + esc(obsHref(primary)) + '" title="Open ' + esc(primary) + ' in Obsidian">Open in Obsidian</a>' : "";
+  return '<div class="file"><span class="path">' + esc(shown || "cos/") + "</span>" + obs +
+    '<button type="button" class="toggle" data-raw aria-pressed="' + RAW + '">Show the file' + (files.length > 1 ? "s" : "") + "</button></div>";
+}
+function rawBlock(files) {
+  if (!RAW) return "";
+  if (!files.length) return '<div class="rawfile"><pre class="raw">No files here yet.</pre></div>';
+  return files.map(function (p) {
+    return '<div class="rawfile"><span class="path">' + esc(p) + '</span><pre class="raw">' + (has(p) ? esc(FILES[p]) : "(no file yet)") + "</pre></div>";
+  }).join("");
+}
+function head(v, title, sub, files, primary) {
+  files = files || v.files();
+  if (primary === undefined) primary = files.length === 1 ? files[0] : (files.length && files.length <= 3 ? files[0] : null);
+  return '<div class="page-head"><div><h2 tabindex="-1">' + (title || esc(v.label)) + "</h2>" + (sub === "" ? "" : '<p class="sub">' + (sub || v.sub || "") + "</p>") + "</div>" +
+    fileBar(files, primary) + "</div>" + rawBlock(files);
+}
+function block(title, aside, body, cls) {
+  return '<section class="block"><h3' + (cls ? ' class="' + cls + '"' : "") + ">" + title + (aside ? ' <span class="aside">' + aside + "</span>" : "") + "</h3>" + body + "</section>";
+}
+function briefIsToday() { var b = doc("cos/brief.md"); return b.exists && String(b.fm.date || "").trim() === TODAY_ISO; }
+
+/* ---------- views ---------- */
+var R = {};
+R.today = function () {
+  var v = V("today"), now = doc("cos/now.md"), brief = doc("cos/brief.md"), isToday = briefIsToday();
+  var title = esc(DAYS_LONG[TODAY.getDay()] + ", " + MONTHS_LONG[TODAY.getMonth()] + " " + TODAY.getDate());
+  var sub;
+  if (isToday) sub = A + " sent this as your morning brief" + (brief.fm.sent ? " at " + esc(fmtTime(brief.fm.sent)) : "") + ".";
+  else if (isISO(brief.fm.date)) sub = "No brief yet today. The last one was " + esc(fmtDay(brief.fm.date)) + ".";
+  else sub = "No brief yet. " + A + " sends the first one on the next weekday morning, and it shows up here.";
+  var moves = sec(now, "Suggested moves");
+  var focus = isToday ? sec(brief, "Focus") : sec(now, "Focus");
+  var week = sec(now, "This week");
+  var nudges = doc("cos/nudges.md").items;
+  var dueNow = openActions().filter(function (a) { return isISO(a.fields.due) && daysFromToday(a.fields.due) <= 1; });
+  var weekLi = function (it) {
+    var m = it.text.match(/^(\d{4}-\d{2}-\d{2})\s+(.*)$/);
+    var d = m ? m[1] : null, cls = d && d < TODAY_ISO ? " muted" : "";
+    return '<li class="nobox"><div class="meet"><span class="time' + cls + '">' + (d ? esc(DAYS[parseISO(d).getDay()] + " " + parseISO(d).getDate()) : "") + '</span><div class="txt' + cls + '">' +
+      inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</div></div></li>";
+  };
+  var weekHtml = '<ul class="list card">' + (week.length ? week.map(weekLi).join("") : emptyLi("Key dates for the week show up here when " + A + " learns about them.")) + "</ul>";
+  var html = head(v, title, sub);
+  html += block("Needs your answer", "Suggested moves. Say yes or no in Carbon Voice.",
+    listCard(moves, "Nothing waiting on you. When " + A + " suggests filing something or starting a project, it shows up here."), "moves-h")
+    .replace('<ul class="list card">', '<ul class="list card moves">');
+  html += block(isToday ? "Focus today" : "Focus", "",
+    focus.length ? '<ul class="list card focus">' + focus.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>"
+      : listCard([], "No focus set. Tell " + A + " what matters most this week, and it shows up here."));
+  var right = block("Due now", "today, tomorrow and overdue", listCard(dueNow, "Nothing due today or tomorrow.")) +
+    block("Nudges", "", listCard(nudges, "No nudges today. " + A + "'s nightly review adds them here."));
+  var left;
+  if (isToday) {
+    var meetings = sec(brief, "Meetings");
+    left = block("Meetings", "from your calendar", '<ul class="list card">' + (meetings.length ? meetings.map(function (it) {
+      var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
+      return '<li class="nobox"><div class="meet"><span class="time">' + (m ? esc(fmtTime(m[1])) : "") + '</span><div class="txt">' + inl(m ? m[2] : it.text) +
+        meta(chips(it)) + (it.quote.length ? '<p class="hint" style="margin:6px 0 0">' + it.quote.map(inl).join("<br>") + "</p>" : "") + "</div></div></li>";
+    }).join("") : emptyLi("No meetings today.")) + "</ul>");
+  } else {
+    left = block("This week", "", weekHtml);
+  }
+  html += '<div class="two"><div>' + left + "</div><div>" + right + "</div></div>";
+  if (isToday) {
+    var fus = sec(brief, "Follow-ups");
+    html += block("Follow-ups " + A + " can send", "Reply in Carbon Voice with the numbers, like “do 1 and 3”",
+      '<ul class="list card">' + (fus.length ? fus.map(function (it, i) {
+        return '<li><span class="num">' + (it.num || i + 1) + '</span><div class="txt">' + inl(it.text) +
+          (it.quote.length ? '<div class="draft">' + it.quote.map(inl).join("<br>") + "</div>" : "") + meta(chips(it)) + "</div></li>";
+      }).join("") : emptyLi("No follow-ups in today's brief.")) + "</ul>");
+    html += block("This week", "", weekHtml);
+    var elsewhere = sec(brief, "Due elsewhere");
+    if (elsewhere.length) html += block("Due elsewhere", "in your other tools", listCard(elsewhere, ""));
+  }
+  return html;
+};
+R.inbox = function () {
+  var v = V("inbox"), items = doc("cos/inbox.md").items;
+  return head(v) + listCard(items, "Nothing to sort. Anything you tell " + A + " that doesn't have a place yet lands here first.") +
+    (items.length ? '<p class="hint">' + A + " suggests where each one goes on the Today page. Nothing moves until you say so.</p>" : "");
+};
+R.actions = function () {
+  var v = V("actions"), d = actionsDoc();
+  var open = openActions(), done = myActions().filter(function (it) { return it.checked; });
+  var els = d.items.filter(isElsewhere), elsParas = secParas(d, "Elsewhere");
+  var html = head(v);
+  html += block("To do", open.length ? open.length + " open" : "", listCard(open, "Nothing on your list. Tell " + A + " something you need to do, and it shows up here."));
+  html += block("Elsewhere", "", (elsParas.length ? elsParas.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") : "") +
+    '<div class="card">' + (els.length ? els.map(function (it) {
+      var m = it.text.match(/^([^:]{1,40}):\s*(.*)$/), s = parseSrc(it.fields.src || "");
+      return '<div class="ext"><div><h4>' + inl(m ? m[1] : it.text) + "</h4>" + (m ? '<div class="txt">' + inl(m[2]) + "</div>" : "") +
+        meta(chips(it, ["src", "via"]) + (it.fields.via ? '<span class="tag">Through ' + T(it.fields.via) + "</span>" : "")) + "</div>" +
+        '<div>' + (s.url ? '<a class="src" href="' + esc(s.url) + '" target="_blank" rel="noopener">Open ' + T(m ? plainText(m[1]) : s.name) + "</a>" : "") + "</div></div>";
+    }).join("") : '<div class="empty">No other to-do lists yet. Tell ' + A + " where else you keep to-dos, like “my team's tasks are in Jira”.</div>") + "</div>");
+  if (done.length) html += '<details class="done"><summary>Done (' + done.length + ")</summary>" + listCard(done, "") + "</details>";
+  return html;
+};
+function splitWho(it) {
+  var m = it.raw.match(/^\s*\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]\s*:?\s*/);
+  if (m) return { who: m[1], alias: m[2], what: it.text.replace(/^\s*\[\[[^\]]+\]\]\s*:?\s*/, "") };
+  return { who: it.links[0] || null, alias: null, what: it.text };
+}
+R.waiting = function () {
+  var v = V("waiting"), all = waitingItems();
+  var open = all.filter(function (w) { return !w.checked; }).sort(function (a, b) { return String(a.fields.since || "9").localeCompare(String(b.fields.since || "9")); });
+  var done = all.filter(function (w) { return w.checked; });
+  function rows(list) {
+    return list.map(function (w) {
+      var s = splitWho(w), d = isISO(w.fields.since) ? -daysFromToday(w.fields.since) : null;
+      var tone = d == null ? "" : d >= 10 ? "late" : d >= 5 ? "due" : "";
+      var waited = w.checked ? '<span class="tag ok">Done' + (w.fields.done ? " " + esc(dateish(w.fields.done)) : "") + "</span>"
+        : d == null ? '<span class="muted">—</span>' : '<span class="tag ' + tone + '">' + (d <= 0 ? "Since today" : d === 1 ? "1 day" : d + " days") + "</span>";
+      return "<tr" + (w.checked ? ' class="gone"' : "") + "><td>" + (s.who ? wl(s.who, s.alias) : "") + "</td><td>" + inl(s.what) + quoteHtml(w) + meta(chips(w, ["since", "nudged", "done"])) +
+        "</td><td>" + waited + "</td><td>" + (w.fields.nudged ? "Reminded you " + esc(dateish(w.fields.nudged)) : '<span class="muted">Not yet</span>') + "</td></tr>";
+    }).join("");
+  }
+  var table = function (list) { return '<div class="card tscroll"><table class="t"><thead><tr><th>Who</th><th>What</th><th>Waiting</th><th>Reminder</th></tr></thead><tbody>' + rows(list) + "</tbody></table></div>"; };
+  var html = head(v);
+  html += open.length ? table(open) + '<p class="hint">Say “nudge ' + esc(open[0] && splitWho(open[0]).who ? plainText(splitWho(open[0]).who).split(" ")[0] : "them") + "” and " + A + " drafts a follow-up for you to approve.</p>"
+    : '<div class="card empty">Nothing here yet. Tell ' + A + " about something you're waiting on, and it shows up here.</div>";
+  if (done.length) html += '<details class="done"><summary>Done (' + done.length + ")</summary>" + table(done) + "</details>";
+  return html;
+};
+function projectCard(n) {
+  var d = doc(n.path), st = projectStatus(n), next = sec(d, "Next")[0];
+  var acts = openActions().filter(function (a) { return linksTo(a, n); }).length;
+  var stTag = st === "active" ? '<span class="tag ok">Active</span>' : st === "paused" ? '<span class="tag">Paused</span>' : st === "done" ? '<span class="tag ok">Done</span>' : st === "dropped" ? '<span class="tag">Dropped</span>' : '<span class="tag">' + T(st) + "</span>";
+  var due = d.fm.due ? (st === "done" || st === "dropped" ? '<span class="tag">Due ' + esc(dateish(d.fm.due)) + "</span>" : dueTag(d.fm.due)) : "";
+  var area = d.fm.area ? '<p class="role">' + plain(d.fm.area) + "</p>" : "";
+  var paras = d.blocks.filter(function (b) { return b.type === "p"; }), ending = paras[paras.length - 1]; // how it ended
+  return '<button type="button" class="card pcard" data-go="' + esc(noteHash(n)) + '"><h4>' + T(n.name) + "</h4>" + area +
+    '<div class="row">' + stTag + due + (acts ? '<span class="tag acc">' + acts + " open action" + (acts === 1 ? "" : "s") + "</span>" : "") + "</div>" +
+    (st === "done" || st === "dropped" ? (ending ? '<p class="role">' + plain(ending.text) + "</p>" : "")
+      : '<p class="role" style="color:var(--ink)">Next: ' + (next ? plain(next.text) : '<span class="muted">no next step yet</span>') + "</p>") + "</button>";
+}
+function projectsInArea(n) { return notesOf("projects").filter(function (p) { var a = doc(p.path).fm.area; return a && resolve(plainText(a)) === n; }); }
+function areaCard(n) {
+  var d = doc(n.path), firstP = d.blocks.filter(function (b) { return b.type === "p"; })[0];
+  var count = linkedItems(n).length, projs = projectsInArea(n).filter(function (p) { var st = projectStatus(p); return st !== "done" && st !== "dropped"; }).length;
+  return '<button type="button" class="card pcard" data-go="' + esc(noteHash(n)) + '"><h4>' + T(n.name) + "</h4>" +
+    (firstP ? '<p class="role">' + plain(firstP.text) + "</p>" : "") +
+    '<div class="row">' + (projs ? '<span class="tag acc">' + projs + " project" + (projs === 1 ? "" : "s") + "</span>" : "") +
+    '<span class="tag">' + count + " linked item" + (count === 1 ? "" : "s") + "</span></div></button>";
+}
+R.projects = function () {
+  if (state.name) return noteView(state.kind, state.name);
+  var v = V("projects"), live = liveProjects();
+  var active = live.filter(function (n) { return projectStatus(n) !== "paused"; }), paused = live.filter(function (n) { return projectStatus(n) === "paused"; });
+  var areas = notesOf("areas");
+  var html = head(v);
+  html += block("Active", active.length ? String(active.length) : "", active.length ? '<div class="proj-grid">' + active.map(projectCard).join("") + "</div>"
+    : '<div class="card empty">No projects yet. When something you mention has an outcome and an end, ' + A + " suggests making it a project.</div>");
+  if (paused.length) html += block("Paused", "", '<div class="proj-grid">' + paused.map(projectCard).join("") + "</div>");
+  html += block("Areas", "ongoing responsibilities", areas.length ? '<div class="proj-grid">' + areas.map(areaCard).join("") + "</div>"
+    : '<div class="card empty">No areas yet. Areas are things you look after that never finish, like hiring or key customers.</div>');
+  if (finishedProjects().length) html += '<p class="hint">Finished and dropped projects are in the <button type="button" class="grouplink" data-view="archive">Archive</button>.</p>';
+  return html;
+};
+R.people = function () {
+  if (state.name) return noteView("people", state.name);
+  var v = V("people"), people = notesOf("people");
+  var html = head(v);
+  if (!people.length) return html + '<div class="card empty">No people yet. ' + A + " starts a note for someone once they come up more than once.</div>";
+  return html + '<div class="people-grid">' + people.map(function (n) {
+    var d = doc(n.path);
+    var owe = openActions().filter(function (a) { return linksTo(a, n); }).length;
+    var wait = waitingItems().filter(function (w) { return !w.checked && resolve(splitWho(w).who || "") === n; }).length;
+    var role = [d.fm.role, d.fm.org].filter(Boolean).join(", ");
+    return '<button type="button" class="card pcard" data-go="' + esc(noteHash(n)) + '"><h4>' + T(n.name) + "</h4>" + (role ? '<p class="role">' + plain(role) + "</p>" : "") +
+      '<div class="row">' + (owe ? '<span class="tag acc">You owe ' + owe + "</span>" : "") + (wait ? '<span class="tag due">Owes you ' + wait + "</span>" : "") +
+      (isISO(d.fm.last_talked) ? '<span class="tag">Last talked ' + esc(fmtShort(d.fm.last_talked)) + "</span>" : "") + "</div></button>";
+  }).join("") + "</div>";
+};
+var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
+function rankOf(p) {
+  var i = FILE_RANK.indexOf(p); if (i >= 0) return [i, ""];
+  if (/^cos\/(projects|areas|people)\//.test(p)) return [20, p];
+  if (/^cos\/log\//.test(p)) return [30, invert(p)];
+  if (/^cos\/archive\//.test(p)) return [40, invert(p)];
+  return [25, p];
+}
+function invert(s) { return s.split("").map(function (c) { return String.fromCharCode(65535 - c.charCodeAt(0)); }).join(""); }
+function linkedItems(n) {
+  var out = [];
+  ORDER.forEach(function (p) {
+    if (p === n.path || p.indexOf("cos/") !== 0) return;
+    doc(p).items.forEach(function (it) { if (linksTo(it, n)) out.push(it); });
+  });
+  return out.sort(function (a, b) { var ra = rankOf(a.path), rb = rankOf(b.path); return ra[0] - rb[0] || (ra[1] < rb[1] ? -1 : ra[1] > rb[1] ? 1 : a.line - b.line); });
+}
+function humanKey(k) { k = k.replace(/_/g, " "); return k.charAt(0).toUpperCase() + k.slice(1); }
+function fmValue(k, v) {
+  if (isISO(v)) return esc(fmtDay(v)) + (k === "due" ? " " + dueTag(v) : "");
+  if (/\[\[/.test(v)) return inl(v);
+  if (k === "area" || k === "project") return wl(v);
+  return inl(v);
+}
+function sectionBlocks(d, name) { // the blocks under a heading, down to the next heading of the same or a higher level
+  if (!name) return d.blocks.filter(function (b) { return !b.section && b.type !== "h"; });
+  var out = [], level = 0;
+  d.blocks.forEach(function (b) {
+    if (b.type === "h" && b.level > 1) {
+      if (level && b.level <= level) level = 0;
+      if (!level && b.text === name && !out.length) { level = b.level; return; }
+    }
+    if (level) out.push(b);
+  });
+  return out;
+}
+function sectionNames(d) { // the top-level sections ("## …"), leaving out the headings nested inside them
+  var top = 7; d.blocks.forEach(function (b) { if (b.type === "h" && b.level > 1 && b.level < top) top = b.level; });
+  var out = []; d.blocks.forEach(function (b) { if (b.type === "h" && b.level === top && out.indexOf(b.text) < 0) out.push(b.text); }); return out;
+}
+function renderBody(d, skipTitle) { return renderBlocks(d.blocks, skipTitle ? d.title : null); }
+function renderBlocks(blocks, skipTitle) {
+  var out = "", list = null;
+  function close() { if (list) { out += "</ul>"; list = null; } }
+  blocks.forEach(function (b) {
+    if (b.type !== "item") close();
+    if (b.type === "h") {
+      if (b.level === 1 && skipTitle != null && b.text === skipTitle) return;
+      var tag = b.level === 1 ? "h3" : b.level === 2 ? "h4" : "h5";
+      out += "<" + tag + ">" + inl(b.text) + "</" + tag + ">";
+    } else if (b.type === "item") {
+      if (!list) { out += '<ul class="md-list">'; list = true; }
+      var marker = b.checked != null ? box(b) : b.num != null ? '<span class="num">' + b.num + ".</span>" : '<span class="bullet" aria-hidden="true"></span>';
+      out += '<li style="' + (b.indent ? "margin-left:" + Math.min(b.indent, 12) * 8 + "px" : "") + '">' + marker + '<div class="txt' + (b.checked ? " muted" : "") + '">' +
+        inl(b.text) + quoteHtml(b) + meta(chips(b)) + "</div></li>";
+    } else if (b.type === "p") out += "<p>" + b.text.split("\n").map(inl).join("<br>") + "</p>";
+    else if (b.type === "quote") out += "<blockquote>" + b.lines.map(inl).join("<br>") + "</blockquote>";
+    else if (b.type === "code") out += "<pre>" + T(b.lines.join("\n")) + "</pre>";
+    else if (b.type === "hr") out += "<hr>";
+  });
+  close();
+  return out;
+}
+function noteView(kind, name) {
+  var n = resolve(name);
+  var backTo = kind === "people" ? "people" : "projects";
+  var backLabel = kind === "people" ? "All people" : "Projects and areas";
+  var back = '<button type="button" class="back" data-view="' + backTo + '">← ' + backLabel + "</button>";
+  if (!n) return back + '<div class="card empty">There\'s no note called “' + T(name) + "” yet.</div>";
+  var d = doc(n.path), fm = d.fm, sub;
+  if (n.kind === "people") sub = plain([fm.role, fm.org].filter(Boolean).join(", "));
+  else if (n.kind === "projects") { var st = projectStatus(n); sub = "Project · " + T(st.charAt(0).toUpperCase() + st.slice(1)); }
+  else sub = "Area";
+  var keys = Object.keys(fm).filter(function (k) { return fm[k] !== "" && !(n.kind === "people" && (k === "role" || k === "org")); });
+  var dl = keys.length ? "<dl>" + keys.map(function (k) { return "<dt>" + T(humanKey(k)) + "</dt><dd>" + fmValue(k, fm[k]) + "</dd>"; }).join("") + "</dl>" : "";
+  var body = renderBody(d, true);
+  var bl = linkedItems(n);
+  var blHtml = '<div class="backlinks"><h4>Linked from ' + bl.length + " place" + (bl.length === 1 ? "" : "s") + "</h4>" +
+    (bl.length ? '<ul class="list">' + bl.map(function (it) {
+      return '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) +
+        meta('<span class="bl-file">' + esc(it.path) + "</span>" + chips(it)) + "</div></li>";
+    }).join("") + "</ul>" : '<p class="hint" style="margin:4px 0 0">Nothing links here yet. Anything ' + A + " writes that mentions " + T(n.name) + " will show up here.</p>") + "</div>";
+  var inArea = n.kind === "areas" ? projectsInArea(n) : [];
+  var areaHtml = inArea.length ? '<div class="backlinks"><h4>Projects in this area</h4><ul class="list">' + inArea.map(function (p) {
+    var st = projectStatus(p);
+    return '<li class="nobox"><div class="txt">' + wl(p.name) + meta('<span class="tag' + (st === "active" ? " ok" : "") + '">' + T(st.charAt(0).toUpperCase() + st.slice(1)) + "</span>" +
+      (doc(p.path).fm.due && st !== "done" && st !== "dropped" ? dueTag(doc(p.path).fm.due) : "")) + "</div></li>";
+  }).join("") + "</ul></div>" : "";
+  return back + head(V(backTo), T(n.name), sub, [n.path], n.path) +
+    '<div class="card detail">' + dl + (body ? '<div class="md">' + body + "</div>" : "") + areaHtml + blHtml + "</div>";
+}
+R.ideas = function () {
+  var v = V("ideas"), items = doc("cos/ideas.md").items;
+  return head(v) + '<ul class="list card">' + (items.length ? items.map(function (it) {
+    return '<li class="nobox"><div class="txt"><b>' + inl(it.text) + "</b>" + (it.quote.length ? '<p class="quote">“' + it.quote.map(inl).join("<br>") + "”</p>" : "") + meta(chips(it)) + "</div></li>";
+  }).join("") : emptyLi("Nothing here yet. Say “remind me about this later” about an idea, and it shows up here with when to bring it back.")) + "</ul>";
+};
+R.links = function () {
+  var v = V("links"), links = doc("cos/links.md").items, facts = doc("cos/facts.md").items;
+  var html = head(v);
+  html += block("Links", "cos/links.md", '<ul class="list card">' + (links.length ? links.map(function (it) {
+    var m = it.text.match(/\[([^\]]+)\]\(([^)\s]+)\)/);
+    if (!m) return itemLi(it);
+    var h = safeHref(m[2]), rest = it.text.replace(m[0], "").trim();
+    return '<li class="nobox"><div class="txt"><b>' + (h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + inl(m[1]) + "</a>" : inl(m[1])) + "</b>" + (rest ? " " + inl(rest) : "") +
+      '<div class="meta"><span class="url">' + T(m[2]) + '</span><button type="button" class="copy" data-copy="' + esc(m[2]) + '">Copy</button></div>' + quoteHtml(it) + meta(chips(it)) + "</div></li>";
+  }).join("") : emptyLi("No links yet. Send " + A + " a link worth keeping, and it shows up here with where it came from.")) + "</ul>");
+  html += block("Facts", "cos/facts.md", listCard(facts, "No facts yet. Things like “Acme has 340 seats” land here, so you can find them again."));
+  return html;
+};
+R.decisions = function () {
+  var v = V("decisions"), items = doc("cos/decisions.md").items.map(function (it, i) {
+    var m = it.text.match(/^(\d{4}-\d{2}-\d{2})\s+(.*)$/);
+    return { it: it, date: m ? m[1] : "", text: m ? m[2] : it.text, i: i };
+  }).sort(function (a, b) { return a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1; });
+  if (!items.length) return head(v) + '<div class="card empty">No decisions yet. When you decide something with someone, ' + A + " writes down what, why and with whom.</div>";
+  return head(v) + '<div class="card tscroll"><table class="t"><thead><tr><th>Date</th><th>Decision</th><th>Why</th></tr></thead><tbody>' +
+    items.map(function (x) {
+      var gone = !!x.it.fields.superseded;
+      return "<tr" + (gone ? ' class="gone"' : "") + '><td style="white-space:nowrap">' + esc(x.date ? fmtShort(x.date) : "") + "</td><td>" +
+        (gone ? '<span class="overridden">' + inl(x.text) + "</span>" : "<b>" + inl(x.text) + "</b>") + quoteHtml(x.it) + meta(chips(x.it, ["why"])) +
+        "</td><td>" + (x.it.fields.why ? inl(x.it.fields.why) : '<span class="muted">—</span>') + "</td></tr>";
+    }).join("") + "</tbody></table></div>";
+};
+R.log = function () {
+  var v = V("log"), files = logFiles();
+  if (!files.length) return head(v) + '<div class="card empty">Nothing logged yet. Each day ' + A + " captures something, it writes it down here.</div>";
+  return head(v, null, null, files, null) + '<div class="card">' + files.map(function (p) {
+    var d = doc(p), iso = p.match(/(\d{4}-\d{2}-\d{2})/)[1], n = d.items.length;
+    var paras = d.blocks.filter(function (b) { return b.type === "p"; });
+    return '<div class="day"><div class="d">' + esc(fmtDay(iso)) + "<small>" + n + " entr" + (n === 1 ? "y" : "ies") + "</small></div><div><ul>" +
+      d.items.map(function (it) {
+        var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
+        return "<li>" + (m ? '<span class="time">' + esc(m[1]) + "</span>" : "") + inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</li>";
+      }).join("") + paras.map(function (b) { return '<li class="muted">' + inl(b.text) + "</li>"; }).join("") + "</ul></div></div>";
+  }).join("") + "</div>" + '<p class="hint">The page shows the last 45 days. Older days stay in cos/log/.</p>';
+};
+R.archive = function () {
+  var v = V("archive"), files = archiveFiles(), fin = finishedProjects();
+  var html = head(v, null, null, v.files(), null);
+  if (!files.length && !fin.length) return html + '<div class="card empty">Nothing archived yet. Each night ' + A + " moves finished and stale items here, each with the reason.</div>";
+  files.forEach(function (p) {
+    var m = p.match(/(\d{4})-(\d{2})\.md$/), label = m ? MONTHS_LONG[+m[2] - 1] + " " + m[1] : p.replace(/^cos\/archive\//, "");
+    html += block(esc(label), esc(p), listCard(doc(p).items.map(function (it) { return it; }), "Nothing in this month.", { }));
+  });
+  if (fin.length) html += block("Finished and dropped projects", "", '<div class="proj-grid">' + fin.map(projectCard).join("") + "</div>");
+  return html;
+};
+var SETTINGS = {
+  brief_time: ["Morning brief", function (v) { return /^\d{1,2}:\d{2}$/.test(v) ? "At " + fmtTime(v) : v; }],
+  brief_days: ["Brief days", function (v) { return { weekdays: "Weekdays", daily: "Every day", off: "Off: no morning brief" }[v.toLowerCase()] || v; }],
+  nudges_per_day: ["Nudges", function (v) { return "At most " + v + " a day"; }],
+  stale_days: ["Archive untouched items", function (v) { return "After " + v + " days"; }],
+  meeting_prep: ["Meeting prep", function (v) { return { offer: "Offered in the morning brief", auto: "Sent before meetings with people who have a note", off: "Off" }[v.toLowerCase()] || v; }]
+};
+R.about = function () {
+  var v = V("about"), rules = doc("cos/my-rules.md"), me = doc("cos/about-me.md");
+  var html = head(v);
+  var fmKeys = Object.keys(rules.fm);
+  var replaced = {};
+  rules.items.forEach(function (it) { if (it.fields.replaces) replaced[it.fields.replaces.trim().toLowerCase()] = it; });
+  var settings = fmKeys.length ? '<div class="card tscroll"><table class="t"><tbody>' + fmKeys.map(function (k) {
+    var s = SETTINGS[k], val = rules.fm[k];
+    return '<tr><td style="white-space:nowrap;color:var(--muted)">' + T(s ? s[0] : humanKey(k)) + "</td><td>" + T(s ? s[1](val) : val) + "</td></tr>";
+  }).join("") + "</tbody></table></div>" : '<div class="card empty">No settings yet. ' + A + " uses its defaults until you change one.</div>";
+  html += block('<span class="layer you">1 · Your settings and rules</span>', 'cos/my-rules.md · say “from now on …” to add one', settings);
+  var KNOWN_RULES = ["myrules", "wherethingsgo"];
+  var secs = sectionNames(rules);
+  if (rules.items.some(function (it) { return !it.section; })) secs.unshift("");
+  ["Where things go", "My rules"].forEach(function (s) { if (!secs.some(function (x) { return norm(x) === norm(s); })) secs.splice(secs[0] === "" ? 1 : 0, 0, s); });
+  var known = secs.filter(function (s) { return s === "" || KNOWN_RULES.indexOf(norm(s)) >= 0; }), other = secs.filter(function (s) { return known.indexOf(s) < 0; });
+  known.concat(other).forEach(function (s) {
+    var bl = sectionBlocks(rules, s), items = bl.filter(function (b) { return b.type === "item"; });
+    if (s && KNOWN_RULES.indexOf(norm(s)) < 0) {
+      if (bl.length) html += block(T(s), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
+      return;
+    }
+    var paras = s ? bl.filter(function (b) { return b.type === "p"; }) : [];
+    var empty = norm(s) === "wherethingsgo" ? "Nothing here yet. Rules like “team tasks live in Linear” show up here." : "No rules yet. Say “from now on …” and " + A + " adds one here.";
+    if (s === "" && !items.length) return;
+    html += block(T(s || "Rules"), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, empty));
+  });
+  var KNOWN_ME = ["role", "howiwork", "learned"];
+  var meSecs = sectionNames(me);
+  var meHtml = '<ul class="list card">', any = false, meOther = "";
+  me.items.filter(function (it) { return !it.section; }).forEach(function (it) { any = true; meHtml += itemLi(it); });
+  meSecs.forEach(function (s) {
+    if (KNOWN_ME.indexOf(norm(s)) < 0) {
+      var bl = sectionBlocks(me, s);
+      if (bl.length) meOther += block(T(s), "cos/about-me.md", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
+      return;
+    }
+    me.items.filter(function (it) { return it.section === s; }).forEach(function (it) {
+      any = true;
+      var learned = norm(s) === "learned";
+      meHtml += itemLi(it, { before: '<span class="tag' + (learned ? " due" : "") + '">' + T(learned ? "Learned" : s) + "</span>" });
+    });
+  });
+  meHtml += (any ? "" : emptyLi("Nothing yet. " + A + " fills this in as you talk: your role, how you like to work, and what it notices.")) + "</ul>";
+  html += block('<span class="layer learned">2 · What ' + A + " knows about you</span>", "cos/about-me.md · correct it by saying “that's wrong: …”", meHtml) + meOther;
+  var defs = defaults();
+  html += block('<span class="layer base">3 · ' + A + "'s defaults</span>", "come with the Chief of Staff" + (META.version ? ", version " + esc(META.version) : "") + " · updated by ./update-cos.sh",
+    '<ul class="list card">' + (defs.length ? defs.map(function (d) {
+      var over = replaced[d.id.toLowerCase()];
+      var tag = d.fixed ? '<span class="tag">Always on</span>' : over ? '<span class="tag acc">You changed this</span>' : '<span class="tag ok">In use</span>';
+      return '<li class="nobox"><div class="txt"><span class="' + (over && !d.fixed ? "overridden" : "") + '">' + inl(d.text) + "</span>" +
+        meta(tag + (over && !d.fixed ? '<span class="tag">Now: ' + inl(over.text) + "</span>" : "")) + "</div></li>";
+    }).join("") : emptyLi("The defaults file (.cos/defaults.md) wasn't found. Run ./update-cos.sh to restore it.")) + "</ul>");
+  return html;
+};
+R.sources = function () {
+  var v = V("sources"), items = sources();
+  if (!items.length) return head(v) + '<div class="card empty">Nothing here yet. During setup ' + A + " asks where your conversations happen and lists each place here.</div>";
+  return head(v) + '<div class="card tscroll"><table class="t"><thead><tr><th>Where</th><th>Connected through</th><th>What ' + A + " reads</th></tr></thead><tbody>" +
+    items.map(function (it) {
+      var on = isConnected(it), st = it.fields.status || "";
+      return '<tr><td><span class="status"><span class="dot ' + (on ? "on" : "off") + '" aria-hidden="true"></span>' + inl(it.text) + "</span>" +
+        '<div class="meta"><span class="tag' + (on ? " ok" : "") + '">' + T(st || "status unknown") + "</span>" + chips(it, ["status", "via", "reads"]) + "</div></td><td>" +
+        (it.fields.via ? inl(it.fields.via) : '<span class="muted">—</span>') + "</td><td>" + (it.fields.reads ? inl(it.fields.reads) : '<span class="muted">—</span>') + "</td></tr>";
+    }).join("") + "</tbody></table></div>" +
+    '<p class="hint">To connect another place, tell ' + A + " where the conversation happens, like “connect Notion”.</p>";
+};
+
+/* ---------- search ---------- */
+function sectionFor(p) {
+  if (/^cos\/(now|brief|nudges)\.md$/.test(p)) return "today";
+  var m = p.match(/^cos\/(inbox|actions|waiting|ideas|decisions|sources)\.md$/); if (m) return m[1];
+  if (/^cos\/(links|facts)\.md$/.test(p)) return "links";
+  if (/^cos\/people\//.test(p)) return "people";
+  if (/^cos\/(projects|areas)\//.test(p)) return "projects";
+  if (/^cos\/log\/\d{4}-\d{2}-\d{2}\.md$/.test(p)) return "log";
+  if (/^cos\/archive\//.test(p)) return "archive";
+  if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md") return "about";
+  return null;
+}
+function searchView() {
+  var q = QUERY.toLowerCase(), groups = {}, order = [], total = 0;
+  ORDER.forEach(function (p) {
+    var d = doc(p), sid = sectionFor(p) || "other";
+    d.lines.forEach(function (ln, i) {
+      if (!ln.trim() || /^\s*(---|```|~~~)\s*$/.test(ln)) return;
+      var info = d.byLine[i], hay, html;
+      if (info && info.item) {
+        var it = info.item, f = it.fields;
+        hay = it.text + " " + Object.keys(f).map(function (k) { return k === "src" ? (parseSrc(f[k]).url || "") : f[k]; }).join(" ");
+        if (hay.toLowerCase().indexOf(q) < 0) return;
+        html = '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt">' + inl(it.text) + meta(chips(it)) + urlsOf(it.text) + note(p) + "</div></li>";
+      } else {
+        var text = info && info.quoteOf ? info.text : ln.replace(/^\s*(#{1,6}\s+|>\s?)/, "").trim();
+        if (i < d.fmEnd) { var fm = text.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/); if (fm) text = humanKey(fm[1]) + ": " + unquote(fm[2]); }
+        var sf = splitFields(text);
+        hay = sf.text + " " + Object.keys(sf.fields).map(function (k) { return k === "src" ? (parseSrc(sf.fields[k]).url || "") : sf.fields[k]; }).join(" ");
+        if (hay.toLowerCase().indexOf(q) < 0) return;
+        html = '<li class="nobox"><div class="txt' + (info && info.quoteOf ? " quote" : "") + '">' + inl(sf.text) + urlsOf(sf.text) + note(p) + "</div></li>";
+      }
+      if (!groups[sid]) { groups[sid] = []; order.push(sid); }
+      groups[sid].push(html); total++;
+    });
+  });
+  function urlsOf(s) {
+    var out = [], re = /\[[^\]]+\]\(([^)\s]+)\)/g, m;
+    while ((m = re.exec(s))) out.push('<span class="url">' + T(m[1]) + "</span>");
+    return out.length ? '<div class="meta">' + out.join(" ") + "</div>" : "";
+  }
+  function note(p) {
+    var m = p.match(/^cos\/(people|projects|areas)\/(?:.*\/)?([^\/]+)\.md$/);
+    return '<div class="meta"><span class="bl-file">' + esc(p) + "</span>" + (m && resolve(m[2]) ? '<a class="tag acc" style="text-decoration:none" href="#' + esc(noteHash(resolve(m[2]))) + '">Open note</a>' : "") + "</div>";
+  }
+  var rank = VIEWS.map(function (v) { return v.id; }).concat(["other"]);
+  order.sort(function (a, b) { return rank.indexOf(a) - rank.indexOf(b); });
+  var html = '<div class="page-head"><div><h2 tabindex="-1">' + total + " result" + (total === 1 ? "" : "s") + " for “" + esc(QUERY) + "”</h2>" +
+    '<p class="sub">Searched every note ' + A + " keeps.</p></div></div>";
+  if (!total) return html + '<div class="card empty">Nothing matches. Try a name, a project, or a word you remember saying.</div>';
+  order.forEach(function (sid) {
+    var v = V(sid), list = groups[sid], shown = list.slice(0, 60);
+    var title = v ? '<button type="button" class="grouplink" data-view="' + sid + '">' + esc(v.label) + "</button>" : "Other notes";
+    html += block(title, list.length + (list.length > shown.length ? ", first " + shown.length + " shown" : ""), '<ul class="list card">' + shown.join("") + "</ul>");
+  });
+  return html;
+}
+
+/* ---------- drawing ---------- */
+var $ = function (s) { return document.querySelector(s); };
+function nav() {
+  var html = "", grp = "";
+  VIEWS.forEach(function (v) {
+    if (v.group !== grp) { grp = v.group; html += '<div class="grp">' + esc(grp) + "</div>"; }
+    var cur = !QUERY && state.view === v.id ? ' aria-current="page"' : "";
+    var hot = v.hot && v.hot() ? " hot" : "";
+    var n = v.count();
+    html += '<button type="button" data-view="' + v.id + '"' + cur + "><span>" + esc(v.label) + '</span><span class="n' + hot + '"' + (hot ? ' title="Something is overdue"' : "") + ">" + n + "</span></button>";
+  });
+  $("#nav").innerHTML = html;
+}
+function render() {
+  nav();
+  $("#main").innerHTML = QUERY ? searchView() : R[state.view]();
+  var cur = $('#nav [aria-current="page"]');
+  if (cur && cur.scrollIntoView && window.matchMedia("(max-width: 860px)").matches) {
+    var navEl = $("#nav"); navEl.scrollLeft = Math.max(0, cur.offsetLeft - 16);
+  }
+}
+function header() {
+  document.title = AGENT + "'s notebook";
+  $("#agent-title").textContent = AGENT + "'s notebook";
+  $("#mark").textContent = (AGENT.trim().charAt(0) || "C").toUpperCase();
+  var q = $("#q"); q.placeholder = "Search everything " + AGENT + " knows"; q.setAttribute("aria-label", q.placeholder);
+  var built = META.built ? new Date(META.built) : null, when = "";
+  if (built && !isNaN(built)) {
+    var bd = new Date(built.getFullYear(), built.getMonth(), built.getDate()), diff = Math.round((TODAY - bd) / 86400000);
+    var t = fmtTime(built.getHours() + ":" + pad(built.getMinutes()));
+    when = diff === 0 ? "today " + t : diff === 1 ? "yesterday " + t : MONTHS[built.getMonth()] + " " + built.getDate() + ", " + t;
+    if (diff > 2) $("#notice").innerHTML = '<div class="notice" role="status">This page was last updated ' + diff + " days ago. Run <code>./open-brain.sh</code> in " + esc(WS || "your workspace") + " to refresh it.</div>";
+  }
+  $("#byline").textContent = (OWNER ? "Chief of staff for " + OWNER : "Your chief of staff") + (when ? " · updated " + when : "");
+  if (META.obsidian) {
+    $("#obs-top").innerHTML = '<a class="obs" href="' + esc(obsHref("cos/now.md")) + '" title="' + esc("Opens your notes in Obsidian. First time: in Obsidian choose Open folder as vault and pick " + WS + "/cos") + '">' + OBS_ICON + "Open in Obsidian</a>";
+  }
+  $("#foot").innerHTML = "Built from the files in <code>" + esc((WS || "your workspace") + "/cos") + "</code>. This page holds your notes; don't email it or post it anywhere.";
+}
+function saveSpot() {
+  try { sessionStorage.setItem(SKEY, JSON.stringify({ hash: location.hash, y: window.scrollY, raw: RAW })); } catch (e) {}
+}
+var drawnHash = null;
+function go(hash) {
+  if (QUERY) { QUERY = ""; QRE = null; $("#q").value = ""; }
+  if (location.hash !== "#" + hash) location.hash = hash;
+  route(true); // draw now; the hashchange that follows sees the page is already drawn
+}
+function route(focus) {
+  var s = readHash(); state.view = s.view; state.kind = s.kind; state.name = s.name; drawnHash = location.hash;
+  render();
+  window.scrollTo(0, 0);
+  if (focus) { var h = $("#main h2"); if (h) h.focus({ preventScroll: true }); }
+}
+
+document.addEventListener("click", function (e) {
+  var t = e.target.closest ? e.target : e.target.parentElement;
+  var g = t.closest("[data-go]");
+  if (g) { e.preventDefault(); return go(g.getAttribute("data-go")); }
+  var v = t.closest("[data-view]");
+  if (v) { e.preventDefault(); return go(v.getAttribute("data-view")); }
+  if (t.closest("[data-raw]")) { RAW = !RAW; saveSpot(); var y = window.scrollY; render(); window.scrollTo(0, y); var b = $("#main [data-raw]"); if (b) b.focus({ preventScroll: true }); return; }
+  var c = t.closest("[data-copy]");
+  if (c) {
+    var done = function (ok) { c.textContent = ok ? "Copied" : "Select and copy"; setTimeout(function () { c.textContent = "Copy"; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(c.getAttribute("data-copy")).then(function () { done(true); }, function () { done(false); });
+    else done(false);
+    return;
+  }
+  var a = t.closest('a[href^="#"]');
+  if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); return go(a.getAttribute("href").slice(1)); }
+});
+window.addEventListener("hashchange", function () { if (location.hash !== drawnHash || QUERY) { if (QUERY) { QUERY = ""; QRE = null; $("#q").value = ""; } route(true); } });
+var qEl = $("#q");
+qEl.addEventListener("input", function () {
+  QUERY = qEl.value.trim();
+  QRE = QUERY ? new RegExp("(" + QUERY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi") : null;
+  render();
+});
+qEl.addEventListener("keydown", function (e) { if (e.key === "Escape" && qEl.value) { qEl.value = ""; QUERY = ""; QRE = null; render(); } });
+
+/* Refresh every minute while the page is open, so it keeps up with the notes. Skipped while
+   you're searching, typing or selecting text; the open page and scroll position are kept. */
+setInterval(function () {
+  if (document.visibilityState !== "visible" || qEl.value) return;
+  var ae = document.activeElement;
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  if (window.getSelection && String(window.getSelection())) return;
+  saveSpot();
+  location.reload();
+}, 60000);
+window.addEventListener("pagehide", saveSpot);
+
+header();
+var saved = null;
+try { saved = JSON.parse(sessionStorage.getItem(SKEY) || "null"); } catch (e) { saved = null; }
+if (saved && typeof saved.raw === "boolean") RAW = saved.raw;
+var s0 = readHash(); state.view = s0.view; state.kind = s0.kind; state.name = s0.name; drawnHash = location.hash;
+render();
+if (saved && saved.hash === location.hash && saved.y > 0) window.scrollTo(0, saved.y);
+})();
+</script>
+</body>
+</html>

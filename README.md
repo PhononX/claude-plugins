@@ -28,5 +28,6 @@ Full instructions: [plugins/cos/README.md](plugins/cos/README.md).
 Test locally before publishing:
 ```
 claude plugin validate . --strict
+bash plugins/cos/tests/test-brain.sh   # the notebook page: builder, escaping, and a browser walk-through
 cd /tmp/test-workspace && claude --plugin-dir /path/to/claude-plugins/plugins/cos
 ```
