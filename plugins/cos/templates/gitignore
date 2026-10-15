@@ -1,0 +1,5 @@
+# Carbon Voice channel state and token — never commit
+.cv/
+# Raw transcripts can contain anything said in conversation
+cos/log/transcripts/
+cos/.pending-reconcile

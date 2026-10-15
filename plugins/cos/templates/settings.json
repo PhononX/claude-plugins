@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./cos/**)",
+      "Edit(./cos/**)",
+      "Write(./cos/**)",
+      "Glob",
+      "Grep",
+      "Bash(grep:*)",
+      "Bash(date:*)",
+      "Bash(ls:*)"
+    ],
+    "deny": [
+      "Read(./.cv/.env)",
+      "Edit(./.cv/**)",
+      "Write(./.cv/**)"
+    ]
+  }
+}
