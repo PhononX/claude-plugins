@@ -2,6 +2,10 @@
 
 Shown after ./update-cos.sh, for each version newer than the one you had.
 
+## 0.4.0
+- Your notebook is now always on, at an address you can bookmark: check things off, add items and edit notes right on the page. Your agent sees every change.
+- The page updates within seconds when your agent changes something, and has a light, dark or automatic theme.
+
 ## 0.3.0
 - Drafts: say "start a draft email to Dana about pricing" or "add this to the board narrative", and your agent shapes it with you, keeping every version. When it's ready, it asks whether to keep it or move it to your tool, like Gmail or Google Docs.
 - Long-term pieces you build over time are never pruned: when one has gone quiet, your agent offers to pick it back up.

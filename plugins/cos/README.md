@@ -87,7 +87,9 @@ an idea or a link you'll want later, or have it keep track of something.
 - **Your voice.** With your OK, it learns how you write from your sent messages, separately for
   each kind of writing and audience (work email, client email, Slack, texts to friends), and
   keeps that under "How I write" in your notebook, where you can see and correct it.
-- **Your notebook page.** Everything it knows, on one page: today, your actions, what you're
+- **Your notebook page.** Always on, at an address on your computer you can bookmark. Check
+  things off, add items and edit notes right on the page (your agent sees every change, noted as
+  yours), or just tell your agent. Everything it knows, on one page: today, your actions, what you're
   waiting on, projects, people, ideas to come back to, links and facts, decisions, a daily log,
   the archive, and how it works for you. Run `./open-brain.sh` to open it (your agent also
   sends you the link at the end of onboarding). Bookmark it; it keeps itself up to date. It
@@ -136,7 +138,8 @@ Account in Carbon Voice and run the installer again with a new folder name.
 |---|---|
 | `CLAUDE.md` | Your agent's role and how it should talk to you (replaced by updates) |
 | `start-cos.sh`, `update-cos.sh`, `nightly.sh`, `open-brain.sh` | Start it, update it, its nightly review, and your notebook page |
-| `brain.html` | Your notebook page, rebuilt from `cos/` whenever a note changes |
+| `brain.html` | A read-only copy of your notebook page, rebuilt from `cos/` whenever a note changes |
+| `.cos/notebook-server.mjs` | The notebook server: serves your live notebook at `http://localhost:<port>/` and saves edits made on it. Runs at login (a launchd job on a Mac, a systemd user service on Linux) |
 | `.cos/` | The defaults, everything your agent can do (`options.md`), and the notebook page's builder (replaced by updates) |
 | `outbox/` | Documents your agent attached to its messages (kept 30 days) |
 | `cos/` | The notebook: an Obsidian-compatible folder of plain Markdown |
@@ -150,6 +153,10 @@ Account in Carbon Voice and run the installer again with a new folder name.
 | `cos/sources.md` | Where your conversations and to-do lists live, and what your agent reads |
 | `cos/setup.conf` | Your answers to setup, reused by updates |
 | `.cv/` | Carbon Voice token and channel state for this agent — never commit |
+
+To stop a notebook server for good (say, after deleting an agent's folder): on a Mac, run
+`launchctl bootout gui/$(id -u)/com.phononx.cos.<folder name>.notebook` and delete that `.plist`
+from `~/Library/LaunchAgents`; on Linux, `systemctl --user disable --now cos-<folder name>-notebook`.
 
 The layout and the line format are described in
 [`skills/capture/notes-format.md`](skills/capture/notes-format.md).

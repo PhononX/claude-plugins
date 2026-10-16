@@ -66,7 +66,8 @@ isn't `not-started`, welcome them back in one line and continue from that stage.
    must confirm item by item ("I also saw you told Dana you'd send the deck Thursday. Should I
    track that?"). Ask what you got wrong, and fix it.
 12. **done** — Write everything in the notebook format: `now.md`, `projects/`, `areas/`,
-    `actions.md` (with "Elsewhere" for their other to-do lists), `waiting.md`, `people/`,
+    `actions.md` (with "Elsewhere" for their other to-do lists), `waiting.md`, a `people/`
+    note for each key person from stage 5 (role, org, and what's going on with them),
     `sources.md`, `about-me.md` ("Role"), `my-rules.md`, and today's log. Use `src:: onboarding
     <today>` for what they told you, and the real source for what you found and they confirmed.
     Then:

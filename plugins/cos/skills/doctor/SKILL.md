@@ -58,9 +58,18 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    `cos/catch-up.md` holds. Briefs go to the conversation in `cos/.cv-thread`, which is written
    the first time the agent replies in Carbon Voice; if it's missing, say briefs start once the
    user has messaged the agent.
-11. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `~/Applications/<agent
+11. **Notebook server:** `NOTEBOOK_PORT` in `cos/setup.conf` and `.cv/notebook.key` exist (never
+   print the key). `curl -s http://localhost:<port>/health` answers `{"ok":true,…}`. Check the
+   service: on a Mac, `launchctl print gui/$(id -u)/com.phononx.cos.<folder name>.notebook`; on
+   Linux, `systemctl --user status cos-<folder name>-notebook.service` (or the `@reboot` crontab
+   line). Show the last 15 lines of `.cv/notebook-server.log`. If it isn't running, `./open-brain.sh`
+   starts it for now and `./update-cos.sh` sets the service up again. On a Mac, if the log shows
+   it can't read the folder ("Operation not permitted"), macOS is keeping background jobs out of
+   it: allow it in System Settings → Privacy & Security, or move the agent's folder out of
+   Documents/Desktop.
+12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `~/Applications/<agent
    name>.app` exists and `osadecompile` on it mentions this folder; on Linux, check
    `~/.local/share/applications/cos-<folder name>.desktop` points at this folder's
    `start-cos.sh`. If it's missing or points elsewhere, the fix is `./update-cos.sh`.
-12. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
-13. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.
+13. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
+14. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

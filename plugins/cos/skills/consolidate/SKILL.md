@@ -24,7 +24,14 @@ cos:migrate skill first.
    contradicted.
 3. **Now.** Keep `now.md` short: at most three focus lines, and "This week" holding only dates in
    the next 7 days. Drop past dates.
-4. **Archive, never delete.** Move lines to `cos/archive/YYYY-MM.md` (this month), adding
+4. **People.** For each `[[Name]]` with no note that is clearly a person and is linked from two
+   or more lines, or appears in "Important people", `waiting.md`, `actions.md` or
+   `catch-up.md`, start `people/<Name>.md` as `notes-format.md` shows. Fill the front matter
+   only with what the notebook already says (role, org, and `last_talked` from the latest
+   dated line that mentions them), and don't copy their items into it: the page shows
+   everything that links to them. If you can't tell whether a name is a person or a project,
+   leave it. If a link isn't a name at all (`[[Today]]`), remove the brackets.
+5. **Archive, never delete.** Move lines to `cos/archive/YYYY-MM.md` (this month), adding
    `[archived:: <today>]`, `[from:: <file name without .md>]` and a short `[why:: …]`:
    - checked items in `actions.md` and `waiting.md` finished more than 7 days ago
      (`why:: done <date>`);
@@ -34,12 +41,12 @@ cos:migrate skill first.
    - lines in `catch-up.md` with `kind:: changed` that have been in a brief, and any line older
      than 14 days that the user never took up (`why:: not taken up in 14 days`);
    - Items past due but still relevant stay, and become a nudge.
-5. **Decisions.** Never edit a past decision. If a new one replaces an old one, add
+6. **Decisions.** Never edit a past decision. If a new one replaces an old one, add
    `[superseded:: <date>]` to the old line.
-6. **Suggest moves.** Under "Suggested moves" in `now.md`, add at most three proposals, one line
+7. **Suggest moves.** Under "Suggested moves" in `now.md`, add at most three proposals, one line
    each, phrased as a question: inbox items that clearly belong somewhere, an idea that has come
    up three or more times or gathered people and dates ("make it a project?"), a project whose
-   work all looks finished ("close it?"), a person who now deserves their own note, or a change
+   work all looks finished ("close it?"), or a change
    to their briefs based on how they use them over the last two weeks: a part they never use
    ("you never pick follow-ups at midday; drop them?"), something they keep asking for after a
    brief ("you often ask about Slack; add it to the morning brief?"), or a brief they ignore.
@@ -56,11 +63,11 @@ cos:migrate skill first.
    `dropped`, and only the user drops one.
    Don't reorganize anything yourself; the user decides. Leave existing suggestions they haven't
    answered.
-7. **Nudges.** Overwrite `cos/nudges.md` with at most `nudges_per_day` items (3 unless set) for
+8. **Nudges.** Overwrite `cos/nudges.md` with at most `nudges_per_day` items (3 unless set) for
    tomorrow: items due within 48 hours or overdue, people waited on longest, ideas whose `back`
    time has come, contradictions you couldn't resolve. Phrase each as one spoken sentence.
    Inferences go here as questions, never into the notes.
-8. **Record.** Append to `log/consolidation.md`: `## Consolidated YYYY-MM-DD HH:MM` followed by
+9. **Record.** Append to `log/consolidation.md`: `## Consolidated YYYY-MM-DD HH:MM` followed by
    a 3–5 line summary of what changed, and one line in today's daily log.
 
 ## Rules

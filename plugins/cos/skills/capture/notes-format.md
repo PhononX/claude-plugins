@@ -33,8 +33,10 @@ Dates are always `YYYY-MM-DD`. Times are 24-hour `HH:MM`.
 | `sources.md` | Where the user's conversations and to-dos happen, and what the agent reads in each |
 
 Names of notes are the plain name, as people say it: `people/Dana Whitfield.md`,
-`projects/Q4 Launch.md`. Links use that name exactly: `[[Dana Whitfield]]`. Don't create a note
-for someone or something mentioned once; a link with no note yet is fine.
+`projects/Q4 Launch.md`. Links use that name exactly: `[[Dana Whitfield]]`. A person gets a
+note the second time they come up, or straight away if they're in "Important people" or in an
+open item; a project gets one when the user calls it a project. A link with no note yet is fine
+for anyone mentioned once. Link only names: never `[[Today]]`, `[[Monday]]` or other words.
 
 ## Lines
 
@@ -81,7 +83,8 @@ draft:
 | `audience` | about-me writing | who it's written to: `colleagues`, `team`, `executives`, `clients`, `friends`, `family`, or another word |
 
 `src` sources are short, lowercase names: `cv` (Carbon Voice), `gmail`, `cal`, `slack`,
-`linear`, `asana`, `notion`, `jira`, `drive`, `file` (a file on this computer), `onboarding`, or
+`linear`, `asana`, `notion`, `jira`, `drive`, `file` (a file on this computer), `onboarding`,
+`page` (the user changed it on the notebook page), or
 the name of another tool. Everything the user tells the agent directly comes in through
 Carbon Voice, so it's `cv`. Add the link to the original message or email when you have one:
 `[src:: gmail 2026-10-12 https://mail.google.com/...]`.

@@ -25,6 +25,7 @@
     ],
     "deny": [
       "Read(./.cv/.env)",
+      "Read(./.cv/notebook.key)",
       "Edit(./.cv/**)",
       "Write(./.cv/**)",
       "Edit(./.cos/**)",
