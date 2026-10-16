@@ -6,4 +6,6 @@ What {{AGENT_NAME}} knows about {{OWNER_NAME}}. If anything here is wrong, tell 
 
 ## How I work
 
+## How I write
+
 ## Learned

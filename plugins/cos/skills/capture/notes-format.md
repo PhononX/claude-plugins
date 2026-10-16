@@ -22,6 +22,7 @@ Dates are always `YYYY-MM-DD`. Times are 24-hour `HH:MM`.
 | `links.md` | Links worth finding again |
 | `facts.md` | Loose facts worth finding again |
 | `decisions.md` | What was decided, why, and with whom |
+| `drafts/<Name>.md` | One note per piece of writing being shaped: an email, document, deck, message or post |
 | `projects/<Name>.md` | One note per project: an outcome with an end |
 | `areas/<Name>.md` | One note per ongoing responsibility, which never "finishes" |
 | `people/<Name>.md` | One note per person |
@@ -74,6 +75,10 @@ draft:
 | `src` | anything | where it came from: `<source> <YYYY-MM-DD>`, then a link if there is one |
 | `replaces` | my-rules rules | the id of the default it replaces |
 | `status`, `via`, `reads` | sources | connected or not, through what, and what the agent reads there |
+| `for` | my-rules tools, about-me writing | the kind of work: `email`, `doc`, `deck`, `slack`, `text`, `post`, `notes`, or another word |
+| `horizon` | drafts | `soon` or `long` |
+| `touched` | drafts | the last date the user worked on it or added to it |
+| `audience` | about-me writing | who it's written to: `colleagues`, `team`, `executives`, `clients`, `friends`, `family`, or another word |
 
 `src` sources are short, lowercase names: `cv` (Carbon Voice), `gmail`, `cal`, `slack`,
 `linear`, `asana`, `notion`, `jira`, `drive`, `file` (a file on this computer), `onboarding`, or
@@ -237,6 +242,55 @@ Project `status` is `active`, `paused`, `done` or `dropped`. A finished project 
 with `status: done` and a line saying how it ended; the notebook page lists it under Archive.
 Areas have no status or due date.
 
+**drafts/<Name>.md**: a piece of writing while it's being shaped by talking. Front matter, then
+the draft, then the notes it was built from. The agent owns this file until the draft moves to
+one of the user's tools.
+```
+---
+kind: doc
+status: draft
+horizon: soon
+for: "[[Jordan Kim]]"
+project: "[[Board deck]]"
+due: 2026-11-06
+version: 3
+---
+# Board narrative
+
+## Draft
+Q3 was the quarter we stopped losing small teams…
+
+## Notes
+- Lead with the churn number, then the two big losses [src:: cv 2026-10-14]
+  > Start with churn, Jordan always asks about it first.
+- Pricing story goes second; keep it to one slide [src:: cv 2026-10-15]
+
+## History
+- v3 2026-10-15 shorter opening, churn first [src:: cv 2026-10-15]
+- v2 2026-10-14 first full draft
+- v1 2026-10-12 outline
+```
+- `kind` is `email`, `doc`, `deck`, `message`, `post` or another word. `for` and `project` link
+  the person and project it's for.
+- `horizon` is `soon` (needed in days or weeks: a reply, this week's deck) or `long` (built over
+  time: a strategy memo, a talk, a book). Long-term drafts are never offered for dropping; when
+  they've gone quiet, they're offered back to life.
+- `status` goes `notes` (only notes so far) → `outline` → `draft` → `ready` → `moved` (it now
+  lives in one of the user's tools) or `done` (sent, or finished here) or `dropped`.
+- Each new version replaces the "Draft" section; the version before it is kept as
+  `drafts/.history/<Name>/v<N>.md`, and "History" gets one line saying what changed.
+- For a deck, the draft is slide by slide: `### 1. Title` then the slide's points, with
+  `> Speaker notes:` under each slide.
+- When it moves, add `moved_to` (the tool) and `link` (the address of the copy there) to the front
+  matter and set `status: moved`. The tool's copy is the real one from then on; the draft here
+  keeps its notes and last version, and says where it went.
+  ```
+  status: moved
+  moved_to: Google Docs
+  link: https://docs.google.com/document/d/...
+  ```
+- A draft can be started from an idea in `ideas.md`; move that idea's line into "Notes".
+
 **my-rules.md**: settings in the front matter, rules and preferences as lines. A rule that
 changes a default names it with `replaces`; the default ids are in `.cos/defaults.md`.
 ```
@@ -265,11 +319,18 @@ meeting_prep: offer
 ## Important people
 - [[Jordan Kim]]: anything from him, always [src:: onboarding 2026-10-01]
 - Anything from the board [src:: cv 2026-10-06]
+
+## My tools
+- Emails: Gmail, as drafts [for:: email] [src:: cv 2026-10-15]
+- Documents: Google Docs, in the "Northwind" folder [for:: doc] [src:: cv 2026-10-12]
+- Presentations: Google Slides [for:: deck] [src:: onboarding 2026-10-01]
+- Team updates: Slack, #product-leads [for:: message] [src:: cv 2026-10-09]
 ```
 **My briefs** has one line per brief: its name, then `at` (`HH:MM`), `days` (`weekdays`, `daily`,
 `weekends`, `off`, or days like `mon, wed, fri`) and `covers` (what it's for, in plain words).
 **What goes in my briefs** holds preferences for every brief; a brief's own `covers` wins where
-they differ. **Important people** always make it into a brief.
+they differ. **Important people** always make it into a brief. **My tools** says where each kind of
+finished work goes: one line per kind, naming the tool (and any folder or channel), with `for`.
 
 `meeting_prep` is `offer` (offer it in the brief), `auto` (send prep before meetings with people
 who have a note) or `off`. When a rule changes a setting, change the front matter too.
@@ -284,10 +345,26 @@ An older `my-rules.md` may still have `brief_time` and `brief_days` in its front
 ## Role
 - VP of Product at Northwind [src:: onboarding 2026-10-01]
 
+## How I write
+- Short and direct, two to four sentences; first names, no greeting line; signs off "– Alex" [for:: email] [audience:: colleagues] [src:: gmail 2026-10-02]
+- More formal: "Hi Lena," then the ask in the first sentence; ends "Best, Alex" [for:: email] [audience:: clients] [src:: gmail 2026-10-02]
+- Numbers first, then the story; one page at most [for:: email] [audience:: executives] [src:: gmail 2026-10-02]
+- Lowercase, quick, emoji reactions instead of "thanks" [for:: slack] [audience:: team] [src:: slack 2026-10-02]
+- Casual, jokes, lots of exclamation marks [for:: text] [audience:: friends] [src:: onboarding 2026-10-01]
+
 ## Learned
 - Talks through decisions on walks, usually 8 to 8:30am [src:: cv 2026-10-10]
 ```
 "Learned" holds what the agent noticed rather than was told. Tell the user once when you add one.
+
+"How I write" has one line per kind of writing and audience, saying what that writing sounds
+like, with `for` and `audience`. Learn it only with the user's permission (asked in onboarding,
+or when they ask), from a handful of their own sent messages of that kind; say what you noticed
+and let them correct it. Update a line when they change a draft before sending it in a way that
+shows a pattern, and tell them once. Rules they state outright ("no exclamation marks in work
+email") go in `my-rules.md`, which wins over anything learned here. When writing anything for
+the user, use the line that matches its kind and audience; with no line for it, ask or keep it
+plain.
 
 **sources.md**
 ```

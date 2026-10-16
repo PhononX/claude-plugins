@@ -30,6 +30,12 @@ These win over Ada's defaults, and updates never change this file. Tell Ada
 - [[Jordan Kim]]: anything from him, always [src:: onboarding 2026-10-01]
 - Anything from the board [src:: cv 2026-10-06]
 
+## My tools
+- Emails: Gmail, as drafts [for:: email] [src:: cv 2026-10-15]
+- Documents: Google Docs, in the "Northwind" folder [for:: doc] [src:: cv 2026-10-12]
+- Presentations: Google Slides [for:: deck] [src:: onboarding 2026-10-01]
+- Team updates: Slack, #product-leads [for:: message] [src:: cv 2026-10-09]
+
 ## Moved from my-instructions.md
 These came from the old instructions file when Ada was updated to 0.2.0.
 

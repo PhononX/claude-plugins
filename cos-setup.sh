@@ -294,6 +294,96 @@ cv_catalog() {
   if [[ -f "$dir/.claude-plugin/marketplace.json" ]]; then printf '%s' "$dir/.claude-plugin/marketplace.json"; fi
 }
 
+# make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
+# path) and LAUNCHER_WHERE (where it is, in words).
+applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
+make_launcher() {
+  local name dir_as name_as app desk
+  name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
+  if [[ "$PLATFORM" == mac ]]; then
+    have osacompile || return 1
+    dir_as=$(applescript_str "$DIR"); name_as=$(applescript_str "$name")
+    cat > "$WORK/launcher.applescript" <<APPLESCRIPT
+-- Starts $name_as, your chief of staff, in Terminal; or brings Terminal forward if it's running.
+-- Made by the Chief of Staff setup; ./update-cos.sh rebuilds it.
+on run
+	set agentDir to "$dir_as"
+	try
+		do shell script quoted form of (agentDir & "/start-cos.sh") & " --running"
+		tell application "Terminal" to activate
+		display notification "$name_as is already running in Terminal." with title "$name_as"
+	on error
+		tell application "Terminal"
+			activate
+			do script "cd " & quoted form of agentDir & " && ./start-cos.sh"
+		end tell
+	end try
+end run
+APPLESCRIPT
+    mkdir -p "$HOME/Applications"
+    app="$HOME/Applications/$name.app"
+    osacompile -o "$WORK/launcher.app" "$WORK/launcher.applescript" >>"$LOG" 2>&1 </dev/null || return 1
+    rm -rf "$app"; mv "$WORK/launcher.app" "$app"
+    LAUNCHER=$app; LAUNCHER_WHERE="your Applications (or Spotlight)"
+    if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
+      desk="$HOME/Desktop/$name.app"
+      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or Applications"; fi
+    fi
+  else
+    mkdir -p "$HOME/.local/share/applications"
+    app="$HOME/.local/share/applications/cos-$(basename "$DIR").desktop"
+    {
+      echo "[Desktop Entry]"
+      echo "Type=Application"
+      echo "Name=$name"
+      echo "Comment=Your chief of staff, connected to Carbon Voice"
+      echo "Exec=\"${DIR//\"/\\\"}/start-cos.sh\""
+      echo "Path=$DIR"
+      echo "Terminal=true"
+      echo "Icon=utilities-terminal"
+      echo "Categories=Office;"
+    } > "$app"
+    chmod +x "$app"
+    LAUNCHER=$app; LAUNCHER_WHERE="your applications menu"
+    if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
+      cp "$app" "$HOME/Desktop/$name.desktop" && chmod +x "$HOME/Desktop/$name.desktop" && LAUNCHER_WHERE="your Desktop or applications menu"
+    fi
+  fi
+}
+
+# wrap <text> <indent> [<later lines' indent>]: prints text wrapped to fit an 80-column terminal.
+wrap() { printf '%s\n' "$1" | fold -s -w $((80 - ${#2})) | sed -e 's/ *$//' -e "1s/^/$2/" -e "1!s/^/${3:-$2}/"; }
+# show_notebook: what the notebook page is, its link, and an offer to open it now.
+show_notebook() {
+  [[ -n "$BRAIN_LINK" ]] || return 0
+  printf '  %sYour notebook%s\n' "$bold" "$reset"
+  wrap "Everything $AGENT_NAME knows, on one page in your browser: today's briefs, what you owe and what you're waiting on, people, projects, ideas, drafts, decisions, and how $AGENT_NAME works for you, which you can change just by saying so. $1 It updates itself as $AGENT_NAME works, so bookmark it:" "  "
+  printf '    %s\n' "$(val "$BRAIN_LINK")"
+  if [[ -d /Applications/Obsidian.app || -d "$HOME/Applications/Obsidian.app" ]] || have obsidian; then
+    echo "  You use Obsidian: you can also open $(shown "$DIR")/cos as a vault."
+  fi
+  if yes "  Open your notebook now? [Y/n]"; then
+    open_url "$BRAIN_LINK"
+    if [[ $MODE == setup ]]; then echo "  It opened in your browser. Come back to this window to start $AGENT_NAME."; fi
+  fi
+  echo
+}
+# whats_new: the highlights of each version newer than the one this folder had, from the plugin's
+# whats-new.md ("## <version>" headings, then lines).
+whats_new() {
+  local f="$TEMPLATES/dotcos/whats-new.md" v show="" line
+  [[ -n "$OLD_VERSION" && -f "$f" && "$OLD_VERSION" != "$COS_VERSION" ]] || return 0
+  printf '  %sWhat'"'"'s new since %s%s\n' "$bold" "$OLD_VERSION" "$reset"
+  while IFS= read -r line; do
+    case "$line" in
+      "## "*) v=${line#\#\# }; v=${v%% *}
+              if version_ge "$v" "$OLD_VERSION" && [[ "$v" != "$OLD_VERSION" ]]; then show=1; else show=""; fi ;;
+      "- "*) if [[ -n "$show" ]]; then wrap "$line" "  " "    "; fi ;;
+    esac
+  done < "$f"
+  echo
+}
+
 label() {  # status → coloured label
   case "$1" in
     have)       printf '%salready installed%s' "$green" "$reset" ;;
@@ -790,7 +880,7 @@ if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
 SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
 
 mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/cos/people" \
-  "$DIR/cos/archive" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+  "$DIR/cos/archive" "$DIR/cos/drafts" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
 # A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
@@ -846,6 +936,10 @@ if [[ -f "$RULES" ]] && ! grep -q '^## My briefs' "$RULES"; then
   grep -q '^## What goes in my briefs' "$RULES" || printf '\n## What goes in my briefs\n' >> "$RULES"
   grep -q '^## Important people' "$RULES" || printf '\n## Important people\n' >> "$RULES"
 fi
+# Sections added in later versions, for notebooks made before them.
+if [[ -f "$RULES" ]] && ! grep -q '^## My tools' "$RULES"; then printf '\n## My tools\n' >> "$RULES"; fi
+ABOUT="$DIR/cos/about-me.md"
+if [[ -f "$ABOUT" ]] && ! grep -q '^## How I write' "$ABOUT"; then printf '\n## How I write\n' >> "$ABOUT"; fi
 # Before 0.2, the user's own instructions lived in my-instructions.md. Move anything they wrote
 # there into cos/my-rules.md, and keep the old file as my-instructions.md.bak.
 if [[ -f "$DIR/my-instructions.md" ]]; then
@@ -895,6 +989,7 @@ for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh open-brain.sh; 
   if [[ -e "$DIR/$s" ]] && ! cmp -s "$WORK/$s" "$DIR/$s"; then cp "$DIR/$s" "$DIR/$s.bak"; fi
   mv "$WORK/$s" "$DIR/$s"; chmod +x "$DIR/$s"
 done
+OLD_VERSION=$(cat "$DIR/cos/.version" 2>/dev/null || true)   # for "What's new" after an update
 printf '%s\n' "$COS_VERSION" > "$DIR/cos/.version"
 if [[ -n "$NEW_AGENT" ]]; then printf 'stage: not-started\n' > "$DIR/cos/.onboarding-pending"; fi
 LEFT=$(cd "$DIR" && grep -l '{{' CLAUDE.md start-cos.sh nightly.sh .claude/settings.json </dev/null 2>/dev/null || true)
@@ -967,6 +1062,33 @@ else
   info "Skipped. Run this setup again to add it later."
 fi
 
+# ---------- a launcher ----------
+# An app that opens Terminal and starts the agent, or, if it's already running, just brings
+# Terminal forward: in ~/Applications on a Mac (so Spotlight, Launchpad and the Dock find it),
+# optionally on the Desktop too; a .desktop file on Linux. Rebuilt by every update, so it keeps
+# pointing at this folder.
+WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""
+if [[ -z "$WANT_APP" ]]; then
+  step "Launcher"
+  if [[ "$PLATFORM" == mac ]]; then
+    echo "  You can start $AGENT_NAME like any app: from Spotlight, Launchpad or the Dock. It opens"
+    echo "  Terminal and starts it, or brings it forward if it's already running."
+    if yes "  Add $AGENT_NAME to your Applications? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+  else
+    if yes "  Add $AGENT_NAME to your applications menu, so you can start it from there? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+  fi
+  if [[ $WANT_APP == 1 && -z "$WANT_DESKTOP" ]]; then
+    if no "  Put it on your Desktop too? [y/N]"; then WANT_DESKTOP=0; else WANT_DESKTOP=1; fi
+  fi
+fi
+if [[ "$WANT_APP" == 1 ]]; then
+  if make_launcher; then
+    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE"; fi
+  else
+    warn "Couldn't add the launcher. You can still start $AGENT_NAME with ./start-cos.sh."; WANT_APP=0
+  fi
+fi
+
 # Save the answers, so ./update-cos.sh can update this agent without asking again.
 ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file is rewritten
 {
@@ -976,6 +1098,8 @@ ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file 
   echo "TEAM=$([ -n "$TEAM" ] && echo 1 || echo 0)"
   echo "REMOTE=$([ -n "$REMOTE_ARGS" ] && echo 1 || echo 0)"
   echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
+  echo "APP=${WANT_APP:-0}"
+  echo "DESKTOP=${WANT_DESKTOP:-0}"
   if [[ -n "$ALLOW_CREATOR" ]]; then echo "ALLOW_CREATOR=$ALLOW_CREATOR"; fi
 } > "$DIR/cos/setup.conf"
 
@@ -989,8 +1113,9 @@ if [[ $MODE == update ]]; then
   printf '  %-20s %s\n' "Version:" "${COS_VERSION:-unknown}"
   printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
   printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
-  if [[ -n "$BRAIN_LINK" ]]; then printf '  %-20s %s\n' "Notebook page:" "$BRAIN_LINK"; fi
   echo
+  whats_new
+  show_notebook "Your notes were kept; anything new shows up there too."
   echo "  If $AGENT_NAME is running, restart it to use the update: in its window, type /exit,"
   echo "  then run ./start-cos.sh."
   printf '  To start it now:  %scd %s && ./start-cos.sh%s\n' "$bold" "$(shown "$DIR")" "$reset"
@@ -1012,12 +1137,8 @@ printf '  %-20s %s%s\n' "Claude account:" "$(val "${ACCOUNT:-your Claude account
 printf '  %-20s %s\n' "Who can message it:" "$WHO"
 printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
 printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
-if [[ -n "$BRAIN_LINK" ]]; then
-  printf '  %-20s %s\n' "Notebook page:" "$(val "$BRAIN_LINK")"
-  echo "                       Everything $AGENT_NAME knows, on one page. Open it in your browser and"
-  echo "                       bookmark it; it keeps itself up to date. (Or run ./open-brain.sh.)"
-fi
 echo
+show_notebook "It's nearly empty now: it fills in as you talk to $AGENT_NAME, starting with the short conversation it has with you first."
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
 if [[ -t 0 ]]; then
   printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
@@ -1048,7 +1169,11 @@ if [[ -n "$REMOTE_ARGS" ]]; then
     "$(val "${ORG:-the same account as Claude Code}")" "$(hl /mobile)"
   echo
 fi
-printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
+if [[ -n "$LAUNCHER" ]]; then
+  printf '  Next time, open %s from %s, or run  %s\n' "$(val "$AGENT_NAME")" "$LAUNCHER_WHERE" "$(hl "cd $CD_PATH && ./start-cos.sh")"
+else
+  printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
+fi
 echo
 if [[ -t 0 ]]; then
   ask "  Press Return to start $AGENT_NAME." >/dev/null

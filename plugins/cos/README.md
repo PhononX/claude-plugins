@@ -43,6 +43,9 @@ folder with:
 ```
 ./start-cos.sh
 ```
+Setup also offers to add your agent to your Applications (and Desktop), so you can start it
+from Spotlight, Launchpad or the Dock instead: it opens Terminal and starts your agent, or brings
+Terminal forward if it's already running. It won't start a second copy.
 
 **5. Say hello in Carbon Voice.** Message your agent from your own account, the one that
 created the Agent Account. The installer asks whether to let that account in without a pairing
@@ -74,6 +77,16 @@ an idea or a link you'll want later, or have it keep track of something.
 - **What it can do, and your settings.** Ask "what can you do?", or run `/cos:settings` in
   Claude. It shows everything you can turn on or change, what's on for you now, and a few
   things that might suit you, and changes any of it when you ask.
+- **Drafts.** "Start a draft email to Dana about pricing", "add this to the board narrative",
+  "turn my notes into an outline", "make it shorter". Your agent shapes emails, documents, decks
+  and messages with you as you talk, keeping every version and the notes behind them. When one
+  is ready, it asks whether to keep it or move it to the tool you use for that kind of work
+  (a Gmail draft, a Google Doc…), remembers your answer under "My tools", and links to where it
+  went. Once moved, the copy in your tool is the real one: your agent can read it and start a new
+  version, but doesn't change it there without asking.
+- **Your voice.** With your OK, it learns how you write from your sent messages, separately for
+  each kind of writing and audience (work email, client email, Slack, texts to friends), and
+  keeps that under "How I write" in your notebook, where you can see and correct it.
 - **Your notebook page.** Everything it knows, on one page: today, your actions, what you're
   waiting on, projects, people, ideas to come back to, links and facts, decisions, a daily log,
   the archive, and how it works for you. Run `./open-brain.sh` to open it (your agent also
@@ -132,6 +145,7 @@ Account in Carbon Voice and run the installer again with a new folder name.
 | `cos/inbox.md`, `actions.md`, `waiting.md`, `ideas.md`, `links.md`, `facts.md`, `decisions.md` | What you owe, what you're waiting on, and what to find again |
 | `cos/catch-up.md` | What needs your reply or attention in your email, chat and Carbon Voice |
 | `cos/projects/`, `cos/areas/`, `cos/people/` | One note per project, ongoing area, and person |
+| `cos/drafts/` | Drafts being shaped, with their notes; earlier versions in `drafts/.history/` |
 | `cos/log/`, `cos/archive/` | Daily notes and archived transcripts (30 days); finished and stale items |
 | `cos/sources.md` | Where your conversations and to-do lists live, and what your agent reads |
 | `cos/setup.conf` | Your answers to setup, reused by updates |

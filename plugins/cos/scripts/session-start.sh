@@ -40,6 +40,17 @@ show waiting.md 40
 if [[ -s "$COS/nudges.md" ]]; then
   echo; echo "### cos/nudges.md (from the last nightly review)"; cat "$COS/nudges.md"
 fi
+# Drafts in progress, one line each, so "the board narrative" means something straight away.
+DRAFTS=""
+for f in "$COS"/drafts/*.md; do
+  [[ -f "$f" ]] || continue
+  line=$(awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+      NR > 1 { i = index($0, ":"); if (i) { k = substr($0, 1, i - 1); v = substr($0, i + 1); gsub(/^[ \t"]+|[ \t"]+$/, "", v); m[k] = v } }
+      END { if (m["status"] != "moved" && m["status"] != "done" && m["status"] != "dropped")
+              printf "%s, %s%s", (m["kind"] ? m["kind"] : "draft"), (m["status"] ? m["status"] : "notes"), (m["due"] ? ", due " m["due"] : "") }' "$f")
+  if [[ -n "$line" ]]; then DRAFTS="$DRAFTS- $(basename "$f" .md) ($line)"$'\n'; fi
+done
+if [[ -n "$DRAFTS" ]]; then echo; echo "### Drafts in progress (cos/drafts/)"; printf '%s' "$DRAFTS"; fi
 INBOX=$(grep -c '^- ' "$COS/inbox.md" 2>/dev/null || true)
 if [[ "${INBOX:-0}" -gt 0 ]]; then echo; echo "cos/inbox.md has $INBOX unsorted item(s)."; fi
 

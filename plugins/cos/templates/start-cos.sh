@@ -5,18 +5,38 @@
 #                                run the same command again to reconnect
 #   ./start-cos.sh --reset-token replace the saved Carbon Voice token
 #   ./start-cos.sh --no-remote   don't show this session in the Claude app this time
+#   ./start-cos.sh --running     say whether {{AGENT_NAME}} is already running (exit 0 if it is)
 # Options can be combined, e.g. ./start-cos.sh --background --no-remote
 set -euo pipefail
-BACKGROUND=0; RESET=0; REMOTE=({{REMOTE_ARGS}})
+BACKGROUND=0; RESET=0; CHECK=0; REMOTE=({{REMOTE_ARGS}})
 for arg in "$@"; do
   case "$arg" in
     --background) BACKGROUND=1 ;;
     --reset-token) RESET=1 ;;
     --no-remote) REMOTE=() ;;
+    --running) CHECK=1 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
 cd "$(dirname "$0")"
+# Is this agent already running? Its Claude process keeps the PID this script had (exec keeps
+# it), recorded in .cv/agent.pid; a --background session is a tmux session. Two copies would both
+# answer the same Carbon Voice messages, so a second start is refused.
+TMUX_NAME="cos-$(basename "$PWD")"
+running() {
+  local pid
+  pid=$(cat .cv/agent.pid 2>/dev/null || true)
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q claude; then return 0; fi
+  command -v tmux >/dev/null 2>&1 && tmux has-session -t "$TMUX_NAME" 2>/dev/null
+}
+if [[ $CHECK == 1 ]]; then
+  if running; then echo "{{AGENT_NAME}} is running."; exit 0; else echo "{{AGENT_NAME}} isn't running."; exit 1; fi
+fi
+if running && ! { [[ $BACKGROUND == 1 ]] && command -v tmux >/dev/null 2>&1 && tmux has-session -t "$TMUX_NAME" 2>/dev/null; }; then
+  echo "{{AGENT_NAME}} is already running in another window. Use that one, or type /exit there"
+  echo "to stop it before starting it again."
+  exit 1
+fi
 export PATH="$HOME/.local/bin:$PATH"
 # Use the Claude plan sign-in, never an API key that happens to be set in the shell.
 unset ANTHROPIC_API_KEY
@@ -79,9 +99,10 @@ fi
 
 if [[ $BACKGROUND == 1 ]]; then
   command -v tmux >/dev/null || { echo "tmux is not installed. Run without --background."; exit 1; }
-  exec tmux new-session -A -s "cos-$(basename "$PWD")" "${CMD[@]}"
+  exec tmux new-session -A -s "$TMUX_NAME" "${CMD[@]}"
 else
   echo "Starting {{AGENT_NAME}}. Keep this window open."
   [[ ${#REMOTE[@]} -gt 0 ]] && echo "To watch from your phone: Claude app → Code → this session. (No app? Type /mobile once Claude starts.)"
+  echo $$ > "$CV_DIR/agent.pid"
   exec "${CMD[@]}"
 fi

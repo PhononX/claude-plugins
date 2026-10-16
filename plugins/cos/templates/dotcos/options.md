@@ -15,6 +15,12 @@ comes with the Chief of Staff and grows with updates. Ask your agent "what can y
 - Details attached to briefs as a document you can read in Carbon Voice [id:: attach] [default:: on] [say:: "stop attaching files to my briefs"]
 - A check-in about your briefs after the first week, then monthly [id:: checkin] [default:: on] [say:: "stop asking about my briefs"]
 
+## Drafts
+- Drafts of emails, documents, decks and messages, shaped by talking: start one, add to it any time, turn notes into an outline, revise [id:: drafts] [default:: on] [say:: "start a draft email to Dana about pricing", "add this to the board narrative: …", "turn my notes into an outline"]
+- Where finished work goes, for each kind: kept here, or moved to the tool you use [id:: tools] [default:: asked when a draft is ready] [say:: "my documents go in Google Docs", "keep decks here as outlines"]
+- Your writing styles, by kind and audience: work email, client email, Slack, texts to friends… Learned from your sent messages only with your OK, and shown in your notebook to correct [id:: voice] [default:: asked in onboarding] [say:: "learn how I write from my sent email", "my Slack messages are more casual than that", "to clients I always start with Hi"]
+- Drafts in progress mentioned in your briefs when they're due soon or haven't moved [id:: drafts-brief] [default:: on] [say:: "don't mention drafts in my briefs"]
+
 ## Reminders and tidying
 - Nudges: short reminders of what's due or stuck, at most three a day [id:: nudges] [default:: 3 a day] [say:: "only one nudge a day", "no nudges"]
 - Archiving items nobody has mentioned for 30 days [id:: archive] [default:: 30 days] [say:: "archive things after two weeks"]
@@ -40,4 +46,5 @@ comes with the Chief of Staff and grows with updates. Ask your agent "what can y
 - "Where was that signup link?", "How many seats does Acme have?" [id:: ask-find]
 - "Remind me about this when pricing is done" [id:: ask-idea]
 - "That's a project", "Close the Acme project" [id:: ask-projects]
+- "Read me the board narrative", "Where did the pricing email end up?" [id:: ask-drafts]
 - "What can you do?" or "What are my settings?" [id:: ask-settings]
