@@ -93,11 +93,18 @@ conf() {
      || command -v obsidian >/dev/null 2>&1; then
     OBSIDIAN=true
   fi
+  # The live notebook's address, when the notebook server is set up.
+  LIVE=""
+  PORT=$(conf NOTEBOOK_PORT)
+  if [ -n "$PORT" ] && [ -f .cv/notebook.key ]; then
+    case "$PORT" in *[!0-9]*) ;; *) LIVE="http://localhost:$PORT/?k=$(tr -d '\n\r' < .cv/notebook.key)" ;; esac
+  fi
   printf '<script type="application/json" id="cos-meta">'
   # "<" becomes <, so nothing in a name can close the script element.
   jq -n -c --arg agent "$AGENT" --arg owner "$OWNER" --arg version "$VERSION" --arg built "$BUILT" \
-    --arg workspace "$WS" --argjson obsidian "$OBSIDIAN" \
-    '{agent: $agent, owner: $owner, version: $version, built: $built, workspace: $workspace, obsidian: $obsidian}' \
+    --arg workspace "$WS" --argjson obsidian "$OBSIDIAN" --arg live "$LIVE" \
+    '{agent: $agent, owner: $owner, version: $version, built: $built, workspace: $workspace, obsidian: $obsidian}
+     + (if $live != "" then {live: $live} else {} end)' \
     | LC_ALL=C sed 's/</\\u003c/g'
   printf '</script>\n'
 } > "$BLOCK" || exit 1

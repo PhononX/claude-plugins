@@ -200,6 +200,20 @@ const ops = {
     const full = notePath(p); const text = readNote(full)
     return { content: text ?? '', hash: text === null ? null : sha(text) }
   },
+  // Starts a new note. Only creates: if the file is already there, nothing is overwritten.
+  create({ path: p, content }) {
+    const full = notePath(p)
+    if (typeof content !== 'string' || !content.trim()) throw new HttpError(400, 'Nothing to save.')
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+    try {
+      fs.writeFileSync(full, content.endsWith('\n') ? content : `${content}\n`, { flag: 'wx' })
+    } catch (e) {
+      if (e.code === 'EEXIST') throw new HttpError(409, 'There is already a note with that name.')
+      throw e
+    }
+    logEdit(`started a note for ${path.basename(p, '.md')}`)
+    return { hash: sha(readNote(full)) }
+  },
   write({ path: p, content, hash }) {
     const full = notePath(p)
     if (typeof content !== 'string') throw new HttpError(400, 'Nothing to save.')

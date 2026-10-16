@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
 <title>Notebook</title>
+<script>try { var t = localStorage.getItem("cos-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -15,32 +16,45 @@
    Layout: a binder. Section index on the left, one open page on the right; on a phone the index
    becomes a row of tabs. */
 :root {
-  --bg: #F1F4F2;
-  --surface: #FFFFFF;
-  --ink: #17201E;
-  --muted: #5A6864;
-  --line: #D9E0DC;
-  --chip: #E8EDEA;
-  --accent: #1D5C77;
-  --accent-soft: #E0EDF2;
-  --due: #8E5600;
-  --due-soft: #FAEED6;
-  --late: #A23726;
-  --late-soft: #F6E0DB;
-  --ok: #2B6641;
-  --ok-soft: #DFEFE4;
-  --obs: #6B4FA0;
+  /* Carbon Voice colours (carbon-voice-flutter CarbonColors). Text pairs are checked for 4.5:1. */
+  --bg: #F2F1F9;          /* surfaceBackground */
+  --surface: #FFFFFF;     /* surfacePrimary */
+  --ink: #26262E;         /* textBody, "Carbon" */
+  --muted: #66676E;       /* textTertiary #6F7077, darkened to pass 4.5:1 on --bg and --chip */
+  --line: #D9D9E1;        /* borderSubtle */
+  --chip: #EDEDF3;        /* Grey 200 */
+  --accent: #5E4CCE;      /* accentPrimary, Violet 400: links, active tab, focus */
+  --accent-soft: #F2EFFF; /* accentSubtle, Violet 100 */
+  --accent-mid: #DBD2FF;  /* Violet 200: hover and selected backgrounds */
+  --accent-fill: #5E4CCE; /* filled buttons, with --on-fill text, in both themes */
+  --on-fill: #FFFFFF;
+  --due: #955C00;         /* Yellow 600 #B77100, darkened to pass 4.5:1 on --due-soft */
+  --due-soft: #FCEFD8;
+  --late: #B01F42;        /* destructive */
+  --late-soft: #FFDDE9;   /* Red 100 */
+  --ok: #00782A;          /* text; Carbon Green #009633 fails 4.5:1 on --ok-soft */
+  --ok-fill: #009633;     /* checkmarks and dots */
+  --ok-soft: #D7EFDF;     /* Green 50 */
+  --obs: #66676E;         /* the Obsidian icon: neutral, so it doesn't read as the accent */
+  --shadow: rgba(38, 30, 90, 0.18);
   --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
   --f-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101615; --surface: #171F1D; --ink: #E3EAE7; --muted: #92A29D; --line: #283330; --chip: #212B28;
-    --accent: #7DB9D3; --accent-soft: #1A3440; --due: #E6B45C; --due-soft: #372B14; --late: #EF8C79; --late-soft: #3B1F1A;
-    --ok: #82C79C; --ok-soft: #173123; --obs: #C1A8EC; color-scheme: dark;
+  :root:not([data-theme="light"]) {
+    --bg: #111120; --surface: #1A1A2E; --ink: #EDE9FF; --muted: #B3B3BA; --line: #3A3A52; --chip: #252538;
+    --accent: #BAA9FF; --accent-soft: #2D1F5E; --accent-mid: #3D2878; --accent-fill: #5E4CCE; --on-fill: #FFFFFF;
+    --due: #D79C3D; --due-soft: #3A2A10; --late: #F27A98; --late-soft: #3D0F20;
+    --ok: #4CC777; --ok-fill: #4CC777; --ok-soft: #0D2B1A; --obs: #B3B3BA; --shadow: rgba(8, 6, 24, 0.5); color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #111120; --surface: #1A1A2E; --ink: #EDE9FF; --muted: #B3B3BA; --line: #3A3A52; --chip: #252538;
+    --accent: #BAA9FF; --accent-soft: #2D1F5E; --accent-mid: #3D2878; --accent-fill: #5E4CCE; --on-fill: #FFFFFF;
+    --due: #D79C3D; --due-soft: #3A2A10; --late: #F27A98; --late-soft: #3D0F20;
+    --ok: #4CC777; --ok-fill: #4CC777; --ok-soft: #0D2B1A; --obs: #B3B3BA; --shadow: rgba(8, 6, 24, 0.5); color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -52,12 +66,14 @@ code { font: 0.9em var(--f-mono); background: var(--chip); padding: 0 4px; borde
 
 .top {
   position: sticky; top: 0; z-index: 5;
+  border-top: 3px solid transparent;
+  border-image: linear-gradient(90deg, #6C75DD, #967ADE, #BD8DE3) 1 0 0 0;
   background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
 }
 .top-in { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .who { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 280px; }
-.mark { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--surface); display: grid; place-items: center; font: 700 16px var(--f-display); flex: none; }
+.mark { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-fill); color: var(--on-fill); display: grid; place-items: center; font: 700 16px var(--f-display); flex: none; }
 .who h1 { margin: 0; font: 700 19px/1.2 var(--f-display); letter-spacing: -0.01em; }
 .who p { margin: 0; color: var(--muted); font-size: 13px; }
 .search { flex: 1 1 260px; max-width: 380px; position: relative; }
@@ -85,6 +101,12 @@ nav.index button[aria-current="page"] { background: var(--accent-soft); color: v
 nav.index .n { font: 12px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 nav.index button[aria-current="page"] .n { color: var(--accent); }
 nav.index .n.hot { color: var(--late); font-weight: 500; }
+nav.index button.parent[aria-current="true"] { color: var(--accent); font-weight: 600; }
+nav.index .subnav { display: grid; gap: 1px; margin: 0 0 4px 12px; padding-left: 8px; border-left: 1px solid var(--line); }
+nav.index button.sub { font-size: 13px; padding: 5px 10px; color: var(--muted); }
+nav.index button.sub:hover { color: var(--ink); }
+nav.index button.sub[aria-current="page"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.subtabs { display: none; }
 
 main { min-width: 0; }
 main h2:focus { outline: none; }
@@ -97,9 +119,62 @@ main h2:focus { outline: none; }
 .toggle { font-size: 12.5px; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; color: var(--muted); }
 .toggle[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .obs { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; cursor: pointer; color: var(--ink); white-space: nowrap; text-decoration: none; }
-.obs:hover { border-color: var(--obs); }
+.obs:hover { border-color: var(--accent); }
 .obs svg { width: 15px; height: 15px; fill: var(--obs); }
 .obs.small { font-size: 12.5px; padding: 3px 9px; border-radius: 6px; font-weight: 400; color: var(--muted); }
+/* Small icon-only controls: quiet until hovered or focused. */
+.ibtn, .obs.ibtn { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--muted); opacity: 0.7; cursor: pointer; text-decoration: none; flex: none; }
+.ibtn:hover, .ibtn:focus-visible, .obs.ibtn:hover { opacity: 1; color: var(--ink); border-color: var(--line); background: var(--surface); }
+.ibtn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ibtn.gem svg, .obs.ibtn svg { fill: var(--obs); stroke: none; }
+.ibtn[aria-pressed="true"] { opacity: 1; color: var(--surface); background: var(--ink); border-color: var(--ink); }
+.top .obs.ibtn { width: 34px; height: 34px; }
+.notice.ro { color: var(--muted); background: var(--chip); font-size: 13px; padding: 6px 12px; }
+.notice.ro a { color: var(--accent); }
+/* Editing (when the notebook server serves the page) */
+input.cb { width: 17px; height: 17px; margin: 3px 0 0; accent-color: var(--ok-fill); cursor: pointer; }
+.pen { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 4px; vertical-align: -4px; padding: 0; border: 0; border-radius: 5px;
+  background: none; color: var(--muted); cursor: pointer; opacity: 0; }
+.pen svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+[data-il]:hover .pen, [data-il]:focus-within .pen, .pen:focus-visible { opacity: 0.8; }
+.pen:hover { opacity: 1; color: var(--accent); background: var(--chip); }
+@media (hover: none) { .pen { opacity: 0.45; } }
+.inline-edit { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 5px 8px; }
+.inline-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.addrow { display: flex; gap: 8px; margin-top: 8px; }
+.addrow input { flex: 1; min-width: 0; font: 14px var(--f-body); color: var(--ink); background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; }
+.addrow input:focus { border-style: solid; border-color: var(--accent); outline: none; }
+.addrow button { font: 500 13px var(--f-body); border: 1px solid var(--accent-fill); background: var(--accent-fill); border-radius: 8px; padding: 0 14px; cursor: pointer; color: var(--on-fill); }
+.addrow button:hover { filter: brightness(1.08); }
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30; max-width: min(520px, calc(100% - 32px));
+  background: var(--ink); color: var(--surface); padding: 9px 14px; border-radius: 10px; font-size: 13.5px; box-shadow: 0 4px 16px var(--shadow); }
+#toast.bad { background: var(--late); color: var(--surface); }
+.editor { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.editor[hidden] { display: none; }
+.ed-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: 1180px; width: 100%; margin: 0 auto 10px; }
+.ed-bar h2 { margin: 0; font: 700 19px var(--f-display); flex: 1 1 auto; }
+.ed-bar select, .ed-bar .path { font: 12.5px var(--f-mono); }
+.ed-bar select { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+.btn { font: 500 14px var(--f-body); border-radius: 8px; padding: 7px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-fill); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.ed-conflict { max-width: 1180px; width: 100%; margin: 0 auto 10px; padding: 10px 12px; border-radius: 10px; background: var(--due-soft); color: var(--due);
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.ed-conflict[hidden] { display: none; }
+.ed-conflict p { margin: 0; flex: 1 1 260px; font-weight: 500; }
+.editor textarea { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; resize: none; font: 13.5px/1.6 var(--f-mono); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; tab-size: 2; }
+.editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+/* Theme switch: bottom-left on wide screens, after the footer on phones. */
+.theme { position: fixed; left: max(14px, env(safe-area-inset-left, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px)); z-index: 6;
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); }
+.theme button { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; opacity: 0.75; padding: 0; }
+.theme button:hover { opacity: 1; color: var(--ink); }
+.theme button[aria-pressed="true"] { background: var(--chip); color: var(--ink); opacity: 1; }
+.theme svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .url { font: 12.5px var(--f-mono); color: var(--accent); overflow-wrap: anywhere; }
 .copy { font-size: 12px; background: none; border: 1px solid var(--line); border-radius: 5px; padding: 0 7px; cursor: pointer; color: var(--muted); line-height: 1.7; }
 .layer { font: 500 11px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 7px; border-radius: 5px; }
@@ -123,7 +198,7 @@ section.block > h3 .aside, .h3 .aside { text-transform: none; letter-spacing: 0;
 .list > li:first-child { border-top: 0; }
 .list > li.nobox { grid-template-columns: minmax(0, 1fr); }
 .box { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; margin-top: 3px; position: relative; }
-.box.done { background: var(--ok); border-color: var(--ok); }
+.box.done { background: var(--ok-fill); border-color: var(--ok-fill); }
 .box.done::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--surface); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .num { font: 600 15px var(--f-display); color: var(--accent); width: 22px; text-align: center; margin-top: 1px; }
 .txt { min-width: 0; }
@@ -138,7 +213,8 @@ section.block > h3 .aside, .h3 .aside { text-transform: none; letter-spacing: 0;
 a.src:hover { border-color: var(--accent); color: var(--accent); }
 a.wl { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 a.wl:hover { border-bottom-color: var(--accent); }
-.wl-none { border-bottom: 1px dotted var(--muted); cursor: help; }
+a.wl.wl-none { border-bottom: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+a.wl.wl-none:hover { border-bottom-style: solid; }
 .quote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); font-style: italic; }
 .draft { margin-top: 6px; font-size: 13.5px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
 .hint { font-size: 13px; color: var(--muted); margin: 8px 2px 0; }
@@ -224,7 +300,7 @@ table.t tr:first-child td { border-top: 0; }
 table.t tr.gone td { color: var(--muted); }
 .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
-.dot.on { background: var(--ok); }
+.dot.on { background: var(--ok-fill); }
 .dot.off { background: var(--due); }
 
 .day { padding: 14px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 16px; }
@@ -244,14 +320,21 @@ details.done > .card { margin-top: 6px; }
 mark { background: var(--due-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
 footer { max-width: 1180px; margin: 28px auto 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
 footer code { overflow-wrap: anywhere; }
+@media (min-width: 861px) { footer { padding-left: 248px; } } /* lines up with the page, clear of the theme switch */
 
 @media (max-width: 860px) {
   .shell { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   nav.index { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 6px; scrollbar-width: thin; }
   nav.index .grp { display: none; }
   nav.index button { width: auto; flex: none; white-space: nowrap; border: 1px solid var(--line); background: var(--surface); }
+  nav.index .subnav { display: none; }
+  nav.index button.parent[aria-current="true"] { background: var(--accent-soft); }
+  .subtabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: thin; }
+  .subtabs button { flex: none; white-space: nowrap; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+  .subtabs button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
   .two { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .top { position: static; }
+  .theme { position: static; margin: 14px 0 0; }
 }
 @media (max-width: 520px) {
   .detail { padding: 14px; }
@@ -300,6 +383,22 @@ footer code { overflow-wrap: anywhere; }
     <main id="main"></main>
   </div>
   <footer id="foot"></footer>
+  <div class="theme" id="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-set="light" title="Light" aria-label="Light theme"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button type="button" data-theme-set="dark" title="Dark" aria-label="Dark theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
+    <button type="button" data-theme-set="auto" title="Auto: follow this device" aria-label="Automatic theme"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 0 0 0-16z" fill="currentColor"/></svg></button>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<div class="editor" id="editor" role="dialog" aria-modal="true" aria-labelledby="ed-title" hidden>
+  <div class="ed-bar">
+    <h2 id="ed-title">Edit the file</h2>
+    <span id="ed-file"></span>
+    <button type="button" class="btn" id="ed-cancel">Cancel</button>
+    <button type="button" class="btn primary" id="ed-save">Save</button>
+  </div>
+  <div class="ed-conflict" id="ed-conflict" hidden></div>
+  <textarea id="ed-text" spellcheck="false" aria-labelledby="ed-title"></textarea>
 </div>
 
 <!--COS-NOTES-->
@@ -318,6 +417,9 @@ Array.prototype.forEach.call(document.querySelectorAll('script[type="text/markdo
 });
 var META = {};
 try { var mEl = document.getElementById("cos-meta"); if (mEl) META = JSON.parse(mEl.textContent) || {}; } catch (e) { META = {}; }
+var SRV = null; // set when the notebook server serves this page: then it can be edited
+try { var sEl = document.getElementById("cos-server"); if (sEl) SRV = JSON.parse(sEl.textContent) || null; } catch (e) { SRV = null; }
+if (SRV && !SRV.editable) SRV = null;
 var AGENT = META.agent || "Your agent";
 var OWNER = META.owner || "";
 var WS = META.workspace || "";
@@ -354,19 +456,41 @@ function T(s) { // escaped text, with search matches highlighted
 function safeHref(u) { return /^(https?:|mailto:)/i.test(u) ? u : null; }
 
 var NOTES = {}; // lower-case name -> {kind, name, path}
-ORDER.forEach(function (p) {
+function indexNote(p) {
   var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/);
   if (!m) return;
   var key = m[2].toLowerCase();
   if (m[1] === "drafts" && NOTES[key]) return;
   NOTES[key] = { kind: m[1], name: m[2], path: p };
-});
+}
+ORDER.forEach(indexNote);
 function resolve(name) { return NOTES[String(name).trim().toLowerCase()] || null; }
 function noteHash(n) { return n.kind + "/" + encodeURIComponent(n.name); }
+// Every name in [[…]] counts: lines that mention it, across the notebook (lower-case name -> {name, count, refs}).
+var MENTIONS = null;
+function mentions() {
+  if (MENTIONS) return MENTIONS;
+  MENTIONS = {};
+  ORDER.forEach(function (p) {
+    if (p.indexOf("cos/") !== 0) return;
+    doc(p).lines.forEach(function (ln, i) {
+      var seen = {};
+      linksIn(ln).forEach(function (nm) {
+        var k = nm.toLowerCase(); if (seen[k]) return; seen[k] = 1;
+        var m = MENTIONS[k] || (MENTIONS[k] = { name: nm, count: 0, refs: [] });
+        m.count++; m.refs.push({ path: p, line: i });
+      });
+    });
+  });
+  return MENTIONS;
+}
+function mentionCount(name) { var m = mentions()[String(name).trim().toLowerCase()]; return m ? m.count : 0; }
+function nameHash(name) { return "name/" + encodeURIComponent(String(name).trim()); }
 function wl(name, alias) {
   var n = resolve(name), label = T(alias || name);
-  return n ? '<a class="wl" href="#' + esc(noteHash(n)) + '">' + label + "</a>"
-           : '<span class="wl-none" title="No note yet">' + label + "</span>";
+  if (n) return '<a class="wl" href="#' + esc(noteHash(n)) + '">' + label + "</a>";
+  var c = mentionCount(name);
+  return '<a class="wl wl-none" href="#' + esc(nameHash(name)) + '" title="' + esc("No note yet: " + c + " mention" + (c === 1 ? "" : "s")) + '">' + label + "</a>";
 }
 var INL_SRC = "\\[\\[([^\\]|#]+)(?:#[^\\]|]*)?(?:\\|([^\\]]+))?\\]\\]" +      // 1,2 wikilink
   "|\\[([^\\]]+)\\]\\(([^)\\s]+)\\)" +                                       // 3,4 md link
@@ -423,10 +547,11 @@ function doc(path) {
       i = fmEnd;
     }
   }
-  var d = { path: path, exists: FILES[path] != null, fm: fm, fmEnd: fmEnd, title: "", blocks: [], items: [], lines: lines, byLine: {} };
+  var d = { path: path, exists: FILES[path] != null, fm: fm, fmEnd: fmEnd, title: "", blocks: [], items: [], lines: lines, byLine: {}, secOf: {} };
   var section = "", lastItem = null, para = null, code = null, m;
   for (; i < lines.length; i++) {
     var ln = lines[i];
+    if (/^#{2,6}\s/.test(ln)) d.secOf[i] = splitFields(ln.replace(/^#+\s+/, "").replace(/\s*#*\s*$/, "")).text; else d.secOf[i] = section;
     if (code) { if (/^\s*(```|~~~)/.test(ln)) { d.blocks.push(code); code = null; } else code.lines.push(ln); continue; }
     if (/^\s*(```|~~~)/.test(ln)) { code = { type: "code", lines: [], section: section }; lastItem = para = null; continue; }
     if (!ln.trim()) { lastItem = para = null; continue; }
@@ -533,11 +658,12 @@ function prepTag(p) {
 }
 function meta(html) { return html ? '<div class="meta">' + html + "</div>" : ""; }
 function quoteHtml(it, cls) { return it.quote.length ? '<p class="' + (cls || "quote") + '">' + it.quote.map(inl).join("<br>") + "</p>" : ""; }
+function ed(it) { return it && it.path && it.path.indexOf("cos/") === 0 && it.line != null ? ' data-ip="' + esc(it.path) + '" data-il="' + it.line + '"' : ""; }
 function box(it) { return it.checked == null ? "" : '<span class="box' + (it.checked ? " done" : "") + '" aria-hidden="true"></span>'; }
 function itemLi(it, opts) {
   opts = opts || {};
   var b = opts.nobox ? "" : box(it);
-  return '<li class="' + (b ? "" : "nobox") + '">' + b + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) +
+  return '<li class="' + (b ? "" : "nobox") + '"' + ed(it) + ">" + b + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) +
     quoteHtml(it, opts.quoteClass) + meta((opts.before || "") + chips(it, opts.skip) + (opts.after || "")) + "</div></li>";
 }
 function emptyLi(msg) { return '<li class="nobox empty">' + msg + "</li>"; }
@@ -782,8 +908,7 @@ var VIEWS = [
   { id: "archive", label: "Archive", group: "Record", files: function () { return archiveFiles().concat(finishedProjects().map(function (n) { return n.path; })); },
     sub: "Finished, dropped and stale items, each with the reason. Nothing is deleted. Say “bring back …” to restore one.",
     count: function () { return archiveItems().length + finishedProjects().length; } },
-  { id: "about", label: "How " + AGENT + " works for you", group: "About " + AGENT, files: function () { return ["cos/my-rules.md", "cos/about-me.md", ".cos/defaults.md"].concat(has(".cos/options.md") ? [".cos/options.md"] : []); },
-    sub: "Your rules come first, then what " + A + " knows about you, then the defaults that come with " + A + ". Updates change only the defaults.",
+  { id: "how", label: "How " + AGENT + " works for you", group: "About " + AGENT, files: function () { return howSub(state.sub).files; },
     count: function () { return doc("cos/my-rules.md").items.length; } },
   { id: "sources", label: "Where you talk", group: "About " + AGENT, files: function () { return ["cos/sources.md"]; },
     sub: "The places " + A + " listens, and what it reads in each.",
@@ -792,7 +917,7 @@ var VIEWS = [
 function V(id) { return VIEWS.filter(function (v) { return v.id === id; })[0]; }
 
 /* ---------- state ---------- */
-var state = { view: "today", kind: null, name: null };
+var state = { view: "today", kind: null, name: null, sub: null };
 var RAW = false;
 var SKEY = "cos-brain-page";
 function readHash() {
@@ -801,19 +926,28 @@ function readHash() {
   if (slash >= 0) { try { name = decodeURIComponent(h.slice(slash + 1)); } catch (e) { name = h.slice(slash + 1); } }
   if ((id === "people" || id === "projects" || id === "areas" || id === "drafts") && name) return { view: id === "areas" ? "projects" : id, kind: id, name: name };
   if (id === "areas") id = "projects";
+  if (id === "name" && name) return { view: "people", kind: "name", name: name };
+  if (id === "how" || id === "about") return { view: "how", kind: null, name: null, sub: howSub(name).id };
   return { view: V(id) ? id : "today", kind: null, name: null };
 }
 
 /* ---------- page pieces ---------- */
 function obsHref(rel) { return "obsidian://open?path=" + encodeURIComponent(WS + "/" + rel); }
 var OBS_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 2 4 9.5l3 10.5 5.5 2 6.5-6-1-9.5L13 2z"/></svg>';
+var SHOW_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>';
+var EDIT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l2 2"/></svg>';
+var PAGE_FILES = [];
 function fileBar(files, primary) {
   var dirs = files.map(function (f) { return f.replace(/[^\/]+$/, ""); });
   var shown = files.length <= 3 ? files.join(" · ")
     : dirs.every(function (x) { return x === dirs[0]; }) ? dirs[0] : files.slice(0, 2).join(" · ") + " + " + (files.length - 2) + " more";
-  var obs = META.obsidian && primary ? '<a class="obs small" href="' + esc(obsHref(primary)) + '" title="Open ' + esc(primary) + ' in Obsidian">Open in Obsidian</a>' : "";
-  return '<div class="file"><span class="path">' + esc(shown || "cos/") + "</span>" + obs +
-    '<button type="button" class="toggle" data-raw aria-pressed="' + RAW + '">Show the file' + (files.length > 1 ? "s" : "") + "</button></div>";
+  var many = files.length > 1;
+  var obs = META.obsidian && primary ? '<a class="obs small ibtn" href="' + esc(obsHref(primary)) + '" title="Open ' + esc(primary) + ' in Obsidian" aria-label="Open in Obsidian">' + OBS_ICON + "</a>" : "";
+  var editable = SRV ? files.filter(function (f) { return /^cos\//.test(f) && !/^cos\/log\/transcripts\//.test(f); }) : [];
+  PAGE_FILES = editable.length <= 3 ? editable : (primary && editable.indexOf(primary) >= 0 ? [primary] : []);
+  var edit = PAGE_FILES.length ? '<button type="button" class="ibtn" data-edit title="Edit the file' + (PAGE_FILES.length > 1 ? "s" : "") + '" aria-label="Edit the file' + (PAGE_FILES.length > 1 ? "s" : "") + '">' + EDIT_ICON + "</button>" : "";
+  return '<div class="file"><span class="path">' + esc(shown || "cos/") + "</span>" +
+    '<button type="button" class="ibtn" data-raw aria-pressed="' + RAW + '" title="Show the file' + (many ? "s" : "") + '" aria-label="Show the file' + (many ? "s" : "") + '">' + SHOW_ICON + "</button>" + edit + obs + "</div>";
 }
 function rawBlock(files) {
   if (!RAW) return "";
@@ -842,11 +976,11 @@ function renderBrief(b, latest) {
     var hints = x.paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("");
     var title = T(x.name || "Notes");
     if (k.indexOf("focus") === 0)
-      return block(title, "", hints + '<ul class="list card focus">' + items.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>", "", h);
+      return block(title, "", hints + '<ul class="list card focus">' + items.map(function (it) { return "<li" + ed(it) + '><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>", "", h);
     if (k.indexOf("meetings") === 0)
       return block(title, "from your calendar", hints + '<ul class="list card">' + (items.length ? items.map(function (it) {
         var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
-        return '<li class="nobox"><div class="meet"><span class="time">' + (m ? esc(fmtTime(m[1])) : "") + '</span><div class="txt">' + inl(m ? m[2] : it.text) +
+        return '<li class="nobox"' + ed(it) + '><div class="meet"><span class="time">' + (m ? esc(fmtTime(m[1])) : "") + '</span><div class="txt">' + inl(m ? m[2] : it.text) +
           meta(chips(it)) + (it.quote.length ? '<p class="hint" style="margin:6px 0 0">' + it.quote.map(inl).join("<br>") + "</p>" : "") + "</div></div></li>";
       }).join("") : emptyLi("No meetings.")) + "</ul>", "", h);
     if (k.indexOf("catchup") === 0)
@@ -854,7 +988,7 @@ function renderBrief(b, latest) {
     if (k.indexOf("followups") === 0)
       return block("Follow-ups " + A + " can send", latest ? "Reply in Carbon Voice with the numbers, like “do 1 and 3”. The numbers mean this brief." : "",
         hints + '<ul class="list card">' + (items.length ? items.map(function (it, i) {
-          return '<li><span class="num">' + (it.num || i + 1) + '</span><div class="txt">' + inl(it.text) +
+          return "<li" + ed(it) + '><span class="num">' + (it.num || i + 1) + '</span><div class="txt">' + inl(it.text) +
             (it.quote.length ? '<div class="draft">' + it.quote.map(inl).join("<br>") + "</div>" : "") + meta(chips(it)) + "</div></li>";
         }).join("") : emptyLi("No follow-ups in this brief.")) + "</ul>", "", h);
     if (k.indexOf("dueelsewhere") === 0) return block(title, "in your other tools", hints + listCard(items, "Nothing due elsewhere."), "", h);
@@ -875,7 +1009,7 @@ R.today = function () {
   var weekLi = function (it) {
     var m = it.text.match(/^(\d{4}-\d{2}-\d{2})\s+(.*)$/);
     var d = m ? m[1] : null, cls = d && d < TODAY_ISO ? " muted" : "";
-    return '<li class="nobox"><div class="meet"><span class="time' + cls + '">' + (d ? esc(DAYS[parseISO(d).getDay()] + " " + parseISO(d).getDate()) : "") + '</span><div class="txt' + cls + '">' +
+    return '<li class="nobox"' + ed(it) + '><div class="meet"><span class="time' + cls + '">' + (d ? esc(DAYS[parseISO(d).getDay()] + " " + parseISO(d).getDate()) : "") + '</span><div class="txt' + cls + '">' +
       inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</div></div></li>";
   };
   var html = head(v, title, sub);
@@ -883,7 +1017,7 @@ R.today = function () {
     listCard(moves, "Nothing waiting on you. When " + A + " suggests filing something or starting a project, it shows up here."), "moves-h")
     .replace('<ul class="list card">', '<ul class="list card moves">');
   var focusNow = sec(now, "Focus");
-  var focusHtml = block("Focus", "", focusNow.length ? '<ul class="list card focus">' + focusNow.map(function (it) { return '<li><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>"
+  var focusHtml = block("Focus", "", focusNow.length ? '<ul class="list card focus">' + focusNow.map(function (it) { return "<li" + ed(it) + '><div class="txt">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>"; }).join("") + "</ul>"
     : listCard([], "No focus set. Tell " + A + " what matters most this week, and it shows up here."));
   if (latest) {
     html += '<div class="brief brief-latest"><h3 class="brief-h">' + T(latest.name) + (latest.sent ? ' <span class="aside">sent ' + esc(fmtTime(String(latest.sent).trim())) + (bs.length > 1 ? " · latest" : "") + "</span>" : "") + "</h3>" +
@@ -911,7 +1045,7 @@ R.catchup = function () {
 };
 R.inbox = function () {
   var v = V("inbox"), items = doc("cos/inbox.md").items;
-  return head(v) + listCard(items, "Nothing to sort. Anything you tell " + A + " that doesn't have a place yet lands here first.") +
+  return head(v) + listCard(items, "Nothing to sort. Anything you tell " + A + " that doesn't have a place yet lands here first.") + addRow("cos/inbox.md", "", "Add to the inbox\u2026") +
     (items.length ? '<p class="hint">' + A + " suggests where each one goes on the Today page. Nothing moves until you say so.</p>" : "");
 };
 R.actions = function () {
@@ -919,7 +1053,8 @@ R.actions = function () {
   var open = openActions(), done = myActions().filter(function (it) { return it.checked; });
   var els = d.items.filter(isElsewhere), elsParas = secParas(d, "Elsewhere");
   var html = head(v);
-  html += block("To do", open.length ? open.length + " open" : "", listCard(open, "Nothing on your list. Tell " + A + " something you need to do, and it shows up here."));
+  html += block("To do", open.length ? open.length + " open" : "", listCard(open, "Nothing on your list. Tell " + A + " something you need to do, and it shows up here.") +
+    addRow("cos/actions.md", "To do", "Add an action\u2026"));
   html += block("Elsewhere", "", (elsParas.length ? elsParas.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") : "") +
     '<div class="card">' + (els.length ? els.map(function (it) {
       var m = it.text.match(/^([^:]{1,40}):\s*(.*)$/), s = parseSrc(it.fields.src || "");
@@ -945,7 +1080,7 @@ R.waiting = function () {
       var tone = d == null ? "" : d >= 10 ? "late" : d >= 5 ? "due" : "";
       var waited = w.checked ? '<span class="tag ok">Done' + (w.fields.done ? " " + esc(dateish(w.fields.done)) : "") + "</span>"
         : d == null ? '<span class="muted">—</span>' : '<span class="tag ' + tone + '">' + (d <= 0 ? "Since today" : d === 1 ? "1 day" : d + " days") + "</span>";
-      return "<tr" + (w.checked ? ' class="gone"' : "") + "><td>" + (s.who ? wl(s.who, s.alias) : "") + "</td><td>" + inl(s.what) + quoteHtml(w) + meta(chips(w, ["since", "nudged", "done"])) +
+      return "<tr" + (w.checked ? ' class="gone"' : "") + ed(w) + '><td><span class="who">' + box(w) + (s.who ? wl(s.who, s.alias) : "") + '</span></td><td class="txt">' + inl(s.what) + quoteHtml(w) + meta(chips(w, ["since", "nudged", "done"])) +
         "</td><td>" + waited + "</td><td>" + (w.fields.nudged ? "Reminded you " + esc(dateish(w.fields.nudged)) : '<span class="muted">Not yet</span>') + "</td></tr>";
     }).join("");
   }
@@ -953,6 +1088,7 @@ R.waiting = function () {
   var html = head(v);
   html += open.length ? table(open) + '<p class="hint">Say “nudge ' + esc(open[0] && splitWho(open[0]).who ? plainText(splitWho(open[0]).who).split(" ")[0] : "them") + "” and " + A + " drafts a follow-up for you to approve.</p>"
     : '<div class="card empty">Nothing here yet. Tell ' + A + " about something you're waiting on, and it shows up here.</div>";
+  html += addRow("cos/waiting.md", "", "Add something you're waiting on, like [[Priya Natarajan]]: the estimate\u2026");
   if (done.length) html += '<details class="done"><summary>Done (' + done.length + ")</summary>" + table(done) + "</details>";
   return html;
 };
@@ -991,12 +1127,59 @@ R.projects = function () {
   if (finishedProjects().length) html += '<p class="hint">Finished and dropped projects are in the <button type="button" class="grouplink" data-view="archive">Archive</button>.</p>';
   return html;
 };
+// Names mentioned with no note yet, most-mentioned first. A name alone doesn't say whether it's a
+// person or a project, so names used as a project are left out: a draft's "project", a
+// project's "area", and "for [[…]]" in links.md and facts.md.
+function unnamedPeople() {
+  var notPeople = {};
+  notesOf("drafts").forEach(function (n) { var v = doc(n.path).fm.project; if (v) notPeople[plainText(v).trim().toLowerCase()] = 1; });
+  notesOf("projects").forEach(function (n) { var v = doc(n.path).fm.area; if (v) notPeople[plainText(v).trim().toLowerCase()] = 1; });
+  ["cos/links.md", "cos/facts.md"].forEach(function (p) {
+    doc(p).lines.forEach(function (ln) { var re = /\bfor (?:the )?\[\[([^\]|#]+)/gi, m; while ((m = re.exec(ln))) notPeople[m[1].trim().toLowerCase()] = 1; });
+  });
+  var all = mentions();
+  return Object.keys(all).filter(function (k) { return !resolve(k) && !notPeople[k]; }).map(function (k) { return all[k]; })
+    .sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+}
+function nameView(name) {
+  var n = resolve(name);
+  if (n) return n.kind === "drafts" ? draftView(n.name) : noteView(n.kind, n.name);
+  var m = mentions()[name.trim().toLowerCase()], label = m ? m.name : name.trim();
+  var back = '<button type="button" class="back" data-view="people">\u2190 All people</button>';
+  var start = SRV ? '<div class="file"><button type="button" class="btn primary" data-start-note="' + esc(label) + '">Start a note</button></div>' : "";
+  var html = back + '<div class="page-head"><div><h2 tabindex="-1">' + T(label) + '</h2><p class="sub">No note yet. ' + A + " starts one once " + T(label) +
+    " comes up again, or ask " + A + " to start one now.</p></div>" + start + "</div>";
+  var refs = m ? m.refs : [], byFile = {}, files = [];
+  refs.forEach(function (r) { if (!byFile[r.path]) { byFile[r.path] = []; files.push(r.path); } byFile[r.path].push(r); });
+  files.sort(function (a, b) { var ra = rankOf(a), rb = rankOf(b); return ra[0] - rb[0] || (ra[1] < rb[1] ? -1 : ra[1] > rb[1] ? 1 : 0); });
+  var list = files.map(function (p) {
+    var d = doc(p);
+    return '<div class="h3" style="margin-top:12px">' + esc(p) + '</div><ul class="list">' + byFile[p].map(function (r) {
+      var info = d.byLine[r.line];
+      if (info && info.item) {
+        var it = info.item;
+        return '<li class="' + (it.checked == null ? "nobox" : "") + '"' + ed(it) + ">" + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>";
+      }
+      var t = (info && info.quoteOf ? info.text : d.lines[r.line].replace(/^\s*(#{1,6}\s+|>\s?)/, "")).trim();
+      if (r.line < d.fmEnd) { var fm = t.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/); if (fm) t = humanKey(fm[1]) + ": " + unquote(fm[2]); }
+      var sf = splitFields(t);
+      return '<li class="nobox"><div class="txt">' + inl(sf.text) + meta(chips({ fields: sf.fields, checked: null })) + "</div></li>";
+    }).join("") + "</ul>";
+  }).join("");
+  return html + '<div class="card detail"><div class="backlinks" style="margin-top:0;border-top:0;padding-top:0"><h4>Everything that links here \u00b7 ' + refs.length + " mention" + (refs.length === 1 ? "" : "s") + "</h4>" +
+    (list || '<p class="hint" style="margin:4px 0 0">Nothing mentions ' + T(label) + " yet.</p>") + "</div></div>";
+}
 R.people = function () {
-  if (state.name) return noteView("people", state.name);
-  var v = V("people"), people = notesOf("people");
+  if (state.name) return state.kind === "name" ? nameView(state.name) : noteView("people", state.name);
+  var v = V("people"), people = notesOf("people"), loose = unnamedPeople();
   var html = head(v);
-  if (!people.length) return html + '<div class="card empty">No people yet. ' + A + " starts a note for someone once they come up more than once.</div>";
-  return html + '<div class="people-grid">' + people.map(function (n) {
+  var looseHtml = loose.length ? block("Mentioned, no note yet", "names " + A + " has linked, most-mentioned first",
+    '<ul class="list card mentioned">' + loose.map(function (m) {
+      return '<li class="nobox"><div class="txt">' + wl(m.name) + ' <span class="muted">\u00b7 ' + m.count + " mention" + (m.count === 1 ? "" : "s") + "</span></div></li>";
+    }).join("") + "</ul>") : "";
+  if (!people.length) return html + '<div class="card empty">No people notes yet. ' + A + " starts a note for someone once they keep coming up" +
+    (loose.length ? "; the names mentioned so far are below." : ".") + "</div>" + (loose.length ? '<div style="margin-top:26px">' + looseHtml + "</div>" : "");
+  return html + block("With a note", String(people.length), '<div class="people-grid">' + people.map(function (n) {
     var d = doc(n.path);
     var owe = openActions().filter(function (a) { return linksTo(a, n); }).length;
     var wait = waitingItems().filter(function (w) { return !w.checked && resolve(splitWho(w).who || "") === n; }).length;
@@ -1004,7 +1187,7 @@ R.people = function () {
     return '<button type="button" class="card pcard" data-go="' + esc(noteHash(n)) + '"><h4>' + T(n.name) + "</h4>" + (role ? '<p class="role">' + plain(role) + "</p>" : "") +
       '<div class="row">' + (owe ? '<span class="tag acc">You owe ' + owe + "</span>" : "") + (wait ? '<span class="tag due">Owes you ' + wait + "</span>" : "") +
       (isISO(d.fm.last_talked) ? '<span class="tag">Last talked ' + esc(fmtShort(d.fm.last_talked)) + "</span>" : "") + "</div></button>";
-  }).join("") + "</div>";
+  }).join("") + "</div>") + looseHtml;
 };
 var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/catch-up.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
 function rankOf(p) {
@@ -1059,7 +1242,7 @@ function renderBlocks(blocks, skipTitle) {
     } else if (b.type === "item") {
       if (!list) { out += '<ul class="md-list">'; list = true; }
       var marker = b.checked != null ? box(b) : b.num != null ? '<span class="num">' + b.num + ".</span>" : '<span class="bullet" aria-hidden="true"></span>';
-      out += '<li style="' + (b.indent ? "margin-left:" + Math.min(b.indent, 12) * 8 + "px" : "") + '">' + marker + '<div class="txt' + (b.checked ? " muted" : "") + '">' +
+      out += '<li style="' + (b.indent ? "margin-left:" + Math.min(b.indent, 12) * 8 + "px" : "") + '"' + ed(b) + ">" + marker + '<div class="txt' + (b.checked ? " muted" : "") + '">' +
         inl(b.text) + quoteHtml(b) + meta(chips(b)) + "</div></li>";
     } else if (b.type === "p") out += "<p>" + b.text.split("\n").map(inl).join("<br>") + "</p>";
     else if (b.type === "quote") out += "<blockquote>" + b.lines.map(inl).join("<br>") + "</blockquote>";
@@ -1102,7 +1285,7 @@ function backlinksHtml(n) {
   var bl = linkedItems(n);
   return '<div class="backlinks"><h4>Linked from ' + bl.length + " place" + (bl.length === 1 ? "" : "s") + "</h4>" +
     (bl.length ? '<ul class="list">' + bl.map(function (it) {
-      return '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) +
+      return '<li class="' + (it.checked == null ? "nobox" : "") + '"' + ed(it) + ">" + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) +
         meta('<span class="bl-file">' + esc(it.path) + "</span>" + chips(it)) + "</div></li>";
     }).join("") + "</ul>" : '<p class="hint" style="margin:4px 0 0">Nothing links here yet. Anything ' + A + " writes that mentions " + T(n.name) + " will show up here.</p>") + "</div>";
 }
@@ -1181,8 +1364,9 @@ function draftView(name) {
 R.ideas = function () {
   var v = V("ideas"), items = doc("cos/ideas.md").items;
   return head(v) + '<ul class="list card">' + (items.length ? items.map(function (it) {
-    return '<li class="nobox"><div class="txt"><b>' + inl(it.text) + "</b>" + (it.quote.length ? '<p class="quote">“' + it.quote.map(inl).join("<br>") + "”</p>" : "") + meta(chips(it)) + "</div></li>";
-  }).join("") : emptyLi("Nothing here yet. Say “remind me about this later” about an idea, and it shows up here with when to bring it back.")) + "</ul>";
+    return '<li class="nobox"' + ed(it) + '><div class="txt"><b>' + inl(it.text) + "</b>" + (it.quote.length ? '<p class="quote">“' + it.quote.map(inl).join("<br>") + "”</p>" : "") + meta(chips(it)) + "</div></li>";
+  }).join("") : emptyLi("Nothing here yet. Say “remind me about this later” about an idea, and it shows up here with when to bring it back.")) + "</ul>" +
+    addRow("cos/ideas.md", "", "Add an idea to come back to\u2026");
 };
 R.links = function () {
   var v = V("links"), links = doc("cos/links.md").items, facts = doc("cos/facts.md").items;
@@ -1191,10 +1375,12 @@ R.links = function () {
     var m = it.text.match(/\[([^\]]+)\]\(([^)\s]+)\)/);
     if (!m) return itemLi(it);
     var h = safeHref(m[2]), rest = it.text.replace(m[0], "").trim();
-    return '<li class="nobox"><div class="txt"><b>' + (h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + inl(m[1]) + "</a>" : inl(m[1])) + "</b>" + (rest ? " " + inl(rest) : "") +
+    return '<li class="nobox"' + ed(it) + '><div class="txt"><b>' + (h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + inl(m[1]) + "</a>" : inl(m[1])) + "</b>" + (rest ? " " + inl(rest) : "") +
       '<div class="meta"><span class="url">' + T(m[2]) + '</span><button type="button" class="copy" data-copy="' + esc(m[2]) + '">Copy</button></div>' + quoteHtml(it) + meta(chips(it)) + "</div></li>";
-  }).join("") : emptyLi("No links yet. Send " + A + " a link worth keeping, and it shows up here with where it came from.")) + "</ul>");
-  html += block("Facts", "cos/facts.md", listCard(facts, "No facts yet. Things like “Acme has 340 seats” land here, so you can find them again."));
+  }).join("") : emptyLi("No links yet. Send " + A + " a link worth keeping, and it shows up here with where it came from.")) + "</ul>" +
+    addRow("cos/links.md", "", "Add a link, like [Signup form](https://\u2026) for [[Q4 Launch]]"));
+  html += block("Facts", "cos/facts.md", listCard(facts, "No facts yet. Things like “Acme has 340 seats” land here, so you can find them again.") +
+    addRow("cos/facts.md", "", "Add a fact\u2026"));
   return html;
 };
 R.decisions = function () {
@@ -1206,7 +1392,7 @@ R.decisions = function () {
   return head(v) + '<div class="card tscroll"><table class="t"><thead><tr><th>Date</th><th>Decision</th><th>Why</th></tr></thead><tbody>' +
     items.map(function (x) {
       var gone = !!x.it.fields.superseded;
-      return "<tr" + (gone ? ' class="gone"' : "") + '><td style="white-space:nowrap">' + esc(x.date ? fmtShort(x.date) : "") + "</td><td>" +
+      return "<tr" + (gone ? ' class="gone"' : "") + ed(x.it) + '><td style="white-space:nowrap">' + esc(x.date ? fmtShort(x.date) : "") + "</td><td>" +
         (gone ? '<span class="overridden">' + inl(x.text) + "</span>" : "<b>" + inl(x.text) + "</b>") + quoteHtml(x.it) + meta(chips(x.it, ["why"])) +
         "</td><td>" + (x.it.fields.why ? inl(x.it.fields.why) : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") + "</tbody></table></div>";
@@ -1220,7 +1406,7 @@ R.log = function () {
     return '<div class="day"><div class="d">' + esc(fmtDay(iso)) + "<small>" + n + " entr" + (n === 1 ? "y" : "ies") + "</small></div><div><ul>" +
       d.items.map(function (it) {
         var m = it.text.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
-        return "<li>" + (m ? '<span class="time">' + esc(m[1]) + "</span>" : "") + inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</li>";
+        return "<li" + ed(it) + '><div class="txt">' + (m ? '<span class="time">' + esc(m[1]) + "</span>" : "") + inl(m ? m[2] : it.text) + quoteHtml(it) + meta(chips(it)) + "</div></li>";
       }).join("") + paras.map(function (b) { return '<li class="muted">' + inl(b.text) + "</li>"; }).join("") + "</ul></div></div>";
   }).join("") + "</div>" + '<p class="hint">The page shows the last 45 days. Older days stay in cos/log/.</p>';
 };
@@ -1242,88 +1428,118 @@ var SETTINGS = {
   stale_days: ["Archive untouched items", function (v) { return "After " + v + " days"; }],
   meeting_prep: ["Meeting prep", function (v) { return { offer: "Offered in the morning brief", auto: "Sent before meetings with people who have a note", off: "Off" }[v.toLowerCase()] || v; }]
 };
-R.about = function () {
-  var v = V("about"), rules = doc("cos/my-rules.md"), me = doc("cos/about-me.md");
-  var html = head(v);
-  var fmKeys = Object.keys(rules.fm);
-  var replaced = {};
-  rules.items.forEach(function (it) { if (it.fields.replaces) replaced[it.fields.replaces.trim().toLowerCase()] = it; });
-  var sch = schedule(), legacyBriefs = !myBriefItems().length;
+var HOW_SUBS = [
+  { id: "rules", label: "Your rules", files: ["cos/my-rules.md"] },
+  { id: "briefs", label: "Briefs", files: ["cos/my-rules.md"] },
+  { id: "tools", label: "Tools & voice", files: ["cos/my-rules.md", "cos/about-me.md"] },
+  { id: "knows", label: "What " + AGENT + " knows about you", files: ["cos/about-me.md"] },
+  { id: "defaults", label: "Defaults", files: [".cos/defaults.md"] },
+  { id: "can", label: "Everything " + AGENT + " can do", files: [".cos/options.md"] }
+];
+function howSubs() { return HOW_SUBS.filter(function (x) { return x.id !== "can" || doc(".cos/options.md").items.length; }); }
+function howSub(id) { return howSubs().filter(function (x) { return x.id === id; })[0] || howSubs()[0]; }
+// Which sub-page a line of my-rules.md or about-me.md belongs on.
+var BRIEF_SECS = ["mybriefs", "whatgoesinmybriefs", "importantpeople"];
+function howSubFor(p, section) {
+  var k = norm(section);
+  if (p === "cos/my-rules.md") return BRIEF_SECS.indexOf(k) >= 0 ? "briefs" : k === "mytools" ? "tools" : "rules";
+  if (p === "cos/about-me.md") return k === "howiwrite" ? "tools" : "knows";
+  if (p === ".cos/defaults.md") return "defaults";
+  if (p === ".cos/options.md") return "can";
+  return null;
+}
+function subTabs(cur) { // a second row of small tabs, shown on phones instead of the nested index entries
+  return '<div class="subtabs" role="navigation" aria-label="' + esc(V("how").label) + '">' + howSubs().map(function (x) {
+    return '<button type="button" data-view="how/' + x.id + '"' + (x.id === cur ? ' aria-current="page"' : "") + ">" + esc(x.label) + "</button>";
+  }).join("") + "</div>";
+}
+function listSection(d, name, empty) {
+  var s = sectionNames(d).filter(function (x) { return norm(x) === norm(name); })[0];
+  var bl = s ? sectionBlocks(d, s) : [], items = bl.filter(function (b) { return b.type === "item"; });
+  var paras = bl.filter(function (b) { return b.type === "p"; });
+  return block(T(s || name), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, empty));
+}
+var HOW = {};
+HOW.rules = function () {
+  var rules = doc("cos/my-rules.md"), html = "";
+  var fmKeys = Object.keys(rules.fm), legacyBriefs = !myBriefItems().length;
   fmKeys = fmKeys.filter(function (k) { return legacyBriefs || (k !== "brief_time" && k !== "brief_days"); });
   var settings = fmKeys.length ? '<div class="card tscroll"><table class="t"><tbody>' + fmKeys.map(function (k) {
-    var s = SETTINGS[k], val = rules.fm[k];
-    return '<tr><td style="white-space:nowrap;color:var(--muted)">' + T(s ? s[0] : humanKey(k)) + "</td><td>" + T(s ? s[1](val) : val) + "</td></tr>";
+    var st = SETTINGS[k], val = rules.fm[k];
+    return '<tr><td style="white-space:nowrap;color:var(--muted)">' + T(st ? st[0] : humanKey(k)) + "</td><td>" + T(st ? st[1](val) : val) + "</td></tr>";
   }).join("") + "</tbody></table></div>" : '<div class="card empty">No settings yet. ' + A + " uses its defaults until you change one.</div>";
-  html += block('<span class="layer you">1 · Your settings and rules</span>', 'cos/my-rules.md · say “from now on …” to add one', settings);
+  html += block("Settings", "say “from now on …” to change one", settings);
+  var loose = rules.items.filter(function (it) { return !it.section; });
+  if (loose.length) html += block("Rules", "", listCard(loose, ""));
+  html += listSection(rules, "My rules", "No rules yet. Say “from now on …” and " + A + " adds one here.");
+  html += listSection(rules, "Where things go", "Nothing here yet. Rules like “team tasks live in Linear” show up here.");
+  var KNOWN = BRIEF_SECS.concat(["mytools", "myrules", "wherethingsgo"]);
+  sectionNames(rules).filter(function (x) { return KNOWN.indexOf(norm(x)) < 0; }).forEach(function (x) {
+    var bl = sectionBlocks(rules, x);
+    if (bl.length) html += block(T(x), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
+  });
+  return html;
+};
+HOW.briefs = function () {
+  var rules = doc("cos/my-rules.md"), sch = schedule();
   var briefRows = sch.length ? '<div class="card tscroll"><table class="t briefs-t"><thead><tr><th>Brief</th><th>Time</th><th>Days</th><th>Covers</th></tr></thead><tbody>' + sch.map(function (b) {
     var off = !dayList(b.days).length;
-    return "<tr" + (off ? ' class="gone"' : "") + "><td><b>" + T(b.name) + "</b>" + (b.item ? meta(chips(b.item, ["at", "days", "covers"])) : b.legacy ? meta('<span class="tag">From your settings</span>') : "") + "</td>" +
+    return "<tr" + (off ? ' class="gone"' : "") + ed(b.item) + '><td class="txt"><b>' + T(b.name) + "</b>" + (b.item ? meta(chips(b.item, ["at", "days", "covers"])) : b.legacy ? meta('<span class="tag">From your settings</span>') : "") + "</td>" +
       '<td style="white-space:nowrap">' + (minsOf(b.at) != null ? esc(fmtTime(String(b.at).trim())) : T(b.at || "—")) + "</td>" +
       '<td style="white-space:nowrap">' + (off ? '<span class="tag">Paused</span>' : T(daysWords(b.days))) + "</td><td>" + (b.covers ? inl(b.covers) : '<span class="muted">—</span>') + "</td></tr>";
   }).join("") + "</tbody></table></div>"
     : '<div class="card empty">No briefs set, so ' + A + " uses its default: a morning brief on weekdays at 7:00am.</div>";
-  html += block("Your briefs", "say “add a brief at …” or “move my morning brief to …”", briefRows);
-  var secs = sectionNames(rules);
-  var toolsSec = secs.filter(function (x) { return norm(x) === "mytools"; })[0];
+  return block("Your briefs", "say “add a brief at …” or “move my morning brief to …”", briefRows) +
+    listSection(rules, "What goes in my briefs", "Nothing here yet. Preferences for every brief, like “skip newsletters”, show up here.") +
+    listSection(rules, "Important people", "No one yet. People whose messages always make it into a brief show up here.");
+};
+HOW.tools = function () {
+  var rules = doc("cos/my-rules.md"), me = doc("cos/about-me.md");
+  var toolsSec = sectionNames(rules).filter(function (x) { return norm(x) === "mytools"; })[0];
   var tools = toolsSec ? sectionBlocks(rules, toolsSec).filter(function (b) { return b.type === "item"; }) : [];
-  html += block("My tools", "where each kind of finished work goes", tools.length ? '<div class="card tscroll"><table class="t"><thead><tr><th>Kind</th><th>Where it goes</th><th>Source</th></tr></thead><tbody>' +
+  var html = block("My tools", "where each kind of finished work goes · cos/my-rules.md", tools.length ? '<div class="card tscroll"><table class="t"><thead><tr><th>Kind</th><th>Where it goes</th><th>Source</th></tr></thead><tbody>' +
     tools.map(function (it) {
-      return '<tr><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : '<span class="muted">\u2014</span>') + "</b></td><td>" + inl(it.text) + quoteHtml(it) +
+      return "<tr" + ed(it) + '><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : '<span class="muted">—</span>') + '</b></td><td class="txt">' + inl(it.text) + quoteHtml(it) +
         meta(chips(it, ["for", "src"])) + "</td><td>" + srcChip(it.fields.src) + "</td></tr>";
     }).join("") + "</tbody></table></div>"
     : '<div class="card empty">Nothing yet. When a draft is ready, ' + A + " asks where it should go and remembers it here.</div>");
-  var LISTS = [
-    ["What goes in my briefs", "Nothing here yet. Preferences for every brief, like “skip newsletters”, show up here."],
-    ["Important people", "No one yet. People whose messages always make it into a brief show up here."],
-    ["My rules", "No rules yet. Say “from now on …” and " + A + " adds one here."],
-    ["Where things go", "Nothing here yet. Rules like “team tasks live in Linear” show up here."]
-  ];
-  var looseItems = rules.items.filter(function (it) { return !it.section; });
-  if (looseItems.length) html += block("Rules", "", listCard(looseItems, ""));
-  LISTS.forEach(function (l) {
-    var s = secs.filter(function (x) { return norm(x) === norm(l[0]); })[0];
-    var bl = s ? sectionBlocks(rules, s) : [], items = bl.filter(function (b) { return b.type === "item"; });
-    var paras = bl.filter(function (b) { return b.type === "p"; });
-    html += block(T(s || l[0]), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, l[1]));
-  });
-  var KNOWN_RULES = ["mybriefs", "mytools"].concat(LISTS.map(function (l) { return norm(l[0]); }));
-  secs.filter(function (x) { return KNOWN_RULES.indexOf(norm(x)) < 0; }).forEach(function (s) {
-    var bl = sectionBlocks(rules, s);
-    if (bl.length) html += block(T(s), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
-  });
-  var KNOWN_ME = ["role", "howiwork", "learned", "howiwrite"];
-  var meSecs = sectionNames(me);
-  var meHtml = '<ul class="list card">', any = false, meOther = "";
-  me.items.filter(function (it) { return !it.section; }).forEach(function (it) { any = true; meHtml += itemLi(it); });
-  meSecs.forEach(function (s) {
-    if (KNOWN_ME.indexOf(norm(s)) < 0) {
-      var bl = sectionBlocks(me, s);
-      if (bl.length) meOther += block(T(s), "cos/about-me.md", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
-      return;
-    }
-    if (norm(s) === "howiwrite") return;
-    me.items.filter(function (it) { return it.section === s; }).forEach(function (it) {
-      any = true;
-      var learned = norm(s) === "learned";
-      meHtml += itemLi(it, { before: '<span class="tag' + (learned ? " due" : "") + '">' + T(learned ? "Learned" : s) + "</span>" });
-    });
-  });
-  meHtml += (any ? "" : emptyLi("Nothing yet. " + A + " fills this in as you talk: your role, how you like to work, and what it notices.")) + "</ul>";
-  html += block('<span class="layer learned">2 · What ' + A + " knows about you</span>", "cos/about-me.md · correct it by saying “that's wrong: …”", meHtml);
-  var hiw = meSecs.filter(function (x) { return norm(x) === "howiwrite"; })[0];
+  var hiw = sectionNames(me).filter(function (x) { return norm(x) === "howiwrite"; })[0];
   var hiwItems = hiw ? sectionBlocks(me, hiw).filter(function (b) { return b.type === "item"; }) : [];
   var styled = hiwItems.filter(function (it) { return it.fields["for"] || it.fields.audience; }), loose = hiwItems.filter(function (it) { return !(it.fields["for"] || it.fields.audience); });
-  html += block("How I write", "by kind and audience \u00b7 say \u201cmy Slack messages are more casual than that\u201d to correct one",
+  html += block("How I write", "by kind and audience · cos/about-me.md · say “my Slack messages are more casual than that” to correct one",
     (styled.length ? '<div class="card tscroll"><table class="t"><thead><tr><th>Kind</th><th>Audience</th><th>Style</th><th>Source</th></tr></thead><tbody>' + styled.map(function (it) {
-      return '<tr><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : "\u2014") + '</b></td><td style="white-space:nowrap">' +
-        (it.fields.audience ? T(it.fields.audience.charAt(0).toUpperCase() + it.fields.audience.slice(1)) : "\u2014") + "</td><td>" + inl(it.text) + quoteHtml(it) +
+      return "<tr" + ed(it) + '><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : "—") + '</b></td><td style="white-space:nowrap">' +
+        (it.fields.audience ? T(it.fields.audience.charAt(0).toUpperCase() + it.fields.audience.slice(1)) : "—") + '</td><td class="txt">' + inl(it.text) + quoteHtml(it) +
         meta(chips(it, ["for", "audience", "src"])) + "</td><td>" + srcChip(it.fields.src) + "</td></tr>";
     }).join("") + "</tbody></table></div>" : "") +
     (loose.length ? '<div style="margin-top:' + (styled.length ? "10px" : "0") + '">' + listCard(loose, "") + "</div>" : "") +
     (hiwItems.length ? "" : '<div class="card empty">Nothing yet. ' + A + " asks before learning how you write from your sent messages.</div>"));
-  html += meOther;
-  var defs = defaults();
-  html += block('<span class="layer base">3 · ' + A + "'s defaults</span>", "come with the Chief of Staff" + (META.version ? ", version " + esc(META.version) : "") + " · updated by ./update-cos.sh",
+  return html;
+};
+HOW.knows = function () {
+  var me = doc("cos/about-me.md"), KNOWN_ME = ["role", "howiwork", "learned", "howiwrite"];
+  var meHtml = '<ul class="list card">', any = false, other = "";
+  me.items.filter(function (it) { return !it.section; }).forEach(function (it) { any = true; meHtml += itemLi(it); });
+  sectionNames(me).forEach(function (x) {
+    if (KNOWN_ME.indexOf(norm(x)) < 0) {
+      var bl = sectionBlocks(me, x);
+      if (bl.length) other += block(T(x), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
+      return;
+    }
+    if (norm(x) === "howiwrite") return;
+    sectionBlocks(me, x).filter(function (b) { return b.type === "item"; }).forEach(function (it) {
+      any = true;
+      var learned = norm(x) === "learned";
+      meHtml += itemLi(it, { before: '<span class="tag' + (learned ? " due" : "") + '">' + T(learned ? "Learned" : x) + "</span>" });
+    });
+  });
+  meHtml += (any ? "" : emptyLi("Nothing yet. " + A + " fills this in as you talk: your role, how you like to work, and what it notices.")) + "</ul>";
+  return block("What " + A + " knows", "correct it by saying “that's wrong: …”", meHtml) + other;
+};
+HOW.defaults = function () {
+  var rules = doc("cos/my-rules.md"), sch = schedule(), replaced = {}, defs = defaults();
+  rules.items.forEach(function (it) { if (it.fields.replaces) replaced[it.fields.replaces.trim().toLowerCase()] = it; });
+  return block("What comes with " + A, "version " + esc(META.version || "?") + " · updated by ./update-cos.sh · your rules win over these",
     '<ul class="list card">' + (defs.length ? defs.map(function (d) {
       var over = replaced[d.id.toLowerCase()], nowHtml = over ? inl(over.text) : "";
       if (!over && d.id.toLowerCase() === "brief" && sch.length && !scheduleIsDefault(sch)) { over = true; nowHtml = sch.length + " brief" + (sch.length === 1 ? "" : "s"); }
@@ -1331,13 +1547,22 @@ R.about = function () {
       return '<li class="nobox"><div class="txt"><span class="' + (over && !d.fixed ? "overridden" : "") + '">' + inl(d.text) + "</span>" +
         meta(tag + (over && !d.fixed ? '<span class="tag">Now: ' + nowHtml + "</span>" : "")) + "</div></li>";
     }).join("") : emptyLi("The defaults file (.cos/defaults.md) wasn't found. Run ./update-cos.sh to restore it.")) + "</ul>");
-  return html + optionsHtml();
+};
+HOW.can = function () { return optionsHtml(); };
+R.how = function () {
+  var v = V("how"), sub = howSub(state.sub);
+  var subs = { rules: "Your settings and rules. These win over " + A + "'s defaults, and updates never change them.",
+    briefs: "When " + A + " sends you a brief, what goes in it, and who always makes it in.",
+    tools: "Where finished work goes, and how you write for each kind of audience.",
+    knows: "What " + A + " knows about you, told and learned.",
+    defaults: "How " + A + " works unless you change it. A rule of yours that replaces one shows here.",
+    can: "Ask " + A + " “what can you do?” or run /cos:settings to see what's on for you." };
+  return subTabs(sub.id) + head(v, esc(sub.label), subs[sub.id], sub.files.filter(function (f) { return f.charAt(0) === "." ? has(f) : true; })) + HOW[sub.id]();
 };
 function optionsHtml() { // "Everything Ada can do", from .cos/options.md
   var d = doc(".cos/options.md");
-  if (!d.items.length) return "";
-  var html = '<h3 class="brief-h" style="margin-top:8px">Everything ' + A + " can do</h3>" +
-    '<p class="hint" style="margin:-8px 2px 14px">Ask ' + A + " \u201cwhat can you do?\u201d or run /cos:settings to see what's on for you.</p>";
+  if (!d.items.length) return '<div class="card empty">The list of what ' + A + " can do (.cos/options.md) wasn't found. Run ./update-cos.sh to restore it.</div>";
+  var html = "";
   var names = sectionNames(d);
   if (d.items.some(function (it) { return !it.section; })) names.unshift("");
   names.forEach(function (name) {
@@ -1379,21 +1604,22 @@ function sectionFor(p) {
   if (/^cos\/drafts\//.test(p)) return "drafts";
   if (/^cos\/log\/\d{4}-\d{2}-\d{2}\.md$/.test(p)) return "log";
   if (/^cos\/archive\//.test(p)) return "archive";
-  if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md" || p === ".cos/options.md") return "about";
+  if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md" || p === ".cos/options.md") return "how/" + howSubFor(p, "");
   return null;
 }
 function searchView() {
   var q = QUERY.toLowerCase(), groups = {}, order = [], total = 0;
   ORDER.forEach(function (p) {
-    var d = doc(p), sid = sectionFor(p) || "other";
+    var d = doc(p), sid0 = sectionFor(p) || "other";
     d.lines.forEach(function (ln, i) {
       if (!ln.trim() || /^\s*(---|```|~~~)\s*$/.test(ln)) return;
+      var sid = sid0.indexOf("how/") === 0 ? "how/" + howSubFor(p, d.secOf[i] || "") : sid0;
       var info = d.byLine[i], hay, html;
       if (info && info.item) {
         var it = info.item, f = it.fields;
         hay = it.text + " " + Object.keys(f).map(function (k) { return k === "src" ? (parseSrc(f[k]).url || "") : f[k]; }).join(" ");
         if (hay.toLowerCase().indexOf(q) < 0) return;
-        html = '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt">' + inl(it.text) + meta(chips(it)) + urlsOf(it.text) + note(p) + "</div></li>";
+        html = '<li class="' + (it.checked == null ? "nobox" : "") + '"' + ed(it) + ">" + box(it) + '<div class="txt">' + inl(it.text) + meta(chips(it)) + urlsOf(it.text) + note(p) + "</div></li>";
       } else {
         var text = info && info.quoteOf ? info.text : ln.replace(/^\s*(#{1,6}\s+|>\s?)/, "").trim();
         if (i < d.fmEnd) { var fm = text.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/); if (fm) text = humanKey(fm[1]) + ": " + unquote(fm[2]); }
@@ -1415,14 +1641,17 @@ function searchView() {
     var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/);
     return '<div class="meta"><span class="bl-file">' + esc(p) + "</span>" + (m && resolve(m[2]) ? '<a class="tag acc" style="text-decoration:none" href="#' + esc(noteHash(resolve(m[2]))) + '">Open note</a>' : "") + "</div>";
   }
-  var rank = VIEWS.map(function (v) { return v.id; }).concat(["other"]);
+  var rank = [];
+  VIEWS.forEach(function (v) { rank.push(v.id); if (v.id === "how") howSubs().forEach(function (x) { rank.push("how/" + x.id); }); });
+  rank.push("other");
   order.sort(function (a, b) { return rank.indexOf(a) - rank.indexOf(b); });
   var html = '<div class="page-head"><div><h2 tabindex="-1">' + total + " result" + (total === 1 ? "" : "s") + " for “" + esc(QUERY) + "”</h2>" +
     '<p class="sub">Searched every note ' + A + " keeps.</p></div></div>";
   if (!total) return html + '<div class="card empty">Nothing matches. Try a name, a project, or a word you remember saying.</div>';
   order.forEach(function (sid) {
-    var v = V(sid), list = groups[sid], shown = list.slice(0, 60);
-    var title = v ? '<button type="button" class="grouplink" data-view="' + sid + '">' + esc(v.label) + "</button>" : "Other notes";
+    var list = groups[sid], shown = list.slice(0, 60);
+    var label = sid.indexOf("how/") === 0 ? V("how").label + ": " + howSub(sid.slice(4)).label : V(sid) ? V(sid).label : null;
+    var title = label ? '<button type="button" class="grouplink" data-view="' + esc(sid) + '">' + esc(label) + "</button>" : "Other notes";
     html += block(title, list.length + (list.length > shown.length ? ", first " + shown.length + " shown" : ""), '<ul class="list card">' + shown.join("") + "</ul>");
   });
   return html;
@@ -1437,14 +1666,20 @@ function nav() {
     var cur = !QUERY && state.view === v.id ? ' aria-current="page"' : "";
     var hot = v.hot && v.hot() ? " hot" : "";
     var n = v.count();
-    html += '<button type="button" data-view="' + v.id + '"' + cur + "><span>" + esc(v.label) + '</span><span class="n' + hot + '"' + (hot ? ' title="Something is overdue"' : "") + ">" + n + "</span></button>";
+    var open = v.id === "how" && !QUERY && state.view === "how";
+    if (open) cur = ' aria-current="true" aria-expanded="true"'; else if (v.id === "how") cur += ' aria-expanded="false"';
+    html += '<button type="button" data-view="' + v.id + '"' + cur + (v.id === "how" ? ' class="parent"' : "") + "><span>" + esc(v.label) + '</span><span class="n' + hot + '"' + (hot ? ' title="Something is overdue"' : "") + ">" + n + "</span></button>";
+    if (open) html += '<div class="subnav" role="group" aria-label="' + esc(v.label) + '">' + howSubs().map(function (x) {
+      return '<button type="button" class="sub" data-view="how/' + x.id + '"' + (x.id === state.sub ? ' aria-current="page"' : "") + "><span>" + esc(x.label) + "</span></button>";
+    }).join("") + "</div>";
   });
   $("#nav").innerHTML = html;
 }
 function render() {
   nav();
   $("#main").innerHTML = QUERY ? searchView() : R[state.view]();
-  var cur = $('#nav [aria-current="page"]');
+  enhance();
+  var cur = $("#nav [aria-current]:not(.sub)");
   if (cur && cur.scrollIntoView && window.matchMedia("(max-width: 860px)").matches) {
     var navEl = $("#nav"); navEl.scrollLeft = Math.max(0, cur.offsetLeft - 16);
   }
@@ -1459,11 +1694,16 @@ function header() {
     var bd = new Date(built.getFullYear(), built.getMonth(), built.getDate()), diff = Math.round((TODAY - bd) / 86400000);
     var t = fmtTime(built.getHours() + ":" + pad(built.getMinutes()));
     when = diff === 0 ? "today " + t : diff === 1 ? "yesterday " + t : MONTHS[built.getMonth()] + " " + built.getDate() + ", " + t;
-    if (diff > 2) $("#notice").innerHTML = '<div class="notice" role="status">This page was last updated ' + diff + " days ago. Run <code>./open-brain.sh</code> in " + esc(WS || "your workspace") + " to refresh it.</div>";
+    if (diff > 2 && !SRV) $("#notice").innerHTML = '<div class="notice" role="status">This page was last updated ' + diff + " days ago. Run <code>./open-brain.sh</code> in " + esc(WS || "your workspace") + " to refresh it.</div>";
   }
-  $("#byline").textContent = (OWNER ? "Chief of staff for " + OWNER : "Your chief of staff") + (when ? " · updated " + when : "");
+  $("#byline").textContent = (OWNER ? "Chief of staff for " + OWNER : "Your chief of staff") + (SRV ? " · live: changes here save to your notes" : when ? " · updated " + when : "");
   if (META.obsidian) {
-    $("#obs-top").innerHTML = '<a class="obs" href="' + esc(obsHref("cos/now.md")) + '" title="' + esc("Opens your notes in Obsidian. First time: in Obsidian choose Open folder as vault and pick " + WS + "/cos") + '">' + OBS_ICON + "Open in Obsidian</a>";
+    $("#obs-top").innerHTML = '<a class="obs ibtn" href="' + esc(obsHref("cos/now.md")) + '" aria-label="Open in Obsidian" title="' + esc("Open in Obsidian. First time: in Obsidian choose Open folder as vault and pick " + WS + "/cos") + '">' + OBS_ICON + "</a>";
+  }
+  if (!SRV) {
+    var live = safeHref(META.live || "");
+    $("#notice").insertAdjacentHTML("afterbegin", '<div class="notice ro" role="note">Read-only copy. To check things off and edit, ' +
+      (live ? 'open your <a href="' + esc(live) + '">live notebook</a>.' : "run <code>./open-brain.sh</code> in " + esc(WS || "your agent's folder") + ".") + "</div>");
   }
   $("#foot").innerHTML = "Built from the files in <code>" + esc((WS || "your workspace") + "/cos") + "</code>. This page holds your notes; don't email it or post it anywhere.";
 }
@@ -1473,11 +1713,12 @@ function saveSpot() {
 var drawnHash = null;
 function go(hash) {
   if (QUERY) { QUERY = ""; QRE = null; $("#q").value = ""; }
+  if (hash === "how" || hash === "about") hash = "how/" + howSubs()[0].id; // the parent opens its first sub-page
   if (location.hash !== "#" + hash) location.hash = hash;
   route(true); // draw now; the hashchange that follows sees the page is already drawn
 }
 function route(focus) {
-  var s = readHash(); state.view = s.view; state.kind = s.kind; state.name = s.name; drawnHash = location.hash;
+  var s = readHash(); state.view = s.view; state.kind = s.kind; state.name = s.name; state.sub = s.sub || null; drawnHash = location.hash;
   render();
   window.scrollTo(0, 0);
   if (focus) { var h = $("#main h2"); if (h) h.focus({ preventScroll: true }); }
@@ -1511,7 +1752,7 @@ qEl.addEventListener("keydown", function (e) { if (e.key === "Escape" && qEl.val
 
 /* Refresh every minute while the page is open, so it keeps up with the notes. Skipped while
    you're searching, typing or selecting text; the open page and scroll position are kept. */
-setInterval(function () {
+if (!SRV) setInterval(function () {
   if (document.visibilityState !== "visible" || qEl.value) return;
   var ae = document.activeElement;
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
@@ -1521,13 +1762,241 @@ setInterval(function () {
 }, 60000);
 window.addEventListener("pagehide", saveSpot);
 
+/* ---------- theme ---------- */
+function themeNow() { var t = document.documentElement.getAttribute("data-theme"); return t === "light" || t === "dark" ? t : "auto"; }
+function showTheme() { Array.prototype.forEach.call(document.querySelectorAll("[data-theme-set]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === themeNow())); }); }
+document.addEventListener("click", function (e) {
+  var b = e.target.closest && e.target.closest("[data-theme-set]"); if (!b) return;
+  var t = b.getAttribute("data-theme-set");
+  if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
+  try { if (t === "auto") localStorage.removeItem("cos-theme"); else localStorage.setItem("cos-theme", t); } catch (err) {}
+  showTheme();
+});
+showTheme();
+
+/* ---------- editing, when the notebook server serves this page ---------- */
+var VERSION = null, busy = 0, inlineEdit = null, editorOpen = false, offline = false, toastTimer = null;
+function toast(msg, bad) {
+  var t = $("#toast"); t.textContent = msg; t.className = bad ? "bad" : ""; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, bad ? 5000 : 2200);
+}
+function api(method, name, body) {
+  var headers = { "X-Notebook-Key": SRV.key };
+  if (body) headers["Content-Type"] = "application/json";
+  return fetch("/api/" + name, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok) { var err = new Error(j.error || "That didn't save. Try again."); err.status = r.status; err.data = j; throw err; }
+      offline = false;
+      return j;
+    });
+  }, function () { var err = new Error("Can't reach your notebook. Is your computer's notebook server running? Run ./open-brain.sh to start it."); err.status = 0; throw err; });
+}
+function reindex() { DOCS = {}; BRIEFS = null; DEFAULTS = null; MENTIONS = null; NOTES = {}; ORDER.forEach(indexNote); }
+function loadFiles(files) {
+  FILES = {}; ORDER = [];
+  Object.keys(files).forEach(function (p) { FILES[p] = String(files[p]).replace(/\r\n?/g, "\n"); ORDER.push(p); });
+  reindex();
+}
+function midEdit() {
+  return busy > 0 || !!inlineEdit || editorOpen || Array.prototype.some.call(document.querySelectorAll(".addrow input"), function (i) { return i.value.trim(); });
+}
+// Redraws the open page with fresh notes, keeping the scroll position, open "Done" lists, search,
+// and the box you were typing in.
+function rerender() {
+  var y = window.scrollY, opened = {};
+  Array.prototype.forEach.call(document.querySelectorAll("#main details[open] > summary"), function (s) { opened[s.textContent.replace(/\(\d+\)/, "")] = 1; });
+  var ae = document.activeElement, focusAdd = ae && ae.closest && ae.closest(".addrow") ? ae.closest(".addrow").getAttribute("data-add-path") : null;
+  render();
+  Array.prototype.forEach.call(document.querySelectorAll("#main details > summary"), function (s) { if (opened[s.textContent.replace(/\(\d+\)/, "")]) s.parentNode.open = true; });
+  if (focusAdd) { var f = document.querySelector('.addrow[data-add-path="' + focusAdd + '"] input'); if (f) f.focus({ preventScroll: true }); }
+  window.scrollTo(0, y);
+}
+function refreshNotes() {
+  return api("GET", "notes").then(function (j) { VERSION = j.version; if (j.built) META.built = j.built; loadFiles(j.files || {}); rerender(); });
+}
+function poll() {
+  if (!SRV || document.visibilityState !== "visible" || window.cosPausePolling) return;
+  api("GET", "version").then(function (j) {
+    if (j.version !== VERSION && !midEdit()) return refreshNotes();
+  }).catch(function (err) { if (!offline) { offline = true; toast(err.message, true); } });
+}
+function itemAt(el) {
+  var host = el && el.closest ? el.closest("[data-il]") : null; if (!host) return null;
+  var d = doc(host.getAttribute("data-ip")), info = d.byLine[+host.getAttribute("data-il")];
+  return info && info.item ? info.item : null;
+}
+function rawLine(it) { return doc(it.path).lines[it.line]; }
+var LINE_HEAD = /^(\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\](?:\s+|$))?)/;
+function splitLine(raw) {
+  var m = raw.match(LINE_HEAD), headPart = m ? m[1] : "", rest = raw.slice(headPart.length);
+  var fields = rest.match(FIELD_RE) || [];
+  return { head: headPart, fields: fields, sentence: rest.replace(FIELD_RE, " ").replace(/\s+/g, " ").trim() };
+}
+var PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l2 2"/></svg>';
+function enhance() {
+  if (!SRV) return;
+  Array.prototype.forEach.call(document.querySelectorAll("#main [data-il]"), function (host) {
+    var it = itemAt(host); if (!it) return;
+    var bx = host.querySelector(".box");
+    if (bx && it.checked != null) {
+      var cb = document.createElement("input");
+      cb.type = "checkbox"; cb.className = "cb"; cb.checked = !!it.checked;
+      cb.setAttribute("aria-label", (it.checked ? "Mark not done: " : "Check off: ") + plainText(it.text));
+      bx.parentNode.replaceChild(cb, bx);
+    }
+    var txt = host.querySelector(".txt") || host;
+    var pen = document.createElement("button");
+    pen.type = "button"; pen.className = "pen"; pen.innerHTML = PEN;
+    pen.title = "Edit this line"; pen.setAttribute("aria-label", "Edit: " + plainText(it.text));
+    var after = null;
+    for (var c = txt.firstChild; c; c = c.nextSibling) { if (c.nodeType === 1 && /\b(meta|quote|draft|hint)\b/.test(c.className)) { after = c; break; } }
+    txt.insertBefore(pen, after);
+  });
+}
+document.addEventListener("change", function (e) {
+  var cb = e.target; if (!SRV || !cb.classList || !cb.classList.contains("cb")) return;
+  var it = itemAt(cb); if (!it) return;
+  var want = cb.checked, txt = cb.closest("[data-il]").querySelector(".txt");
+  if (txt) txt.classList.toggle("muted", want);
+  busy++;
+  api("POST", "toggle", { path: it.path, line: rawLine(it), checked: want }).then(function () {
+    busy--; toast(want ? "Checked off" : "Marked not done"); return refreshNotes();
+  }).catch(function (err) {
+    busy--; cb.checked = !want; if (txt) txt.classList.toggle("muted", !want);
+    toast(err.message, true); if (err.status === 409) refreshNotes();
+  });
+});
+function startInline(host) {
+  if (inlineEdit) return;
+  var it = itemAt(host); if (!it) return;
+  var raw = rawLine(it), parts = splitLine(raw), txt = host.querySelector(".txt") || host;
+  inlineEdit = { host: host, it: it, raw: raw, parts: parts, txt: txt, html: txt.innerHTML };
+  txt.innerHTML = '<input class="inline-edit" type="text" aria-label="Edit this line"><div class="inline-hint">Enter to save · Esc to cancel. The details after it stay as they are.</div>';
+  var input = txt.querySelector("input"); input.value = parts.sentence; input.focus(); input.select();
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { e.preventDefault(); cancelInline(); }
+    else if (e.key === "Enter") { e.preventDefault(); saveInline(input.value); }
+  });
+  input.addEventListener("blur", function () { if (inlineEdit && !inlineEdit.saving && input.value.trim() === parts.sentence) cancelInline(); });
+}
+function cancelInline() { if (!inlineEdit) return; var x = inlineEdit; inlineEdit = null; x.txt.innerHTML = x.html; var p = x.txt.querySelector(".pen"); if (p) p.focus(); }
+function saveInline(value) {
+  var x = inlineEdit; if (!x || x.saving) return;
+  var sentence = value.replace(/\s+/g, " ").trim();
+  if (!sentence) { toast("A line can't be empty. To remove it, use Edit the file.", true); return; }
+  if (sentence === x.parts.sentence) return cancelInline();
+  var newLine = x.parts.head + sentence + (x.parts.fields.length ? " " + x.parts.fields.join(" ") : "");
+  x.saving = true;
+  api("POST", "replace", { path: x.it.path, line: x.raw, newLine: newLine }).then(function () {
+    inlineEdit = null; toast("Saved"); return refreshNotes();
+  }).catch(function (err) {
+    x.saving = false; toast(err.message, true);
+    if (err.status === 409) { inlineEdit = null; refreshNotes(); }
+  });
+}
+document.addEventListener("click", function (e) {
+  if (!SRV) return;
+  var pen = e.target.closest && e.target.closest(".pen");
+  if (pen) { e.preventDefault(); startInline(pen.closest("[data-il]")); return; }
+  if (e.target.closest && e.target.closest("[data-edit]")) { e.preventDefault(); openEditor(PAGE_FILES.slice()); return; }
+  var sn = e.target.closest && e.target.closest("[data-start-note]");
+  if (sn) {
+    var nm = sn.getAttribute("data-start-note").trim();
+    if (!nm || /[\/\\:*?"<>|\u0000-\u001f]/.test(nm) || nm.charAt(0) === ".") { toast("That name can't be a file name. Ask " + AGENT + " to start the note instead.", true); return; }
+    sn.disabled = true;
+    api("POST", "create", { path: "cos/people/" + nm + ".md", content: "---\nrole:\norg:\n---\n# " + nm + "\n" }).then(function () {
+      toast("Note started"); return refreshNotes().then(function () { go("people/" + encodeURIComponent(nm)); });
+    }).catch(function (err) { sn.disabled = false; toast(err.message, true); if (err.status === 409) refreshNotes(); });
+  }
+});
+document.addEventListener("dblclick", function (e) {
+  if (!SRV || !e.target.closest) return;
+  if (e.target.closest("a, button, input, textarea, select")) return;
+  var host = e.target.closest("[data-il]");
+  if (host && e.target.closest(".txt")) { e.preventDefault(); startInline(host); }
+});
+function addRow(path, section, placeholder) {
+  if (!SRV) return "";
+  return '<form class="addrow" data-add-path="' + esc(path) + '" data-add-section="' + esc(section || "") + '"><input type="text" placeholder="' + esc(placeholder) +
+    '" aria-label="' + esc(placeholder.replace(/,.*$|…$/, "")) + '"><button type="submit">Add</button></form>';
+}
+document.addEventListener("submit", function (e) {
+  var f = e.target; if (!SRV || !f.classList.contains("addrow")) return;
+  e.preventDefault();
+  var input = f.querySelector("input"), text = input.value.replace(/\s+/g, " ").trim(); if (!text) return;
+  busy++;
+  api("POST", "add", { path: f.getAttribute("data-add-path"), section: f.getAttribute("data-add-section") || undefined, text: text }).then(function () {
+    busy--; input.value = ""; toast("Added"); return refreshNotes();
+  }).catch(function (err) { busy--; toast(err.message, true); });
+});
+/* The file editor */
+var ED = { path: null, hash: null, conflict: null };
+function openEditor(paths) {
+  if (!paths.length) return;
+  editorOpen = true;
+  var el = $("#editor");
+  $("#ed-file").innerHTML = paths.length > 1 ? '<select id="ed-pick" aria-label="Which file">' + paths.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + "</option>"; }).join("") + "</select>"
+    : '<span class="path">' + esc(paths[0]) + "</span>";
+  el.hidden = false; document.body.style.overflow = "hidden";
+  loadEditor(paths[0]);
+  var pick = $("#ed-pick"); if (pick) pick.addEventListener("change", function () { loadEditor(pick.value); });
+}
+function loadEditor(path) {
+  var ta = $("#ed-text"); ta.value = ""; ta.disabled = true; hideConflict();
+  api("POST", "file", { path: path }).then(function (j) {
+    ED.path = path; ED.hash = j.hash; ta.value = j.content; ta.disabled = false; ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0;
+  }).catch(function (err) { toast(err.message, true); closeEditor(); });
+}
+function closeEditor() { $("#editor").hidden = true; document.body.style.overflow = ""; editorOpen = false; hideConflict(); var b = $("#main [data-edit]"); if (b) b.focus(); }
+function hideConflict() { var c = $("#ed-conflict"); c.hidden = true; c.innerHTML = ""; ED.conflict = null; }
+function saveEditor(hash) {
+  var btn = $("#ed-save"); btn.disabled = true;
+  api("POST", "write", { path: ED.path, content: $("#ed-text").value, hash: hash === undefined ? ED.hash : hash }).then(function (j) {
+    btn.disabled = false; ED.hash = j.hash; toast("Saved"); closeEditor(); return refreshNotes();
+  }).catch(function (err) {
+    btn.disabled = false;
+    if (err.status === 409) {
+      ED.conflict = err.data || {};
+      var c = $("#ed-conflict");
+      c.innerHTML = "<p>This note changed while you were editing it.</p>" +
+        '<button type="button" class="btn" data-conflict="load">See the new version</button><button type="button" class="btn" data-conflict="keep">Keep mine</button>';
+      c.hidden = false;
+    } else toast(err.message, true);
+  });
+}
+$("#ed-save").addEventListener("click", function () { saveEditor(); });
+$("#ed-cancel").addEventListener("click", closeEditor);
+$("#editor").addEventListener("keydown", function (e) {
+  if (e.key === "Escape") { e.preventDefault(); closeEditor(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveEditor(); }
+});
+$("#ed-conflict").addEventListener("click", function (e) {
+  var b = e.target.closest && e.target.closest("[data-conflict]"); if (!b || !ED.conflict) return;
+  var what = b.getAttribute("data-conflict"), c = $("#ed-conflict");
+  if (what === "load") { $("#ed-text").value = ED.conflict.content || ""; ED.hash = ED.conflict.hash; hideConflict(); toast("Showing the new version. Your changes were not saved."); }
+  else if (what === "keep") {
+    c.innerHTML = "<p>Replace the newer version with yours? What changed in it will be lost.</p>" +
+      '<button type="button" class="btn primary" data-conflict="replace">Replace it with mine</button><button type="button" class="btn" data-conflict="back">Back</button>';
+  } else if (what === "replace") { var h = ED.conflict.hash; hideConflict(); saveEditor(h); }
+  else if (what === "back") {
+    c.innerHTML = "<p>This note changed while you were editing it.</p>" +
+      '<button type="button" class="btn" data-conflict="load">See the new version</button><button type="button" class="btn" data-conflict="keep">Keep mine</button>';
+  }
+});
+
 header();
 var saved = null;
 try { saved = JSON.parse(sessionStorage.getItem(SKEY) || "null"); } catch (e) { saved = null; }
 if (saved && typeof saved.raw === "boolean") RAW = saved.raw;
-var s0 = readHash(); state.view = s0.view; state.kind = s0.kind; state.name = s0.name; drawnHash = location.hash;
+var s0 = readHash(); state.view = s0.view; state.kind = s0.kind; state.name = s0.name; state.sub = s0.sub || null; drawnHash = location.hash;
 render();
 if (saved && saved.hash === location.hash && saved.y > 0) window.scrollTo(0, saved.y);
+if (SRV) {
+  refreshNotes().catch(function (err) { toast(err.message, true); });
+  setInterval(poll, 3000);
+  window.addEventListener("focus", poll);
+  document.addEventListener("visibilitychange", poll);
+}
 })();
 </script>
 </body>
