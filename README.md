@@ -13,7 +13,7 @@ The `carbonvoice` plugin marketplace for Claude Code.
 
 **Getting started with Chief of Staff:** one line in Terminal installs everything:
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
+curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
 ```
 Full instructions: [plugins/cos/README.md](plugins/cos/README.md).
 

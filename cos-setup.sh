@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Chief of Staff for Carbon Voice — setup
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
+#   curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
 #
 # The older `curl -fsSL .../cos-setup.sh | bash` form still works, but then this script's input
 # isn't the terminal, so at the end it tells you how to start your agent instead of starting it.
@@ -42,8 +42,18 @@ step() { printf '\n%s▸ %s%s\n' "$bold" "$1" "$reset"; }
 ok()   { printf '  %s✓%s %s\n' "$green" "$reset" "$1"; }
 info() { printf '  %s%s%s\n' "$dim" "$1" "$reset"; }
 die()  { printf '\n%s✗ %s%s\n' "$red" "$1" "$reset" >&2; exit 1; }
-# When piped from curl, stdin is this script, so questions read from the terminal.
-ask()  { local reply; read -r -p "$1 " reply </dev/tty || true; printf '%s' "$reply"; }
+# Questions stand out from the output around them: a blank line, a cyan marker, the question in
+# bold and the choices in cyan. The prompt goes straight to the terminal, so $(ask ...) captures
+# only the reply. When piped from curl, stdin is this script, so answers come from the terminal.
+ask() {
+  local q=$1 lead opts="" mark="?" reply re='^(.*[^ ]) +(\[[^]]*\]):?$'
+  lead=${q%%[! ]*}; q=${q#"$lead"}
+  if [[ $q =~ $re ]]; then q=${BASH_REMATCH[1]}; opts=${BASH_REMATCH[2]}; fi
+  if [[ -z "$opts" && "$q" != *"?"* ]]; then mark="↵"; fi
+  printf '\n%s%s%s%s %s%s%s%s %s›%s ' "$lead" "$bold$cyan" "$mark" "$reset" "$bold" "$q" "$reset" \
+    "${opts:+ $cyan$opts$reset}" "$cyan" "$reset" >/dev/tty 2>/dev/null || true
+  read -r reply </dev/tty || true; printf '%s' "$reply"
+}
 yes()  { case "$(ask "$1")" in [nN]*) return 1 ;; *) return 0 ;; esac; }          # default yes
 no()   { case "$(ask "$1")" in [yY]*) return 1 ;; *) return 0 ;; esac; }           # default no
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -126,7 +136,7 @@ cv_user() {  # cv_user <field>: id, name or creator of the user in $WORK/whoami.
 read_token() {
   local c
   PAT=""
-  printf '  Token (hidden): '
+  printf '\n  %s?%s %sPaste the token%s %s(hidden)%s %s›%s ' "$bold$cyan" "$reset" "$bold" "$reset" "$dim" "$reset" "$cyan" "$reset"
   while IFS= read -rsn1 c </dev/tty; do
     case "$c" in
       "") break ;;                                                   # Return
@@ -352,8 +362,10 @@ install_notebook_server() {
 # make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
 # path) and LAUNCHER_WHERE (where it is, in words).
 applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
+# our_app <path>: true if the app there is a launcher this setup made (or nothing is there).
+our_app() { [[ ! -e "$1" ]] || osadecompile "$1" 2>/dev/null </dev/null | grep -q "Made by the Chief of Staff setup"; }
 make_launcher() {
-  local name dir_as name_as app desk
+  local name dir_as name_as app desk old
   name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
   if [[ "$PLATFORM" == mac ]]; then
     have osacompile || return 1
@@ -375,14 +387,26 @@ on run
 	end try
 end run
 APPLESCRIPT
-    mkdir -p "$HOME/Applications"
-    app="$HOME/Applications/$name.app"
+    # The Applications folder Finder shows, when this account can write to it (admin accounts
+    # can); otherwise the one in the home folder, which Finder hides from its sidebar but
+    # Spotlight and Launchpad still find. Never replace an app this setup didn't make.
+    old="$HOME/Applications/$name.app"
+    if [[ -w /Applications ]] && our_app "/Applications/$name.app"; then
+      app="/Applications/$name.app"
+    else
+      our_app "$old" || return 1
+      mkdir -p "$HOME/Applications"; app=$old
+    fi
     osacompile -o "$WORK/launcher.app" "$WORK/launcher.applescript" >>"$LOG" 2>&1 </dev/null || return 1
     rm -rf "$app"; mv "$WORK/launcher.app" "$app"
-    LAUNCHER=$app; LAUNCHER_WHERE="your Applications (or Spotlight)"
+    # An earlier setup put it in ~/Applications; don't leave two.
+    if [[ "$app" != "$old" && -e "$old" ]] && our_app "$old"; then rm -rf "$old"; fi
+    LAUNCHER=$app
+    if [[ "$app" == /Applications/* ]]; then LAUNCHER_WHERE="Applications (or Spotlight)"
+    else LAUNCHER_WHERE="Applications in your home folder (or Spotlight)"; fi
     if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
       desk="$HOME/Desktop/$name.app"
-      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or Applications"; fi
+      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or $LAUNCHER_WHERE"; fi
     fi
   else
     mkdir -p "$HOME/.local/share/applications"
@@ -854,7 +878,7 @@ if [[ -n "$CREATOR" && "$CREATOR" != "$(cv_user id)" && -n "${PAT:-}" ]]; then
       fi
     else
       echo "  Carbon Voice says this Agent Account was created by the account with ID $CREATOR."
-      if ! no "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/N]"; then OWNER_ID=$CREATOR; fi
+      if yes "  Is that your own Carbon Voice account? If so, it can skip pairing. [Y/n]"; then OWNER_ID=$CREATOR; fi
     fi
     if [[ -n "$OWNER_ID" ]]; then ALLOW_CREATOR=1; else ALLOW_CREATOR=0; fi
   fi
@@ -938,9 +962,11 @@ mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/c
   "$DIR/cos/archive" "$DIR/cos/drafts" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
-# A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
-# policy and other entries; an owner the user deliberately blocked stays blocked. Anyone else
-# still pairs, which the owner approves at the terminal.
+# A new file gets the "pairing" policy: if the creator turns out not to be the account the user
+# messages from, they still get a pairing code back instead of silence. A code is only a
+# request; nobody gets in until it's approved at the terminal, and /cv-channel:access offers to
+# lock the policy down once someone is paired. An existing file keeps its policy and other
+# entries; an owner the user deliberately blocked stays blocked.
 OWNER_ALLOWED=""
 if [[ -n "$OWNER_ID" ]]; then
   ACCESS="$CV_DIR/access.json"
@@ -953,10 +979,22 @@ if [[ -n "$OWNER_ID" ]]; then
       warn "Couldn't read .cv/access.json, so who can message your agent was left as it was."
     fi
   else
-    (umask 077; jq -n --arg o "$OWNER_ID" '{dmPolicy: "allowlist", allowFrom: [$o], blockedFrom: []}' > "$ACCESS")
+    (umask 077; jq -n --arg o "$OWNER_ID" '{dmPolicy: "pairing", allowFrom: [$o], blockedFrom: []}' > "$ACCESS")
     OWNER_ALLOWED=1
   fi
   chmod 600 "$ACCESS" 2>/dev/null || true
+fi
+# With nobody allowed, the user pairs their account with a code, so turn pairing on. The
+# channel reads an access file with no dmPolicy as "allowlist" (such files predate pairing),
+# and an allowlist with nobody on it drops every message without a reply.
+if [[ -z "$OWNER_ALLOWED" ]]; then
+  ACCESS="$CV_DIR/access.json"
+  if [[ ! -s "$ACCESS" ]]; then
+    (umask 077; jq -n '{dmPolicy: "pairing", allowFrom: [], blockedFrom: []}' > "$ACCESS")
+  elif jq -e '.dmPolicy == null and ((.allowFrom // []) | length == 0)' "$ACCESS" >/dev/null 2>&1 \
+       && jq '.dmPolicy = "pairing"' "$ACCESS" > "$WORK/access.json" 2>>"$LOG"; then
+    cat "$WORK/access.json" > "$ACCESS"
+  fi
 fi
 # The notebook: a new agent gets every starting file; an existing one gets only the files it
 # doesn't have yet, so its notes are never touched.
@@ -1119,7 +1157,7 @@ fi
 
 # ---------- a launcher ----------
 # An app that opens Terminal and starts the agent, or, if it's already running, just brings
-# Terminal forward: in ~/Applications on a Mac (so Spotlight, Launchpad and the Dock find it),
+# Terminal forward: in Applications on a Mac (so Finder, Spotlight, Launchpad and the Dock find it),
 # optionally on the Desktop too; a .desktop file on Linux. Rebuilt by every update, so it keeps
 # pointing at this folder.
 WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""
@@ -1138,7 +1176,7 @@ if [[ -z "$WANT_APP" ]]; then
 fi
 if [[ "$WANT_APP" == 1 ]]; then
   if make_launcher; then
-    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE"; fi
+    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE: $(shown "$LAUNCHER")"; fi
   else
     warn "Couldn't add the launcher. You can still start $AGENT_NAME with ./start-cos.sh."; WANT_APP=0
   fi
@@ -1193,8 +1231,9 @@ BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
 
 # ---------- hand off ----------
 # First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this
-# script can start the agent itself: it can when its input is the terminal
-# (/bin/bash -c "$(curl ...)"), not under `curl ... | bash`, where the user runs two lines.
+# script can start the agent itself: it can whenever there's a terminal to read from, including
+# under `curl ... | bash`, where the script's own input is the pipe. Without one, the user runs
+# two lines.
 if [[ $MODE == update ]]; then
   step "$AGENT_NAME is up to date."
   printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
@@ -1228,12 +1267,11 @@ printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every
 echo
 show_notebook "It's nearly empty now: it fills in as you talk to $AGENT_NAME, starting with the short conversation it has with you first."
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
-if [[ -t 0 ]]; then
+CAN_START=""; if { : </dev/tty; } 2>/dev/null; then CAN_START=1; fi
+if [[ -n "$CAN_START" ]]; then
   printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
 else
-  echo "    1. Start $AGENT_NAME by running these two lines in Terminal, and keep that window open:"
-  printf '         %s\n' "$(hl "cd $CD_PATH")"
-  printf '         %s\n' "$(hl ./start-cos.sh)"
+  echo "    1. Start $AGENT_NAME by running the line below. Keep that window open while you use it."
 fi
 printf '    2. Claude asks whether you trust this folder. Choose %s.\n' "$(hl '"Yes, I trust this folder"')"
 if [[ -n "$DEV_STEP" ]]; then
@@ -1257,13 +1295,16 @@ if [[ -n "$REMOTE_ARGS" ]]; then
     "$(val "${ORG:-the same account as Claude Code}")" "$(hl /mobile)"
   echo
 fi
-if [[ -n "$LAUNCHER" ]]; then
+if [[ -z "$CAN_START" ]]; then
+  printf '  Start %s now:  %s\n' "$AGENT_NAME" "$(hl "cd $CD_PATH && ./start-cos.sh")"
+  if [[ -n "$LAUNCHER" ]]; then printf '  Next time, you can also open it from %s.\n' "$LAUNCHER_WHERE"; fi
+elif [[ -n "$LAUNCHER" ]]; then
   printf '  Next time, open %s from %s, or run  %s\n' "$(val "$AGENT_NAME")" "$LAUNCHER_WHERE" "$(hl "cd $CD_PATH && ./start-cos.sh")"
 else
   printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
 fi
 echo
-if [[ -t 0 ]]; then
+if [[ -n "$CAN_START" ]]; then
   ask "  Press Return to start $AGENT_NAME." >/dev/null
   cd "$DIR"
   rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
@@ -1272,7 +1313,7 @@ if [[ -t 0 ]]; then
   # every key (Enter, arrows, Ctrl+C). Plain `claude` handles the prompt fine.
   exec ./start-cos.sh </dev/tty
 fi
-# Otherwise (input isn't the terminal) the steps above say how to start it.
+# Otherwise (no terminal) the steps above say how to start it.
 }
 
 main "$@"

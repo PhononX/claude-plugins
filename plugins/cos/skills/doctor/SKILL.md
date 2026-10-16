@@ -6,7 +6,17 @@ user-invocable: true
 
 # /cos:doctor — Chief of Staff health check
 
-Read-only unless the user approves a fix. Report each check as ✓, ⚠ or ✗ with a one-line fix.
+Read-only unless the user approves a fix. Report each check as ✅, ⚠️ or ❌ with a one-line fix:
+❌ when it stops the agent from working (nobody can message it, no token, the channel isn't
+connected), ⚠️ when it works but something needs attention, ✅ when it's fine.
+
+Lay the report out so a problem can't be missed:
+1. If anything is ❌, start with `## ❌ Needs fixing`: one line per problem, in bold, followed by
+   the exact fix (the command to type, or the setting to change). Put the most important first.
+2. Then `## ⚠️ Worth a look`, if anything is ⚠️.
+3. Then `## ✅ Working`, one short line per check.
+4. End with the one next step, in bold.
+If nothing is ❌ or ⚠️, say so in the first line.
 Locate the plugin root as two levels above this skill's base directory (`PLUGIN_ROOT`).
 
 1. **Workspace:** `cos/.version` exists; `CLAUDE.md`, `cos/my-rules.md`, `cos/about-me.md`,
@@ -22,14 +32,29 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    `CLAUDE_PROJECT_DIR` set to this folder; confirm it prints state.
 4. **Channel token:** `.cv/.env` exists, has mode 600, and contains a `CV_PAT=` line.
    Never print the token. If missing: "Run ./start-cos.sh — it will ask for the token."
-5. **Channel access:** read `.cv/access.json`. Report the policy and how many people are allowed.
-   If someone is allowed and the policy is still `pairing`, suggest
-   `/cv-channel:access policy allowlist`. Note that access commands only see this folder's
-   allowlist in a session started by `./start-cos.sh`.
+5. **Channel access:** read `.cv/access.json`. Its fields are exactly `dmPolicy`, `allowFrom`
+   (IDs) and `blockedFrom`; don't guess other names. Report the policy and how many people are
+   allowed. No file means `pairing`. A file with no `dmPolicy` means `allowlist`: the channel treats such
+   files as older than pairing.
+   - Policy `allowlist` with nobody allowed: ❌ "Nobody can message <agent>, and messages from
+     anyone else are dropped without a pairing code." Fix: type
+     `/cv-channel:access policy pairing`, message the agent in Carbon Voice to get a code, then
+     `/cv-channel:access pair <code>`.
+   - Policy `pairing` with nobody allowed: ⚠️ "Nobody is paired yet": message the agent to get a
+     code, then `/cv-channel:access pair <code>`.
+   - Someone allowed and the policy still `pairing`: ⚠️, suggest
+     `/cv-channel:access policy allowlist`.
+   Access commands only see this folder's allowlist in a session started by `./start-cos.sh`.
+   If the user says messages aren't arriving and someone is allowed, the allowed ID may not be
+   the account they message from: under `allowlist`, other accounts are dropped without a
+   reply. Ask them to check the channel log (below) for "dropped" lines with a sender ID.
    **Channel log:** if `.cv/channel.log` exists, show its last 30 lines (they hold IDs and
    events, never the token or message contents) and say what they show: whether the channel
    connected ("authenticated as", "first run, starting from"), messages dropped from unknown
-   senders, pairing codes, or errors. If messages aren't getting through and
+   senders ("dropped message from unknown sender <ID>": compare the ID with `allowFrom`), pairing
+   codes, or errors. "waiting for confirm_channels" with no "authenticated as" after it means
+   Claude Code didn't load it as a channel: ❌, the fix is to restart with `./start-cos.sh` and
+   choose "I am using this for local development" when Claude warns about the channel. If messages aren't getting through and
    `.cv/channel-log.on` doesn't exist, suggest `./cv-channel-log.sh on`, restarting the agent,
    and sending another message.
 6. **This session:** check whether `CV_ACCESS_PATH` is set in the environment. If not, this session
@@ -48,8 +73,9 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    briefs in `cos/my-rules.md` parse: each line under "My briefs" has `at:: HH:MM` and `days::`
    (`weekdays`, `daily`, `weekends`, `off`, or days like `mon, wed, fri`). An older file with
    only `brief_time` and `brief_days` in its front matter still works as one morning brief.
-   **Notebook page:** run `./open-brain.sh --link`. It should print a `file://` link; report it,
-   and how old `brain.html` was before the rebuild. If the build fails, show the error.
+   **Notebook page:** run `./open-brain.sh --link`. It should print a `http://localhost:` link
+   (a `file://` link means the notebook server isn't running, see 11); report it, and how old
+   `brain.html` was before the rebuild. If the build fails, show the error.
 10. **Briefs:** list the briefs from "My briefs". Only in a session started by `./start-cos.sh`
    (`CV_ACCESS_PATH` is set): list your scheduled tasks (CronList) and report the one whose
    prompt starts with "Use the cos:brief skill now", and when it runs. It should be the next
@@ -67,7 +93,8 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    it can't read the folder ("Operation not permitted"), macOS is keeping background jobs out of
    it: allow it in System Settings → Privacy & Security, or move the agent's folder out of
    Documents/Desktop.
-12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `~/Applications/<agent
+12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `/Applications/<agent
+   name>.app` or `~/Applications/<agent
    name>.app` exists and `osadecompile` on it mentions this folder; on Linux, check
    `~/.local/share/applications/cos-<folder name>.desktop` points at this folder's
    `start-cos.sh`. If it's missing or points elsewhere, the fix is `./update-cos.sh`.

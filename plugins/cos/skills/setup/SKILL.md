@@ -41,7 +41,7 @@ Show the result as a short ✓/✗ list.
   >    installer asks for its Personal Access Token, so keep Carbon Voice open.
   > 2. Type `/exit` to leave Claude.
   > 3. In Terminal, go to the folder where your agent's folder should be created, then run:
-  >    `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"`
+  >    `curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash`
   > 4. Answer its questions. When it's done, it starts your agent and says how to connect.
 
 The installer command is the same in every case.
