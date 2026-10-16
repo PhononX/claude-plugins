@@ -93,10 +93,11 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    it can't read the folder ("Operation not permitted"), macOS is keeping background jobs out of
    it: allow it in System Settings → Privacy & Security, or move the agent's folder out of
    Documents/Desktop.
-12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `/Applications/<agent
-   name>.app` or `~/Applications/<agent
-   name>.app` exists and `osadecompile` on it mentions this folder; on Linux, check
-   `~/.local/share/applications/cos-<folder name>.desktop` points at this folder's
-   `start-cos.sh`. If it's missing or points elsewhere, the fix is `./update-cos.sh`.
+12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check that `<agent name>.app` and
+   `<agent name> Notebook.app` exist in `/Applications` (or `~/Applications`) and that
+   `osadecompile` on each mentions this folder; on Linux, check
+   `~/.local/share/applications/cos-<folder name>.desktop` and `cos-<folder name>-notebook.desktop`
+   point at this folder's `start-cos.sh` and `open-brain.sh`. If one is missing or points
+   elsewhere, the fix is `./update-cos.sh`.
 13. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
 14. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

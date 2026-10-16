@@ -45,7 +45,8 @@ folder with:
 ```
 Setup also offers to add your agent to your Applications (and Desktop), so you can start it
 from Spotlight, Launchpad or the Dock instead: it opens Terminal and starts your agent, or brings
-Terminal forward if it's already running. It won't start a second copy.
+Terminal forward if it's already running. It won't start a second copy. A second app,
+"<your agent> Notebook", opens your notebook page the same way.
 
 **5. Say hello in Carbon Voice.** Message your agent from your own account, the one that
 created the Agent Account. The installer asks whether to let that account in without a pairing

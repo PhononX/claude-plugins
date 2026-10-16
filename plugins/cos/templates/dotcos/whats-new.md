@@ -2,6 +2,11 @@
 
 Shown after ./update-cos.sh, for each version newer than the one you had.
 
+## 0.4.1
+- A second app, "<your agent> Notebook", opens your notebook page from Applications, Spotlight or the Dock.
+- Your agent's app now goes in the Applications folder Finder shows.
+- If the account you allowed isn't the one you message from, you get a pairing code back instead of silence.
+
 ## 0.4.0
 - Your notebook is now always on, at an address you can bookmark: check things off, add items and edit notes right on the page. Your agent sees every change.
 - The page updates within seconds when your agent changes something, and has a light, dark or automatic theme.

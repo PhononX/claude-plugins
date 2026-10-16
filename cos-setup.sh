@@ -359,16 +359,38 @@ install_notebook_server() {
   for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do notebook_up && return 0; sleep 0.2; done
   return 1
 }
-# make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
-# path) and LAUNCHER_WHERE (where it is, in words).
+# make_launcher: builds the launchers for this agent (see "a launcher" in main): one that starts
+# the agent, and one that opens its notebook page. Sets LAUNCHER (the agent's, its path),
+# LAUNCHER_WHERE (where it is, in words) and NOTEBOOK_APP (the notebook's, if it was made).
 applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
 # our_app <path>: true if the app there is a launcher this setup made (or nothing is there).
 our_app() { [[ ! -e "$1" ]] || osadecompile "$1" 2>/dev/null </dev/null | grep -q "Made by the Chief of Staff setup"; }
+# install_app <name> <applescript file>: compiles it into <name>.app and prints where it went.
+# The Applications folder Finder shows, when this account can write to it (admin accounts can);
+# otherwise the one in the home folder, which Finder hides from its sidebar but Spotlight and
+# Launchpad still find. Never replaces an app this setup didn't make.
+install_app() {
+  local app old="$HOME/Applications/$1.app"
+  if [[ -w /Applications ]] && our_app "/Applications/$1.app"; then
+    app="/Applications/$1.app"
+  else
+    our_app "$old" || return 1
+    mkdir -p "$HOME/Applications"; app=$old
+  fi
+  rm -rf "$WORK/launcher.app"
+  osacompile -o "$WORK/launcher.app" "$2" >>"$LOG" 2>&1 </dev/null || return 1
+  rm -rf "$app"; mv "$WORK/launcher.app" "$app"
+  # An earlier setup put it in ~/Applications; don't leave two.
+  if [[ "$app" != "$old" && -e "$old" ]] && our_app "$old"; then rm -rf "$old"; fi
+  printf '%s' "$app"
+}
 make_launcher() {
-  local name dir_as name_as app desk old
+  local name dir_as name_as app desk entry
   name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
+  NOTEBOOK_APP=""; NOTEBOOK_NEW=""
   if [[ "$PLATFORM" == mac ]]; then
     have osacompile || return 1
+    [[ -e "/Applications/$name Notebook.app" || -e "$HOME/Applications/$name Notebook.app" ]] || NOTEBOOK_NEW=1
     dir_as=$(applescript_str "$DIR"); name_as=$(applescript_str "$name")
     cat > "$WORK/launcher.applescript" <<APPLESCRIPT
 -- Starts $name_as, your chief of staff, in Terminal; or brings Terminal forward if it's running.
@@ -387,20 +409,21 @@ on run
 	end try
 end run
 APPLESCRIPT
-    # The Applications folder Finder shows, when this account can write to it (admin accounts
-    # can); otherwise the one in the home folder, which Finder hides from its sidebar but
-    # Spotlight and Launchpad still find. Never replace an app this setup didn't make.
-    old="$HOME/Applications/$name.app"
-    if [[ -w /Applications ]] && our_app "/Applications/$name.app"; then
-      app="/Applications/$name.app"
-    else
-      our_app "$old" || return 1
-      mkdir -p "$HOME/Applications"; app=$old
-    fi
-    osacompile -o "$WORK/launcher.app" "$WORK/launcher.applescript" >>"$LOG" 2>&1 </dev/null || return 1
-    rm -rf "$app"; mv "$WORK/launcher.app" "$app"
-    # An earlier setup put it in ~/Applications; don't leave two.
-    if [[ "$app" != "$old" && -e "$old" ]] && our_app "$old"; then rm -rf "$old"; fi
+    # Apps start with a bare PATH, so the notebook's tools (jq, node) are added to it here.
+    cat > "$WORK/notebook.applescript" <<APPLESCRIPT
+-- Opens $name_as's notebook page in your browser, starting the notebook server if it isn't running.
+-- Made by the Chief of Staff setup; ./update-cos.sh rebuilds it.
+on run
+	set agentDir to "$dir_as"
+	try
+		do shell script "export PATH=\"\$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH\"; " & quoted form of (agentDir & "/open-brain.sh") & " >/dev/null 2>&1"
+	on error
+		display alert "Couldn't open $name_as's notebook" message "Run ./open-brain.sh in " & agentDir & " to see why."
+	end try
+end run
+APPLESCRIPT
+    app=$(install_app "$name" "$WORK/launcher.applescript") || return 1
+    NOTEBOOK_APP=$(install_app "$name Notebook" "$WORK/notebook.applescript") || NOTEBOOK_APP=""
     LAUNCHER=$app
     if [[ "$app" == /Applications/* ]]; then LAUNCHER_WHERE="Applications (or Spotlight)"
     else LAUNCHER_WHERE="Applications in your home folder (or Spotlight)"; fi
@@ -423,6 +446,19 @@ APPLESCRIPT
       echo "Categories=Office;"
     } > "$app"
     chmod +x "$app"
+    entry="$HOME/.local/share/applications/cos-$(basename "$DIR")-notebook.desktop"
+    [[ -e "$entry" ]] || NOTEBOOK_NEW=1
+    {
+      echo "[Desktop Entry]"
+      echo "Type=Application"
+      echo "Name=$name Notebook"
+      echo "Comment=Everything $name knows, in your browser"
+      echo "Exec=\"${DIR//\"/\\\"}/open-brain.sh\""
+      echo "Path=$DIR"
+      echo "Terminal=false"
+      echo "Icon=accessories-text-editor"
+      echo "Categories=Office;"
+    } > "$entry" && chmod +x "$entry" && NOTEBOOK_APP=$entry
     LAUNCHER=$app; LAUNCHER_WHERE="your applications menu"
     if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
       cp "$app" "$HOME/Desktop/$name.desktop" && chmod +x "$HOME/Desktop/$name.desktop" && LAUNCHER_WHERE="your Desktop or applications menu"
@@ -438,6 +474,7 @@ show_notebook() {
   printf '  %sYour notebook%s\n' "$bold" "$reset"
   wrap "Everything $AGENT_NAME knows, on one page in your browser: today's briefs, what you owe and what you're waiting on, people, projects, ideas, drafts, decisions, and how $AGENT_NAME works for you. $1 Check things off, add and edit right on the page, or just tell $AGENT_NAME. It's always on and updates as $AGENT_NAME works, so bookmark it (the address includes its key, so keep it to yourself):" "  "
   printf '    %s\n' "$(val "$BRAIN_LINK")"
+  if [[ -n "$NOTEBOOK_APP" ]]; then echo "  Or open $AGENT_NAME Notebook, like any app."; fi
   if [[ -d /Applications/Obsidian.app || -d "$HOME/Applications/Obsidian.app" ]] || have obsidian; then
     echo "  You use Obsidian: you can also open $(shown "$DIR")/cos as a vault."
   fi
@@ -1157,18 +1194,20 @@ fi
 
 # ---------- a launcher ----------
 # An app that opens Terminal and starts the agent, or, if it's already running, just brings
-# Terminal forward: in Applications on a Mac (so Finder, Spotlight, Launchpad and the Dock find it),
-# optionally on the Desktop too; a .desktop file on Linux. Rebuilt by every update, so it keeps
-# pointing at this folder.
-WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""
+# Terminal forward, and "<agent> Notebook", which opens its notebook page: in Applications on a
+# Mac (so Finder, Spotlight, Launchpad and the Dock find them), the agent optionally on the
+# Desktop too; .desktop files on Linux. Rebuilt by every update, so they keep pointing at this
+# folder.
+WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""; NOTEBOOK_APP=""; NOTEBOOK_NEW=""
 if [[ -z "$WANT_APP" ]]; then
   step "Launcher"
   if [[ "$PLATFORM" == mac ]]; then
     echo "  You can start $AGENT_NAME like any app: from Spotlight, Launchpad or the Dock. It opens"
-    echo "  Terminal and starts it, or brings it forward if it's already running."
-    if yes "  Add $AGENT_NAME to your Applications? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+    echo "  Terminal and starts it, or brings it forward if it's already running. $AGENT_NAME Notebook"
+    echo "  opens your notebook page the same way."
+    if yes "  Add $AGENT_NAME and $AGENT_NAME Notebook to your Applications? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
   else
-    if yes "  Add $AGENT_NAME to your applications menu, so you can start it from there? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+    if yes "  Add $AGENT_NAME and $AGENT_NAME Notebook to your applications menu? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
   fi
   if [[ $WANT_APP == 1 && -z "$WANT_DESKTOP" ]]; then
     if no "  Put it on your Desktop too? [y/N]"; then WANT_DESKTOP=0; else WANT_DESKTOP=1; fi
@@ -1177,6 +1216,9 @@ fi
 if [[ "$WANT_APP" == 1 ]]; then
   if make_launcher; then
     if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE: $(shown "$LAUNCHER")"; fi
+    if [[ -n "$NOTEBOOK_APP" && ( $MODE == setup || -n "$NOTEBOOK_NEW" ) ]]; then
+      ok "Added $AGENT_NAME Notebook, which opens your notebook page: $(shown "$NOTEBOOK_APP")"
+    fi
   else
     warn "Couldn't add the launcher. You can still start $AGENT_NAME with ./start-cos.sh."; WANT_APP=0
   fi
