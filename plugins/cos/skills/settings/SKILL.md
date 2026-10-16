@@ -12,7 +12,7 @@ Read these, then put together one picture:
 - `.cos/defaults.md`: what's on by default.
 - `cos/my-rules.md`: the user's settings (front matter), rules, where things go, "My briefs",
   "What goes in my briefs" and "Important people". A rule with `replaces` switches a default off.
-- `cos/about-me.md`: what you know about them.
+- `cos/about-me.md`: what you know about them, including "How I write".
 - `cos/sources.md` and "Elsewhere" in `cos/actions.md`: where they talk and keep to-dos.
 - `cos/setup.conf`: setup answers, like whether the nightly review is on (`NIGHTLY=1`).
 
@@ -22,7 +22,7 @@ about their work (someone with many meetings may want prep sent automatically; s
 on many people may want a midday check-in).
 
 ## Showing it
-Group it the way `options.md` does: Briefs, Reminders and tidying, Your notebook, Where you
+Group it the way `options.md` does: Briefs, Drafts, Reminders and tidying, Your notebook, Where you
 talk, then what you know about them, then "Ask any time". For each option: its state now, and
 the words to change it.
 
@@ -40,6 +40,8 @@ When they ask to change something, here or later:
 - Briefs, what goes in them, important people: edit those sections of `cos/my-rules.md`, then
   reschedule as "Scheduling" in the cos:brief skill describes.
 - `nudges_per_day`, `stale_days`, `meeting_prep`: change the front matter of `cos/my-rules.md`.
+- Where a kind of work goes: "My tools" in `cos/my-rules.md`. How they write: "How I write" in
+  `cos/about-me.md` (learning it from their sent messages needs their OK; see the cos:draft skill).
 - Turning a default off: add a rule with `[replaces:: <id>]` from `defaults.md`.
 - Anything else ("from now on…"): a rule under "My rules" or "Where things go".
 - Sources: update `cos/sources.md`; a tool that isn't connected is connected in Claude's

@@ -29,6 +29,9 @@ that doesn't follow the format doesn't show up properly.
 | They replied to, or want to skip, something from a brief's catch-up | `catch-up.md`: archive the line with `why:: replied` or `why:: skipped` |
 | Something you learned about how they work, without being told | `about-me.md`, under "Learned" |
 | A tool or place where their conversations or to-dos happen | `sources.md`, and "Elsewhere" in `actions.md` for to-do lists |
+| They want to write something, or say something for a piece they're writing ("add this to the board narrative") | `drafts/<Name>.md`, through the cos:draft skill |
+| Where a kind of finished work should go ("my documents go in Google Docs") | `my-rules.md`, under "My tools" |
+| How they write, or how a draft should sound, for a kind of writing or audience | `about-me.md`, under "How I write" (a rule they state goes in `my-rules.md`) |
 | Worth keeping, but you're not sure where | `inbox.md` |
 | A trace of what happened | `log/YYYY-MM-DD.md`, one line |
 

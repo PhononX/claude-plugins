@@ -54,11 +54,18 @@ isn't `not-started`, welcome them back in one line and continue from that stage.
    leave out?" Write the answers into "My briefs", "What goes in my briefs" and "Important
    people" in `my-rules.md`. Start "Important people" with the key people from stage 5 they
    agree to.
-10. **readback** — Summarise what you'll file in a few spoken sentences: focus, projects, what
+10. **writing** — Ask: "I can help you draft emails, documents, decks and messages. Where do you
+    usually write those: Gmail, Google Docs, Notion, Slides, something else?" Write the answers
+    into "My tools" in `my-rules.md`, one line per kind, with `for`. Then ask: "Want me to look
+    at some of your sent emails and messages so drafts sound like you? I'll note what I notice
+    for each kind, like work email, client email and Slack, and you can correct it." Only if
+    they say yes, follow "Learning how they write" in the cos:draft skill; otherwise leave
+    "How I write" empty, and note in `my-rules.md` that they said no.
+11. **readback** — Summarise what you'll file in a few spoken sentences: focus, projects, what
    they owe and what they're waiting on, key people, and what you found in step 7, which they
    must confirm item by item ("I also saw you told Dana you'd send the deck Thursday. Should I
    track that?"). Ask what you got wrong, and fix it.
-11. **done** — Write everything in the notebook format: `now.md`, `projects/`, `areas/`,
+12. **done** — Write everything in the notebook format: `now.md`, `projects/`, `areas/`,
     `actions.md` (with "Elsewhere" for their other to-do lists), `waiting.md`, `people/`,
     `sources.md`, `about-me.md` ("Role"), `my-rules.md`, and today's log. Use `src:: onboarding
     <today>` for what they told you, and the real source for what you found and they confirmed.

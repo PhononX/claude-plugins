@@ -58,5 +58,9 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    `cos/catch-up.md` holds. Briefs go to the conversation in `cos/.cv-thread`, which is written
    the first time the agent replies in Carbon Voice; if it's missing, say briefs start once the
    user has messaged the agent.
-11. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
-12. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.
+11. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `~/Applications/<agent
+   name>.app` exists and `osadecompile` on it mentions this folder; on Linux, check
+   `~/.local/share/applications/cos-<folder name>.desktop` points at this folder's
+   `start-cos.sh`. If it's missing or points elsewhere, the fix is `./update-cos.sh`.
+12. **Size:** warn if `cos/now.md` is over 60 lines or `cos/log/transcripts/` is over 200 MB.
+13. **Onboarding:** if `cos/.onboarding-pending` exists, say onboarding isn't finished and show its stage.

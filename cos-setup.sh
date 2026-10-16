@@ -294,6 +294,63 @@ cv_catalog() {
   if [[ -f "$dir/.claude-plugin/marketplace.json" ]]; then printf '%s' "$dir/.claude-plugin/marketplace.json"; fi
 }
 
+# make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
+# path) and LAUNCHER_WHERE (where it is, in words).
+applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
+make_launcher() {
+  local name dir_as name_as app desk
+  name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
+  if [[ "$PLATFORM" == mac ]]; then
+    have osacompile || return 1
+    dir_as=$(applescript_str "$DIR"); name_as=$(applescript_str "$name")
+    cat > "$WORK/launcher.applescript" <<APPLESCRIPT
+-- Starts $name_as, your chief of staff, in Terminal; or brings Terminal forward if it's running.
+-- Made by the Chief of Staff setup; ./update-cos.sh rebuilds it.
+on run
+	set agentDir to "$dir_as"
+	try
+		do shell script quoted form of (agentDir & "/start-cos.sh") & " --running"
+		tell application "Terminal" to activate
+		display notification "$name_as is already running in Terminal." with title "$name_as"
+	on error
+		tell application "Terminal"
+			activate
+			do script "cd " & quoted form of agentDir & " && ./start-cos.sh"
+		end tell
+	end try
+end run
+APPLESCRIPT
+    mkdir -p "$HOME/Applications"
+    app="$HOME/Applications/$name.app"
+    osacompile -o "$WORK/launcher.app" "$WORK/launcher.applescript" >>"$LOG" 2>&1 </dev/null || return 1
+    rm -rf "$app"; mv "$WORK/launcher.app" "$app"
+    LAUNCHER=$app; LAUNCHER_WHERE="your Applications (or Spotlight)"
+    if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
+      desk="$HOME/Desktop/$name.app"
+      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or Applications"; fi
+    fi
+  else
+    mkdir -p "$HOME/.local/share/applications"
+    app="$HOME/.local/share/applications/cos-$(basename "$DIR").desktop"
+    {
+      echo "[Desktop Entry]"
+      echo "Type=Application"
+      echo "Name=$name"
+      echo "Comment=Your chief of staff, connected to Carbon Voice"
+      echo "Exec=\"${DIR//\"/\\\"}/start-cos.sh\""
+      echo "Path=$DIR"
+      echo "Terminal=true"
+      echo "Icon=utilities-terminal"
+      echo "Categories=Office;"
+    } > "$app"
+    chmod +x "$app"
+    LAUNCHER=$app; LAUNCHER_WHERE="your applications menu"
+    if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
+      cp "$app" "$HOME/Desktop/$name.desktop" && chmod +x "$HOME/Desktop/$name.desktop" && LAUNCHER_WHERE="your Desktop or applications menu"
+    fi
+  fi
+}
+
 label() {  # status → coloured label
   case "$1" in
     have)       printf '%salready installed%s' "$green" "$reset" ;;
@@ -790,7 +847,7 @@ if [[ -f "$DIR/cos/.version" ]]; then NEW_AGENT=""; else NEW_AGENT=1; fi
 SCRIPT_NAME=$(printf '%s' "$AGENT_NAME" | tr -d '"$`\\')
 
 mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/cos/people" \
-  "$DIR/cos/archive" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
+  "$DIR/cos/archive" "$DIR/cos/drafts" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
 # A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
@@ -846,6 +903,10 @@ if [[ -f "$RULES" ]] && ! grep -q '^## My briefs' "$RULES"; then
   grep -q '^## What goes in my briefs' "$RULES" || printf '\n## What goes in my briefs\n' >> "$RULES"
   grep -q '^## Important people' "$RULES" || printf '\n## Important people\n' >> "$RULES"
 fi
+# Sections added in later versions, for notebooks made before them.
+if [[ -f "$RULES" ]] && ! grep -q '^## My tools' "$RULES"; then printf '\n## My tools\n' >> "$RULES"; fi
+ABOUT="$DIR/cos/about-me.md"
+if [[ -f "$ABOUT" ]] && ! grep -q '^## How I write' "$ABOUT"; then printf '\n## How I write\n' >> "$ABOUT"; fi
 # Before 0.2, the user's own instructions lived in my-instructions.md. Move anything they wrote
 # there into cos/my-rules.md, and keep the old file as my-instructions.md.bak.
 if [[ -f "$DIR/my-instructions.md" ]]; then
@@ -967,6 +1028,33 @@ else
   info "Skipped. Run this setup again to add it later."
 fi
 
+# ---------- a launcher ----------
+# An app that opens Terminal and starts the agent, or, if it's already running, just brings
+# Terminal forward: in ~/Applications on a Mac (so Spotlight, Launchpad and the Dock find it),
+# optionally on the Desktop too; a .desktop file on Linux. Rebuilt by every update, so it keeps
+# pointing at this folder.
+WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""
+if [[ -z "$WANT_APP" ]]; then
+  step "Launcher"
+  if [[ "$PLATFORM" == mac ]]; then
+    echo "  You can start $AGENT_NAME like any app: from Spotlight, Launchpad or the Dock. It opens"
+    echo "  Terminal and starts it, or brings it forward if it's already running."
+    if yes "  Add $AGENT_NAME to your Applications? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+  else
+    if yes "  Add $AGENT_NAME to your applications menu, so you can start it from there? [Y/n]"; then WANT_APP=1; else WANT_APP=0; fi
+  fi
+  if [[ $WANT_APP == 1 && -z "$WANT_DESKTOP" ]]; then
+    if no "  Put it on your Desktop too? [y/N]"; then WANT_DESKTOP=0; else WANT_DESKTOP=1; fi
+  fi
+fi
+if [[ "$WANT_APP" == 1 ]]; then
+  if make_launcher; then
+    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE"; fi
+  else
+    warn "Couldn't add the launcher. You can still start $AGENT_NAME with ./start-cos.sh."; WANT_APP=0
+  fi
+fi
+
 # Save the answers, so ./update-cos.sh can update this agent without asking again.
 ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file is rewritten
 {
@@ -976,6 +1064,8 @@ ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file 
   echo "TEAM=$([ -n "$TEAM" ] && echo 1 || echo 0)"
   echo "REMOTE=$([ -n "$REMOTE_ARGS" ] && echo 1 || echo 0)"
   echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
+  echo "APP=${WANT_APP:-0}"
+  echo "DESKTOP=${WANT_DESKTOP:-0}"
   if [[ -n "$ALLOW_CREATOR" ]]; then echo "ALLOW_CREATOR=$ALLOW_CREATOR"; fi
 } > "$DIR/cos/setup.conf"
 
@@ -1048,7 +1138,11 @@ if [[ -n "$REMOTE_ARGS" ]]; then
     "$(val "${ORG:-the same account as Claude Code}")" "$(hl /mobile)"
   echo
 fi
-printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
+if [[ -n "$LAUNCHER" ]]; then
+  printf '  Next time, open %s from %s, or run  %s\n' "$(val "$AGENT_NAME")" "$LAUNCHER_WHERE" "$(hl "cd $CD_PATH && ./start-cos.sh")"
+else
+  printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
+fi
 echo
 if [[ -t 0 ]]; then
   ask "  Press Return to start $AGENT_NAME." >/dev/null
