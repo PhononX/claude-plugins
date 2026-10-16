@@ -16,7 +16,7 @@ channel plugin.
 **1. Open Terminal and run the installer.** On a Mac, press **⌘ Space**, type **Terminal**,
 and press Return. Paste this line and press Return:
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
+curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
 ```
 It shows what it will install and why, and waits for your OK. Then it sets up everything this
 needs (Claude Code, Node.js, and a couple of small tools), opens your browser so you can sign in

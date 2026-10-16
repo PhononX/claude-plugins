@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Chief of Staff for Carbon Voice — setup
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh)"
+#   curl -fsSL https://raw.githubusercontent.com/PhononX/claude-plugins/main/cos-setup.sh | bash
 #
 # The older `curl -fsSL .../cos-setup.sh | bash` form still works, but then this script's input
 # isn't the terminal, so at the end it tells you how to start your agent instead of starting it.
@@ -1207,8 +1207,9 @@ BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
 
 # ---------- hand off ----------
 # First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this
-# script can start the agent itself: it can when its input is the terminal
-# (/bin/bash -c "$(curl ...)"), not under `curl ... | bash`, where the user runs two lines.
+# script can start the agent itself: it can whenever there's a terminal to read from, including
+# under `curl ... | bash`, where the script's own input is the pipe. Without one, the user runs
+# two lines.
 if [[ $MODE == update ]]; then
   step "$AGENT_NAME is up to date."
   printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
@@ -1242,7 +1243,7 @@ printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every
 echo
 show_notebook "It's nearly empty now: it fills in as you talk to $AGENT_NAME, starting with the short conversation it has with you first."
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
-if [[ -t 0 ]]; then
+if { : </dev/tty; } 2>/dev/null; then
   printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
 else
   echo "    1. Start $AGENT_NAME by running these two lines in Terminal, and keep that window open:"
@@ -1277,7 +1278,7 @@ else
   printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
 fi
 echo
-if [[ -t 0 ]]; then
+if { : </dev/tty; } 2>/dev/null; then
   ask "  Press Return to start $AGENT_NAME." >/dev/null
   cd "$DIR"
   rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
@@ -1286,7 +1287,7 @@ if [[ -t 0 ]]; then
   # every key (Enter, arrows, Ctrl+C). Plain `claude` handles the prompt fine.
   exec ./start-cos.sh </dev/tty
 fi
-# Otherwise (input isn't the terminal) the steps above say how to start it.
+# Otherwise (no terminal) the steps above say how to start it.
 }
 
 main "$@"
