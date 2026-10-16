@@ -7,6 +7,7 @@
 
 ## This week
 - 2026-10-15 Pricing review with [[Dana Whitfield]] and [[Priya Natarajan]]
+- 2026-10-16 Send the [[Pricing email to Dana]] before the review
 - 2026-10-16 Uptime credit offer to [[Lena Fischer]] for the [[Acme Logistics renewal]]
 - 2026-10-19 Senior PM finalist decision with [[Sam Okafor]]
 

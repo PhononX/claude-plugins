@@ -157,6 +157,21 @@ details.brief-old[open] > summary { border-bottom: 1px solid var(--line); }
 .brief-body { padding: 16px 16px 0; }
 .brief-body section.block { margin-bottom: 18px; }
 .asks > li { padding: 8px 16px; }
+.dcard { cursor: default; }
+.dcard h4 a { color: inherit; text-decoration: none; }
+.dcard h4 a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.moved-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 16px; padding: 12px 16px;
+  border-radius: 12px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.moved-banner p { margin: 0; font-weight: 500; }
+.draft-body { background: var(--bg); border-radius: 10px; padding: 14px 16px; margin-bottom: 4px; }
+.draft-body > :last-child { margin-bottom: 0; }
+ol.slides { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.slide { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.slide-n { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 700 15px var(--f-display); }
+.slide-b h5 { margin: 5px 0 6px; font: 600 16px/1.3 var(--f-display); }
+.slide-notes { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); color: var(--muted); font-size: 13.5px; font-style: italic; }
+.slide-notes::before { content: "Speaker notes"; display: block; font: 500 11px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; font-style: normal; margin-bottom: 2px; }
+ul.hist > li { padding: 6px 0; border-top: 0; }
 .catch-group { font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 2px 6px; }
 .catch-group:first-child { margin-top: 0; }
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
@@ -340,8 +355,11 @@ function safeHref(u) { return /^(https?:|mailto:)/i.test(u) ? u : null; }
 
 var NOTES = {}; // lower-case name -> {kind, name, path}
 ORDER.forEach(function (p) {
-  var m = p.match(/^cos\/(people|projects|areas)\/(?:.*\/)?([^\/]+)\.md$/);
-  if (m) NOTES[m[2].toLowerCase()] = { kind: m[1], name: m[2], path: p };
+  var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/);
+  if (!m) return;
+  var key = m[2].toLowerCase();
+  if (m[1] === "drafts" && NOTES[key]) return;
+  NOTES[key] = { kind: m[1], name: m[2], path: p };
 });
 function resolve(name) { return NOTES[String(name).trim().toLowerCase()] || null; }
 function noteHash(n) { return n.kind + "/" + encodeURIComponent(n.name); }
@@ -664,6 +682,63 @@ function catchGroups(items, sub) { // items grouped Needs your reply / You may h
   return html;
 }
 
+/* ---------- drafts (drafts/<Name>.md) ---------- */
+var KIND_NAMES = { email: "Email", doc: "Document", document: "Document", deck: "Deck", message: "Message", post: "Post", slack: "Slack", text: "Text", notes: "Notes" };
+function kindName(k) { k = String(k || "").trim(); return KIND_NAMES[k.toLowerCase()] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : ""); }
+function draftNotes() { return notesOf("drafts"); }
+function draftStatus(n) { return String(doc(n.path).fm.status || "notes").trim().toLowerCase(); }
+function draftInProgress(n) { return ["moved", "done", "dropped"].indexOf(draftStatus(n)) < 0; }
+function draftLong(n) { return String(doc(n.path).fm.horizon || "").trim().toLowerCase() === "long"; }
+function agoWords(iso) {
+  var d = -daysFromToday(iso);
+  var rel = d <= 0 ? "today" : d === 1 ? "yesterday" : d < 14 ? d + " days ago" : d < 60 ? Math.round(d / 7) + " weeks ago" : Math.round(d / 30) + " months ago";
+  return d <= 1 ? rel : fmtShort(iso) + ", " + rel;
+}
+function untouchedDays(n) { var t = doc(n.path).fm.touched; return isISO(t) ? -daysFromToday(t) : null; }
+function draftStatusTag(st) {
+  var label = T(st.charAt(0).toUpperCase() + st.slice(1));
+  var cls = st === "ready" ? " ok" : st === "moved" ? " acc" : "";
+  return '<span class="tag' + cls + '">' + label + "</span>";
+}
+function draftHistory(n) { var d = doc(n.path); return sec(d, "History"); }
+function lastHistory(n) { // the History line for the current version, else the newest one
+  var h = draftHistory(n), v = String(doc(n.path).fm.version || "").trim();
+  var cur = v ? h.filter(function (it) { return new RegExp("^v" + v.replace(/\W/g, "") + "\\b", "i").test(it.text); })[0] : null;
+  return cur || h[0] || null;
+}
+function historyText(it) { return it.text.replace(/^v\d+\s+/i, "").replace(/^\d{4}-\d{2}-\d{2}\s+/, ""); }
+function movedOn(n) {
+  var d = doc(n.path);
+  if (isISO(d.fm.moved)) return d.fm.moved;
+  var h = draftHistory(n).filter(function (it) { return /\bmoved\b/i.test(it.text); })[0];
+  var m = h && h.text.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+function fmLink(v) { // a front-matter value that may be a [[link]]
+  if (!v) return "";
+  return /\[\[/.test(v) ? inl(v) : wl(v);
+}
+function draftCard(n) {
+  var d = doc(n.path), fm = d.fm, st = draftStatus(n), last = lastHistory(n), live = draftInProgress(n), long = live && draftLong(n), idle = untouchedDays(n);
+  var who = [fm["for"] ? "For " + fmLink(fm["for"]) : "", fm.project ? fmLink(fm.project) : ""].filter(Boolean).join(" \u00b7 ");
+  var href = safeHref(fm.link || "");
+  return '<div class="card pcard dcard"><h4><a class="wl-plain" href="#' + esc(noteHash(n)) + '">' + T(n.name) + "</a></h4>" +
+    (who ? '<p class="role">' + who + "</p>" : "") +
+    '<div class="row">' + (fm.kind ? '<span class="tag">' + T(kindName(fm.kind)) + "</span>" : "") + draftStatusTag(st) +
+    (fm.due ? (live && !long ? dueTag(fm.due) : '<span class="tag">Due ' + esc(dateish(fm.due)) + "</span>") : "") +
+    (long && idle != null && idle >= 21 ? '<span class="tag">Waiting to be picked up</span>' : "") + "</div>" +
+    (long && isISO(fm.touched) ? '<p class="role">Last worked on ' + esc(agoWords(fm.touched)) + "</p>" : "") +
+    (fm.version || last ? '<p class="role">' + (fm.version ? "v" + T(fm.version) : "") + (last ? (fm.version ? " \u00b7 " : "") + inl(historyText(last)) : "") + "</p>" : "") +
+    (st === "moved" && href ? '<div><a class="obs small" href="' + esc(href) + '" target="_blank" rel="noopener">Open in ' + T(fm.moved_to || "your tool") + " \u2197</a></div>" : "") + "</div>";
+}
+function draftsDueSoon() {
+  return draftNotes().filter(function (n) { var d = doc(n.path); return draftInProgress(n) && !draftLong(n) && isISO(d.fm.due) && daysFromToday(d.fm.due) <= 3; })
+    .sort(function (a, b) { return doc(a.path).fm.due < doc(b.path).fm.due ? -1 : 1; });
+}
+function draftsFor(n) { // drafts whose front matter names this person or project
+  return draftNotes().filter(function (x) { var fm = doc(x.path).fm; return [fm["for"], fm.project].some(function (v) { return v && resolve(plainText(v)) === n; }); });
+}
+
 /* ---------- the sections ---------- */
 var A = esc(AGENT);
 var VIEWS = [
@@ -682,6 +757,10 @@ var VIEWS = [
   { id: "waiting", label: "Waiting on others", group: "Now", files: function () { return ["cos/waiting.md"]; },
     sub: "What other people owe you, and how long it's been.",
     count: function () { return waitingItems().filter(function (w) { return !w.checked; }).length; } },
+  { id: "drafts", label: "Drafts", group: "Now", files: function () { return filesUnder("cos/drafts/"); },
+    sub: "Writing you're shaping with " + A + " by talking: emails, documents, decks and messages. Once one moves to your own tool, the copy there is the real one.",
+    count: function () { return draftNotes().filter(draftInProgress).length; },
+    hot: function () { return draftNotes().some(function (n) { var d = doc(n.path); return draftInProgress(n) && !draftLong(n) && draftStatus(n) !== "ready" && isISO(d.fm.due) && daysFromToday(d.fm.due) <= 2; }); } },
   { id: "projects", label: "Projects", group: "Your world", files: function () { return filesUnder("cos/projects/").concat(filesUnder("cos/areas/")); },
     sub: "Projects are outcomes with an end. Areas are responsibilities that never finish. Open one to see everything linked to it.",
     count: function () { return liveProjects().length; } },
@@ -720,7 +799,7 @@ function readHash() {
   var h = location.hash.replace(/^#/, ""), slash = h.indexOf("/");
   var id = slash < 0 ? h : h.slice(0, slash), name = null;
   if (slash >= 0) { try { name = decodeURIComponent(h.slice(slash + 1)); } catch (e) { name = h.slice(slash + 1); } }
-  if ((id === "people" || id === "projects" || id === "areas") && name) return { view: id === "people" ? "people" : "projects", kind: id, name: name };
+  if ((id === "people" || id === "projects" || id === "areas" || id === "drafts") && name) return { view: id === "areas" ? "projects" : id, kind: id, name: name };
   if (id === "areas") id = "projects";
   return { view: V(id) ? id : "today", kind: null, name: null };
 }
@@ -729,7 +808,9 @@ function readHash() {
 function obsHref(rel) { return "obsidian://open?path=" + encodeURIComponent(WS + "/" + rel); }
 var OBS_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 2 4 9.5l3 10.5 5.5 2 6.5-6-1-9.5L13 2z"/></svg>';
 function fileBar(files, primary) {
-  var shown = files.length > 3 ? files[0].replace(/[^\/]+$/, "") : files.join(" · ");
+  var dirs = files.map(function (f) { return f.replace(/[^\/]+$/, ""); });
+  var shown = files.length <= 3 ? files.join(" · ")
+    : dirs.every(function (x) { return x === dirs[0]; }) ? dirs[0] : files.slice(0, 2).join(" · ") + " + " + (files.length - 2) + " more";
   var obs = META.obsidian && primary ? '<a class="obs small" href="' + esc(obsHref(primary)) + '" title="Open ' + esc(primary) + ' in Obsidian">Open in Obsidian</a>' : "";
   return '<div class="file"><span class="path">' + esc(shown || "cos/") + "</span>" + obs +
     '<button type="button" class="toggle" data-raw aria-pressed="' + RAW + '">Show the file' + (files.length > 1 ? "s" : "") + "</button></div>";
@@ -812,6 +893,12 @@ R.today = function () {
     });
     if (!briefSection(latest, "Focus")) html += focusHtml;
   } else html += focusHtml;
+  var dds = draftsDueSoon();
+  if (dds.length) html += block("Drafts due soon", "", '<ul class="list card">' + dds.map(function (n) {
+    var fm = doc(n.path).fm;
+    return '<li class="nobox"><div class="txt">' + wl(n.name) + (fm["for"] ? ' <span class="muted">for</span> ' + fmLink(fm["for"]) : "") +
+      meta((fm.kind ? '<span class="tag">' + T(kindName(fm.kind)) + "</span>" : "") + draftStatusTag(draftStatus(n)) + dueTag(fm.due)) + "</div></li>";
+  }).join("") + "</ul>");
   html += '<div class="two"><div>' + block("This week", "", '<ul class="list card">' + (week.length ? week.map(weekLi).join("") : emptyLi("Key dates for the week show up here when " + A + " learns about them.")) + "</ul>") +
     "</div><div>" + block("Due now", "today, tomorrow and overdue", listCard(dueNow, "Nothing due today or tomorrow.")) +
     block("Nudges", "", listCard(nudges, "No nudges today. " + A + "'s nightly review adds them here.")) + "</div></div>";
@@ -922,7 +1009,7 @@ R.people = function () {
 var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/catch-up.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
 function rankOf(p) {
   var i = FILE_RANK.indexOf(p); if (i >= 0) return [i, ""];
-  if (/^cos\/(projects|areas|people)\//.test(p)) return [20, p];
+  if (/^cos\/(projects|areas|people|drafts)\//.test(p)) return [20, p];
   if (/^cos\/log\//.test(p)) return [30, invert(p)];
   if (/^cos\/archive\//.test(p)) return [40, invert(p)];
   return [25, p];
@@ -938,7 +1025,7 @@ function linkedItems(n) {
 }
 function humanKey(k) { k = k.replace(/_/g, " "); return k.charAt(0).toUpperCase() + k.slice(1); }
 function fmValue(k, v) {
-  if (isISO(v)) return esc(fmtDay(v)) + (k === "due" ? " " + dueTag(v) : "");
+  if (isISO(v)) return esc(fmtDay(v)) + (k === "due" && daysFromToday(v) <= 2 ? " " + dueTag(v) : "");
   if (/\[\[/.test(v)) return inl(v);
   if (k === "area" || k === "project") return wl(v);
   return inl(v);
@@ -995,12 +1082,13 @@ function noteView(kind, name) {
   var keys = Object.keys(fm).filter(function (k) { return fm[k] !== "" && !(n.kind === "people" && (k === "role" || k === "org")); });
   var dl = keys.length ? "<dl>" + keys.map(function (k) { return "<dt>" + T(humanKey(k)) + "</dt><dd>" + fmValue(k, fm[k]) + "</dd>"; }).join("") + "</dl>" : "";
   var body = renderBody(d, true);
-  var bl = linkedItems(n);
-  var blHtml = '<div class="backlinks"><h4>Linked from ' + bl.length + " place" + (bl.length === 1 ? "" : "s") + "</h4>" +
-    (bl.length ? '<ul class="list">' + bl.map(function (it) {
-      return '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) +
-        meta('<span class="bl-file">' + esc(it.path) + "</span>" + chips(it)) + "</div></li>";
-    }).join("") + "</ul>" : '<p class="hint" style="margin:4px 0 0">Nothing links here yet. Anything ' + A + " writes that mentions " + T(n.name) + " will show up here.</p>") + "</div>";
+  var blHtml = backlinksHtml(n);
+  var dr = n.kind === "areas" ? [] : draftsFor(n);
+  var drHtml = dr.length ? '<div class="backlinks"><h4>Drafts</h4><ul class="list">' + dr.map(function (x) {
+    var xd = doc(x.path);
+    return '<li class="nobox"><div class="txt">' + wl(x.name) + meta((xd.fm.kind ? '<span class="tag">' + T(kindName(xd.fm.kind)) + "</span>" : "") + draftStatusTag(draftStatus(x)) +
+      (xd.fm.due && draftInProgress(x) && !draftLong(x) ? dueTag(xd.fm.due) : "")) + "</div></li>";
+  }).join("") + "</ul></div>" : "";
   var inArea = n.kind === "areas" ? projectsInArea(n) : [];
   var areaHtml = inArea.length ? '<div class="backlinks"><h4>Projects in this area</h4><ul class="list">' + inArea.map(function (p) {
     var st = projectStatus(p);
@@ -1008,7 +1096,87 @@ function noteView(kind, name) {
       (doc(p.path).fm.due && st !== "done" && st !== "dropped" ? dueTag(doc(p.path).fm.due) : "")) + "</div></li>";
   }).join("") + "</ul></div>" : "";
   return back + head(V(backTo), T(n.name), sub, [n.path], n.path) +
-    '<div class="card detail">' + dl + (body ? '<div class="md">' + body + "</div>" : "") + areaHtml + blHtml + "</div>";
+    '<div class="card detail">' + dl + (body ? '<div class="md">' + body + "</div>" : "") + areaHtml + drHtml + blHtml + "</div>";
+}
+function backlinksHtml(n) {
+  var bl = linkedItems(n);
+  return '<div class="backlinks"><h4>Linked from ' + bl.length + " place" + (bl.length === 1 ? "" : "s") + "</h4>" +
+    (bl.length ? '<ul class="list">' + bl.map(function (it) {
+      return '<li class="' + (it.checked == null ? "nobox" : "") + '">' + box(it) + '<div class="txt' + (it.checked ? " muted" : "") + '">' + inl(it.text) + quoteHtml(it) +
+        meta('<span class="bl-file">' + esc(it.path) + "</span>" + chips(it)) + "</div></li>";
+    }).join("") + "</ul>" : '<p class="hint" style="margin:4px 0 0">Nothing links here yet. Anything ' + A + " writes that mentions " + T(n.name) + " will show up here.</p>") + "</div>";
+}
+R.drafts = function () {
+  if (state.name) return draftView(state.name);
+  var v = V("drafts"), all = draftNotes();
+  var inprog = all.filter(draftInProgress).sort(function (a, b) { var x = doc(a.path).fm.due || "9", y = doc(b.path).fm.due || "9"; return x < y ? -1 : x > y ? 1 : a.name.localeCompare(b.name); });
+  var gone = all.filter(function (n) { return !draftInProgress(n); });
+  var html = head(v);
+  if (!all.length) return html + '<div class="card empty">No drafts yet. Tell ' + A + " \u201cstart a draft email to \u2026\u201d and it shows up here.</div>";
+  var soon = inprog.filter(function (n) { return !draftLong(n); });
+  var long = inprog.filter(draftLong).sort(function (a, b) { return String(doc(b.path).fm.touched || "").localeCompare(String(doc(a.path).fm.touched || "")); });
+  html += block("Soon", soon.length ? String(soon.length) : "", soon.length ? '<div class="proj-grid">' + soon.map(draftCard).join("") + "</div>"
+    : '<div class="card empty">Nothing due soon. Tell ' + A + " \u201cstart a draft \u2026\u201d to begin one.</div>");
+  if (long.length) html += block("Long-term", String(long.length) + " \u00b7 no rush; " + A + " brings them back when you have time",
+    '<div class="proj-grid">' + long.map(draftCard).join("") + "</div>");
+  if (gone.length) html += block("Moved or finished", String(gone.length), '<div class="proj-grid">' + gone.map(draftCard).join("") + "</div>");
+  return html;
+};
+function renderSlides(blocks) {
+  var slides = [], cur = null, pre = [];
+  blocks.forEach(function (b) {
+    if (b.type === "h" && b.level >= 3) { cur = { title: b.text, blocks: [], notes: [] }; slides.push(cur); return; }
+    if (!cur) { pre.push(b); return; }
+    if (b.type === "item" && b.quote.length && /^speaker notes:/i.test(b.quote[0])) {
+      cur.notes = cur.notes.concat(b.quote); cur.blocks.push(Object.assign({}, b, { quote: [] }));
+    } else if (b.type === "quote" && /^speaker notes:/i.test(b.lines[0])) cur.notes = cur.notes.concat(b.lines);
+    else cur.blocks.push(b);
+  });
+  return (pre.length ? renderBlocks(pre) : "") + '<ol class="slides">' + slides.map(function (sl, i) {
+    var m = sl.title.match(/^(\d+)[.)]\s*(.*)$/);
+    return '<li class="slide"><div class="slide-n">' + esc(m ? m[1] : String(i + 1)) + '</div><div class="slide-b"><h5>' + inl(m ? m[2] : sl.title) + "</h5>" +
+      renderBlocks(sl.blocks) + (sl.notes.length ? '<p class="slide-notes">' + sl.notes.map(function (l) { return inl(l.replace(/^speaker notes:\s*/i, "")); }).join("<br>") + "</p>" : "") + "</div></li>";
+  }).join("") + "</ol>";
+}
+function draftView(name) {
+  var n = resolve(name), back = '<button type="button" class="back" data-view="drafts">\u2190 All drafts</button>';
+  if (!n || n.kind !== "drafts") return back + '<div class="card empty">There\'s no draft called \u201c' + T(name) + "\u201d yet.</div>";
+  var d = doc(n.path), fm = d.fm, st = draftStatus(n), href = safeHref(fm.link || "");
+  var sub = [fm.kind ? T(kindName(fm.kind)) : "Draft", T(st.charAt(0).toUpperCase() + st.slice(1))].join(" \u00b7 ");
+  var html = back + head(V("drafts"), T(n.name), sub, [n.path], n.path);
+  if (st === "moved") {
+    var on = movedOn(n);
+    html += '<div class="moved-banner"><p>This moved to ' + T(fm.moved_to || "another tool") + (on ? " on " + esc(fmtDay(on)) : "") + ". The copy there is the real one.</p>" +
+      (href ? '<a class="obs" href="' + esc(href) + '" target="_blank" rel="noopener">Open in ' + T(fm.moved_to || "your tool") + " \u2197</a>" : "") + "</div>";
+  }
+  var rows = [["Kind", fm.kind ? T(kindName(fm.kind)) : ""], ["Status", draftStatusTag(st)], ["For", fmLink(fm["for"])], ["Project", fmLink(fm.project)],
+    ["Due", fm.due ? (isISO(fm.due) ? esc(fmtDay(fm.due)) + (draftInProgress(n) && !draftLong(n) && daysFromToday(fm.due) <= 2 ? " " + dueTag(fm.due) : "") : T(fm.due)) : ""],
+    ["Horizon", fm.horizon ? (draftLong(n) ? "Long-term" : "Soon") : ""],
+    ["Last worked on", isISO(fm.touched) ? esc(agoWords(fm.touched)) + (draftInProgress(n) && draftLong(n) && untouchedDays(n) >= 21 ? ' <span class="tag">Waiting to be picked up</span>' : "") : ""],
+    ["Version", fm.version ? "v" + T(fm.version) : ""],
+    ["Moved to", fm.moved_to ? T(fm.moved_to) + (href ? ' \u00b7 <a href="' + esc(href) + '" target="_blank" rel="noopener" class="url">' + T(href) + "</a>" : "") : ""]];
+  var known = ["kind", "status", "for", "project", "due", "version", "moved_to", "link", "moved", "horizon", "touched"];
+  Object.keys(fm).forEach(function (k) { if (known.indexOf(k) < 0 && fm[k] !== "") rows.push([humanKey(k), fmValue(k, fm[k])]); });
+  var dl = "<dl>" + rows.filter(function (r) { return r[1]; }).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl>";
+  var names = sectionNames(d), body = "";
+  var draftSec = names.filter(function (x) { return norm(x) === "draft"; })[0];
+  if (draftSec) {
+    var bl = sectionBlocks(d, draftSec);
+    body += '<div class="h3" style="margin-top:6px">Draft</div><div class="draft-body md">' +
+      (bl.length ? (String(fm.kind).toLowerCase() === "deck" ? renderSlides(bl) : renderBlocks(bl)) : '<p class="muted">Nothing written yet.</p>') + "</div>";
+  }
+  names.forEach(function (x) {
+    var k = norm(x); if (k === "draft") return;
+    var bl = sectionBlocks(d, x);
+    if (k === "history") {
+      var items = bl.filter(function (b) { return b.type === "item"; });
+      body += '<div class="h3" style="margin-top:18px">History</div><ul class="list hist">' + items.map(function (it) {
+        var m = it.text.match(/^(v\d+)\s+(?:(\d{4}-\d{2}-\d{2})\s+)?(.*)$/i);
+        return '<li class="nobox"><div class="txt">' + (m ? '<span class="time">' + esc(m[1]) + "</span> " + (m[2] ? '<span class="muted">' + esc(fmtShort(m[2])) + "</span> \u00b7 " : "") + inl(m[3]) : inl(it.text)) + meta(chips(it)) + "</div></li>";
+      }).join("") + "</ul>";
+    } else if (bl.length) body += '<div class="h3" style="margin-top:18px">' + T(x) + '</div><div class="md">' + renderBlocks(bl) + "</div>";
+  });
+  return html + '<div class="card detail">' + dl + body + backlinksHtml(n) + "</div>";
 }
 R.ideas = function () {
   var v = V("ideas"), items = doc("cos/ideas.md").items;
@@ -1096,6 +1264,14 @@ R.about = function () {
     : '<div class="card empty">No briefs set, so ' + A + " uses its default: a morning brief on weekdays at 7:00am.</div>";
   html += block("Your briefs", "say “add a brief at …” or “move my morning brief to …”", briefRows);
   var secs = sectionNames(rules);
+  var toolsSec = secs.filter(function (x) { return norm(x) === "mytools"; })[0];
+  var tools = toolsSec ? sectionBlocks(rules, toolsSec).filter(function (b) { return b.type === "item"; }) : [];
+  html += block("My tools", "where each kind of finished work goes", tools.length ? '<div class="card tscroll"><table class="t"><thead><tr><th>Kind</th><th>Where it goes</th><th>Source</th></tr></thead><tbody>' +
+    tools.map(function (it) {
+      return '<tr><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : '<span class="muted">\u2014</span>') + "</b></td><td>" + inl(it.text) + quoteHtml(it) +
+        meta(chips(it, ["for", "src"])) + "</td><td>" + srcChip(it.fields.src) + "</td></tr>";
+    }).join("") + "</tbody></table></div>"
+    : '<div class="card empty">Nothing yet. When a draft is ready, ' + A + " asks where it should go and remembers it here.</div>");
   var LISTS = [
     ["What goes in my briefs", "Nothing here yet. Preferences for every brief, like “skip newsletters”, show up here."],
     ["Important people", "No one yet. People whose messages always make it into a brief show up here."],
@@ -1110,12 +1286,12 @@ R.about = function () {
     var paras = bl.filter(function (b) { return b.type === "p"; });
     html += block(T(s || l[0]), "", paras.map(function (p) { return '<p class="hint" style="margin:0 2px 8px">' + inl(p.text) + "</p>"; }).join("") + listCard(items, l[1]));
   });
-  var KNOWN_RULES = ["mybriefs"].concat(LISTS.map(function (l) { return norm(l[0]); }));
+  var KNOWN_RULES = ["mybriefs", "mytools"].concat(LISTS.map(function (l) { return norm(l[0]); }));
   secs.filter(function (x) { return KNOWN_RULES.indexOf(norm(x)) < 0; }).forEach(function (s) {
     var bl = sectionBlocks(rules, s);
     if (bl.length) html += block(T(s), "", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
   });
-  var KNOWN_ME = ["role", "howiwork", "learned"];
+  var KNOWN_ME = ["role", "howiwork", "learned", "howiwrite"];
   var meSecs = sectionNames(me);
   var meHtml = '<ul class="list card">', any = false, meOther = "";
   me.items.filter(function (it) { return !it.section; }).forEach(function (it) { any = true; meHtml += itemLi(it); });
@@ -1125,6 +1301,7 @@ R.about = function () {
       if (bl.length) meOther += block(T(s), "cos/about-me.md", '<div class="card detail md">' + renderBlocks(bl) + "</div>");
       return;
     }
+    if (norm(s) === "howiwrite") return;
     me.items.filter(function (it) { return it.section === s; }).forEach(function (it) {
       any = true;
       var learned = norm(s) === "learned";
@@ -1132,7 +1309,19 @@ R.about = function () {
     });
   });
   meHtml += (any ? "" : emptyLi("Nothing yet. " + A + " fills this in as you talk: your role, how you like to work, and what it notices.")) + "</ul>";
-  html += block('<span class="layer learned">2 · What ' + A + " knows about you</span>", "cos/about-me.md · correct it by saying “that's wrong: …”", meHtml) + meOther;
+  html += block('<span class="layer learned">2 · What ' + A + " knows about you</span>", "cos/about-me.md · correct it by saying “that's wrong: …”", meHtml);
+  var hiw = meSecs.filter(function (x) { return norm(x) === "howiwrite"; })[0];
+  var hiwItems = hiw ? sectionBlocks(me, hiw).filter(function (b) { return b.type === "item"; }) : [];
+  var styled = hiwItems.filter(function (it) { return it.fields["for"] || it.fields.audience; }), loose = hiwItems.filter(function (it) { return !(it.fields["for"] || it.fields.audience); });
+  html += block("How I write", "by kind and audience \u00b7 say \u201cmy Slack messages are more casual than that\u201d to correct one",
+    (styled.length ? '<div class="card tscroll"><table class="t"><thead><tr><th>Kind</th><th>Audience</th><th>Style</th><th>Source</th></tr></thead><tbody>' + styled.map(function (it) {
+      return '<tr><td style="white-space:nowrap"><b>' + (it.fields["for"] ? T(kindName(it.fields["for"])) : "\u2014") + '</b></td><td style="white-space:nowrap">' +
+        (it.fields.audience ? T(it.fields.audience.charAt(0).toUpperCase() + it.fields.audience.slice(1)) : "\u2014") + "</td><td>" + inl(it.text) + quoteHtml(it) +
+        meta(chips(it, ["for", "audience", "src"])) + "</td><td>" + srcChip(it.fields.src) + "</td></tr>";
+    }).join("") + "</tbody></table></div>" : "") +
+    (loose.length ? '<div style="margin-top:' + (styled.length ? "10px" : "0") + '">' + listCard(loose, "") + "</div>" : "") +
+    (hiwItems.length ? "" : '<div class="card empty">Nothing yet. ' + A + " asks before learning how you write from your sent messages.</div>"));
+  html += meOther;
   var defs = defaults();
   html += block('<span class="layer base">3 · ' + A + "'s defaults</span>", "come with the Chief of Staff" + (META.version ? ", version " + esc(META.version) : "") + " · updated by ./update-cos.sh",
     '<ul class="list card">' + (defs.length ? defs.map(function (d) {
@@ -1187,6 +1376,7 @@ function sectionFor(p) {
   if (/^cos\/(links|facts)\.md$/.test(p)) return "links";
   if (/^cos\/people\//.test(p)) return "people";
   if (/^cos\/(projects|areas)\//.test(p)) return "projects";
+  if (/^cos\/drafts\//.test(p)) return "drafts";
   if (/^cos\/log\/\d{4}-\d{2}-\d{2}\.md$/.test(p)) return "log";
   if (/^cos\/archive\//.test(p)) return "archive";
   if (p === "cos/my-rules.md" || p === "cos/about-me.md" || p === ".cos/defaults.md" || p === ".cos/options.md") return "about";
@@ -1222,7 +1412,7 @@ function searchView() {
     return out.length ? '<div class="meta">' + out.join(" ") + "</div>" : "";
   }
   function note(p) {
-    var m = p.match(/^cos\/(people|projects|areas)\/(?:.*\/)?([^\/]+)\.md$/);
+    var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/);
     return '<div class="meta"><span class="bl-file">' + esc(p) + "</span>" + (m && resolve(m[2]) ? '<a class="tag acc" style="text-decoration:none" href="#' + esc(noteHash(resolve(m[2]))) + '">Open note</a>' : "") + "</div>";
   }
   var rank = VIEWS.map(function (v) { return v.id; }).concat(["other"]);

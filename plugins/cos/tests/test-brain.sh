@@ -47,13 +47,14 @@ html_attr() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/"/\&quot;/g' -e 's/
 MISSING=0
 while IFS= read -r -d '' f; do
   rel=${f#"$WS/"}
-  case "$rel" in cos/log/transcripts/*) continue ;; esac
+  case "$rel" in cos/log/transcripts/*|*/.*/*) continue ;; esac
   grep -qF "data-path=\"$(html_attr "$rel")\"" "$B" || { fail "not embedded: $rel"; MISSING=1; }
 done < <(find "$WS/cos" -type f -name '*.md' -print0)
 grep -qF 'data-path=".cos/defaults.md"' "$B" || { fail "defaults.md not embedded"; MISSING=1; }
 grep -qF 'data-path=".cos/options.md"' "$B" || { fail "options.md not embedded"; MISSING=1; }
 [ $MISSING -eq 0 ] && ok "every note embedded"
 grep -q 'TRANSCRIPT-SHOULD-NOT-BE-EMBEDDED' "$B" && fail "a transcript was embedded" || ok "transcripts left out"
+grep -q 'data-path="cos/drafts/.history' "$B" && fail "a draft's old version was embedded" || ok "drafts/.history left out"
 grep -c '<script type="text/markdown"' "$B" | grep -q . || fail "no notes"
 grep -q '<!--COS-NOTES-->' "$B" && fail "marker left in the page" || ok "marker replaced"
 # Only the real closing tags may appear: every "</script" in the page must close a script element.
@@ -92,6 +93,7 @@ if [ -d "$PLUGIN/templates/cos" ]; then
   done
 fi
 printf '0.2.0\n' > "$WS4/cos/.version"
+printf 'OWNER_NAME=Alex\nAGENT_NAME=Ada\n' > "$WS4/cos/setup.conf"
 "$WS4/.cos/build-brain.sh" && [ -f "$WS4/brain.html" ] && ok "builds a brand-new notebook" || fail "brand-new notebook build"
 
 # An older notebook: one brief in brief.md with "sent" in its front matter, and brief_time /
@@ -241,6 +243,47 @@ async function clickAllSections(page, label) {
     if (!has(ct, s)) fail("Catch up is missing: " + s);
   if (!(await page.locator('#main a.src[href*="FMfcgzQXJWDsKmbNlrqhGvq"]').count())) fail("catch-up source chip doesn't link to the thread");
   ok("Catch up page");
+
+  // Drafts.
+  const views = await page.locator("#nav button").evaluateAll(bs => bs.map(b => b.dataset.view));
+  if (views.indexOf("drafts") !== views.indexOf("waiting") + 1) fail("Drafts isn't right after Waiting on others: " + views.join(","));
+  const drBtn = page.locator('#nav [data-view="drafts"]');
+  if ((await drBtn.locator(".n").innerText()) !== "4") fail("drafts count: " + (await drBtn.locator(".n").innerText()));
+  if (await drBtn.locator(".n.hot").count()) fail("drafts count is red with nothing urgent");
+  await drBtn.click();
+  let dt = await mainText(page);
+  for (const s of ["Soon", "Long-term", "Moved or finished", "Pricing philosophy essay", "Last worked on Sep 20", "Waiting to be picked up", "Board narrative", "v3 · shorter opening, churn first", "For Jordan Kim", "Pricing email to Dana", "Ready", "Outline", "Moved", "Done", "Deck", "Email", "Message", "Due tomorrow"])
+    if (!has(dt, s)) fail("Drafts page is missing: " + s);
+  const openIn = page.locator('#main a.obs[href="https://docs.google.com/document/d/sample"]');
+  if (!(await openIn.count()) || !has(await openIn.first().innerText(), "Open in Google Docs") || (await openIn.first().getAttribute("target")) !== "_blank") fail("moved draft's Open in link");
+  const longCards = page.locator("#main section.block", { has: page.locator("h3", { hasText: /^Long-term/i }) }).locator(".dcard");
+  if ((await longCards.count()) !== 1 || !has(await longCards.first().innerText(), "Waiting to be picked up")) fail("Long-term group");
+  if (await longCards.locator(".tag.late, .tag.due").count()) fail("long-term draft has a warning tone");
+  const soonCards = page.locator("#main section.block", { has: page.locator("h3", { hasText: /^Soon/i }) }).locator(".dcard");
+  if ((await soonCards.count()) !== 3 || has(await soonCards.allInnerTexts().then(t => t.join(" ")), "Waiting to be picked up")) fail("Soon group");
+  ok("Drafts page");
+  await page.click('#main a[href="#drafts/Q4%20launch%20deck"]');
+  dt = await mainText(page);
+  if ((await page.locator("#main .slide").count()) !== 4) fail("deck should show 4 slides, got " + (await page.locator("#main .slide").count()));
+  if ((await page.locator("#main .slide-notes").count()) !== 4 || !has(dt, "Open with the pricing decision")) fail("speaker notes missing");
+  if (has(dt, "Speaker notes: Open")) fail("speaker notes prefix not stripped");
+  for (const s of ["Kind", "Deck", "Outline", "Project", "Q4 Launch", "History", "Linked from"]) if (!has(dt, s)) fail("deck page is missing: " + s);
+  await page.click("#main [data-raw]");
+  if (!(await page.locator("#main pre.raw").innerText()).includes("### 2. What launches on Nov 18")) fail("deck Show the file");
+  await page.click("#main [data-raw]");
+  ok("deck draft page");
+  await page.evaluate(() => { location.hash = "drafts/Acme%20uptime%20credit%20offer"; });
+  dt = await mainText(page);
+  if (!has(dt, "This moved to Google Docs on Thu, Oct 15. The copy there is the real one.")) fail("moved banner: " + dt.slice(0, 300));
+  if (!(await page.locator('#main .moved-banner a[href="https://docs.google.com/document/d/sample"]').count())) fail("moved banner link");
+  ok("moved draft page");
+  await page.evaluate(() => { location.hash = "people/Jordan%20Kim"; });
+  if (!(await page.locator('#main .backlinks a.wl[href="#drafts/Board%20narrative"]').count())) fail("person page doesn't list drafts for them");
+  await page.evaluate(() => { location.hash = "drafts/Pricing%20email%20to%20Dana"; });
+  if (!has(await mainText(page), "cos/now.md")) fail("draft page doesn't show what links to it");
+  await page.evaluate(() => { location.hash = "today"; });
+  dt = await mainText(page);
+  if (!has(dt, "Drafts due soon") || !(await page.locator('#main a.wl[href="#drafts/Pricing%20email%20to%20Dana"]').count())) fail("Drafts due soon on Today");
   await page.click('#nav [data-view="archive"]');
   ct = await mainText(page);
   if (!has(ct, "From catch-up") || !has(ct, "Why: replied") || !has(ct, "Why: skipped")) fail("archived catch-up lines");
@@ -289,6 +332,12 @@ async function clickAllSections(page, label) {
     "Skip newsletters", "Important people", "Moved from my-instructions.md", "Family and time off", "Learned", "Nudge me at most twice a day"])
     if (!has(pt, s)) fail("How Ada works is missing: " + s);
   if (has(pt, "Brief days")) fail("brief_days row shown although My briefs exists");
+  for (const s of ["My tools", "Presentations: Google Slides", "Team updates: Slack, #product-leads", "How I write", "Executives", "Numbers first, then the story"])
+    if (!has(pt, s)) fail("How Ada works is missing: " + s);
+  const toolsRows = await page.locator("#main section.block", { has: page.locator("h3", { hasText: /^My tools/i }) }).locator("tbody tr").count();
+  if (toolsRows !== 4) fail("My tools rows: " + toolsRows);
+  const writeRows = await page.locator("#main section.block", { has: page.locator("h3", { hasText: /^How I write/i }) }).locator("tbody tr").count();
+  if (writeRows !== 5) fail("How I write rows: " + writeRows);
   // Everything Ada can do, from .cos/options.md: one block per group.
   const groups = [...(await import("node:fs")).readFileSync(new URL("file://" + optionsPath)).toString().matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
   if (!has(pt, "Everything Ada can do") || !has(pt, "what can you do?") || !has(pt, "/cos:settings")) fail("Everything Ada can do section missing");
@@ -314,6 +363,8 @@ async function clickAllSections(page, label) {
   if ((await page.inputValue("#q")) !== "" || !(await page.locator("#main h2").innerText()).includes("My actions")) fail("search group header didn't open the section");
   await page.fill("#q", "GitHub notifications");
   if (!(await page.locator("#main .grouplink", { hasText: "How Ada works for you" }).count()) || !has(await mainText(page), ".cos/options.md")) fail("search doesn't cover options.md");
+  await page.fill("#q", "stopped losing small teams");
+  if (!(await page.locator("#main .grouplink", { hasText: "Drafts" }).count())) fail("search doesn't find draft text");
   await page.fill("#q", "canary");
   if (!(await mainText(page)).includes(CANARY)) fail("canary wrong in search results");
   await page.fill("#q", "");
@@ -387,6 +438,12 @@ ok("next brief");
 {
   const { ctx, page, errors } = await open(freshPath);
   await clickAllSections(page, "new notebook");
+  await page.click('#nav [data-view="drafts"]');
+  if (!has(await mainText(page), "No drafts yet. Tell Ada “start a draft email to …” and it shows up here.")) fail("new notebook: drafts empty state: " + (await mainText(page)).slice(0, 400));
+  await page.click('#nav [data-view="about"]');
+  const nt = await mainText(page);
+  if (!has(nt, "When a draft is ready, Ada asks where it should go")) fail("new notebook: My tools empty state");
+  if (!has(nt, "Ada asks before learning how you write from your sent messages")) fail("new notebook: How I write empty state");
   if (!(await mainText(page)).length) fail("new notebook: empty page");
   errors.forEach(e => fail(e));
   await ctx.close();
@@ -402,7 +459,8 @@ if (shots) {
     }
     await ctx.close();
   };
-  await shotsOf(1280, false, [["catchup", "catchup"]]);
+  await shotsOf(1280, false, [["catchup", "catchup"], ["drafts", "drafts"], ["draft-deck", "drafts/Q4%20launch%20deck"], ["draft-moved", "drafts/Acme%20uptime%20credit%20offer"]]);
+  await shotsOf(400, false, [["draft-deck", "drafts/Q4%20launch%20deck"], ["drafts", "drafts"]]);
   const list = [["today", "today"], ["person", "people/Dana%20Whitfield"], ["about", "about"]];
   await shotsOf(1280, false, list);
   await shotsOf(400, false, list);
