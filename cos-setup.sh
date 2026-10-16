@@ -46,15 +46,6 @@ die()  { printf '\n%s✗ %s%s\n' "$red" "$1" "$reset" >&2; exit 1; }
 ask()  { local reply; read -r -p "$1 " reply </dev/tty || true; printf '%s' "$reply"; }
 yes()  { case "$(ask "$1")" in [nN]*) return 1 ;; *) return 0 ;; esac; }          # default yes
 no()   { case "$(ask "$1")" in [yY]*) return 1 ;; *) return 0 ;; esac; }           # default no
-# For questions about who can message the agent, Return alone isn't an answer: ask again.
-yn()   {
-  local i
-  for i in 1 2 3; do
-    case "$(ask "$1")" in [yY]*) return 0 ;; [nN]*) return 1 ;; esac
-    info "Type y or n, then press Return."
-  done
-  info "No answer, so no."; return 1
-}
 have() { command -v "$1" >/dev/null 2>&1; }
 sha256() { if have shasum; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi; }
 quiet() { "$@" </dev/null >>"$LOG" 2>&1; }   # run a command with its output in the log
@@ -858,12 +849,12 @@ if [[ -n "$CREATOR" && "$CREATOR" != "$(cv_user id)" && -n "${PAT:-}" ]]; then
   else
     CREATOR_NAME=$(cv_contact_name "$PAT" "$CREATOR")
     if [[ -n "$CREATOR_NAME" ]]; then
-      if yn "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [y/n]"; then
+      if yes "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [Y/n]"; then
         OWNER_ID=$CREATOR
       fi
     else
       echo "  Carbon Voice says this Agent Account was created by the account with ID $CREATOR."
-      if yn "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/n]"; then OWNER_ID=$CREATOR; fi
+      if yes "  Is that your own Carbon Voice account? If so, it can skip pairing. [Y/n]"; then OWNER_ID=$CREATOR; fi
     fi
     if [[ -n "$OWNER_ID" ]]; then ALLOW_CREATOR=1; else ALLOW_CREATOR=0; fi
   fi
