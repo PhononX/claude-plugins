@@ -73,7 +73,7 @@ draft:
 | `sent` | brief headings | the time that brief was sent, `HH:MM` |
 | `kind` | catch-up | `reply` (someone asked the user something), `missed` (unread or unanswered and worth seeing), or `changed` (news that moves a project, action or waiting item) |
 | `raised` | catch-up | how many briefs have mentioned it |
-| `answer` | now, catch-up | the user's answer, given on the notebook page: `yes`, `no`, or another word the page offers, then the date |
+| `answer` | now, catch-up | the user's answer, given on the notebook page, then the date: `yes` or `no` to a suggested move; `draft` (draft the reply with them) or `snooze` (raise it again later) on a catch-up reply |
 | `at`, `days`, `covers` | my-rules briefs | a brief's time, its days, and what it covers |
 | `src` | anything | where it came from: `<source> <YYYY-MM-DD>`, then a link if there is one |
 | `replaces` | my-rules rules | the id of the default it replaces |

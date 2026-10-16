@@ -3,6 +3,8 @@
 Shown after ./update-cos.sh, for each version newer than the one you had.
 
 ## 0.4.1
+- A new notebook page: four views (Today, Open loops, Notebook, History) and one "How it works" page behind the gear. Old bookmarks still land in the right place.
+- Answer your agent right on the page ("Make project", "Not now", "Draft reply"), and type anything into the box at the top to add it to the inbox or search.
 - A second app, "<your agent> Notebook", opens your notebook page from Applications, Spotlight or the Dock.
 - Your agent's app now goes in the Applications folder Finder shows.
 - If the account you allowed isn't the one you message from, you get a pairing code back instead of silence.

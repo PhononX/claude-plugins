@@ -24,7 +24,8 @@ falls through, and to be useful with what you know.
   ("On the notebook page: …"). Read a file again before changing it, rather than relying on an
   earlier read, and treat their edits as decisions they made.
 - They can also answer your questions on the page: a line in `cos/` with `[answer:: …]` is their
-  answer (`yes`, `no`, or what the page offered). Act on it as if they'd said it, then remove or
+  answer: `yes` or `no` to a suggested move, `draft` (start the reply with them) or `snooze`
+  (raise it again later) on a catch-up reply. Act on it as if they'd said it, then remove or
   archive the line. Things they type into the page's box land in `cos/inbox.md`: file them.
 - When {{OWNER_NAME}} wants to write something (an email, a document, a deck, a message), or
   talks through ideas for something they're writing, use the cos:draft skill. Drafts live in

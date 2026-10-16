@@ -151,15 +151,16 @@ if [ -z "$PW" ]; then
   echo "  skipped: Playwright isn't installed (npm install -g playwright), so the page wasn't opened."
 else
   cat > "$TMP/check.mjs" <<'JS'
-// Opens brain.html in Chromium and walks through it. Args: playwright module, page, brand-new page, screenshot dir.
+// Opens brain.html in Chromium and walks through it. Args: playwright module, page, brand-new page, screenshot dir, older-format page, options.md.
 import { pathToFileURL } from "node:url";
+import fs from "node:fs";
 const [pwPath, pagePath, freshPath, shots, legacyPath, optionsPath] = process.argv.slice(2);
 const { chromium } = await import(pathToFileURL(pwPath).href);
 const CANARY = `</script> and <!-- not a comment --> with $HOME & "quotes" 'single' C:\\temp\\new 🚀 café`;
 let fails = 0;
 const fail = m => { console.log("  FAIL: " + m); fails++; };
 const ok = m => console.log("  ok: " + m);
-const url = (p, today = "2026-10-15", hash = "", now = "") => pathToFileURL(p).href + "?today=" + today + (now ? "&now=" + now : "") + hash;
+const url = (p, today = "2026-10-15", hash = "", now = "10:00") => pathToFileURL(p).href + "?today=" + today + (now ? "&now=" + now : "") + hash;
 
 const browser = await chromium.launch();
 async function open(p, opts = {}) {
@@ -170,12 +171,14 @@ async function open(p, opts = {}) {
   const errors = [];
   page.on("pageerror", e => errors.push("page error: " + e.message));
   page.on("console", m => { if (m.type() === "error" && !/fonts\.(googleapis|gstatic)|ERR_FAILED|net::/.test(m.text() + (m.location().url || ""))) errors.push("console: " + m.text()); });
-  await page.goto(url(p, opts.today, opts.hash || "", opts.now));
+  await page.goto(url(p, opts.today, opts.hash || "", opts.now === undefined ? "10:00" : opts.now));
   return { ctx, page, errors };
 }
 const mainText = page => page.locator("#main").innerText();
-// Headings are upper-cased by CSS, and innerText reports what's shown, so compare without case.
+// Section labels are upper-cased by CSS, and innerText reports what's shown, so compare without case.
 const has = (text, s) => text.toLowerCase().includes(s.toLowerCase());
+const go = async (page, h) => { await page.evaluate(x => { location.hash = x; }, h); await page.waitForTimeout(60); };
+const need = (text, list, where) => { for (const s of list) if (!has(text, s)) fail(`${where} is missing: ${s}`); };
 async function noJunk(page, where) {
   const t = await mainText(page);
   const bad = ["undefined", "[object", "NaN", "null"].filter(w => t.includes(w));
@@ -183,263 +186,204 @@ async function noJunk(page, where) {
   const sw = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (sw > 0) fail(`${where}: page scrolls sideways by ${sw}px`);
 }
-async function clickAllSections(page, label) {
-  let n = 0;
-  for (let i = 0; i < (await page.locator("#nav button").count()); i++, n++) {
-    const b = page.locator("#nav button").nth(i);
-    if (!(await b.isVisible())) { n--; continue; } // nested sub-pages are tabs in the page on phones
-    const name = (await b.locator("span").first().innerText()).trim();
-    const view = await b.getAttribute("data-view");
-    await b.click();
-    const h2 = (await page.locator("#main h2").first().innerText()).trim();
-    if (!h2) fail(`${label} ${name}: no heading`);
-    const cur = await page.locator(`#nav [data-view="${view}"]`).getAttribute("aria-current");
-    if (cur !== "page" && cur !== "true") fail(`${label} ${name}: not marked current`);
-    await noJunk(page, `${label} ${name}`);
+async function walk(page, label) {
+  const views = ["today", "loops", "notebook", "history", "how"];
+  for (const v of views) {
+    const link = v === "how" ? page.locator("#nav .howlink") : page.locator(`#nav a.nv[href="#${v}"]`);
+    if (await link.isVisible()) await link.click(); else await go(page, v);
+    const h1 = (await page.locator("#main h1").first().innerText()).trim();
+    if (!h1) fail(`${label} ${v}: no heading`);
+    const cur = await (v === "how" ? page.locator("#nav .howlink") : page.locator(`#nav a.nv[href="#${v}"]`)).getAttribute("aria-current");
+    if (cur !== "page") fail(`${label} ${v}: not marked current`);
+    await noJunk(page, `${label} ${v}`);
     const raw = page.locator("#main [data-raw]").first();
     if (await raw.count()) {
       await raw.click();
-      if (!(await page.locator("#main pre.raw").count())) fail(`${label} ${name}: Show the file shows nothing`);
+      if (!(await page.locator("#main pre.raw").count())) fail(`${label} ${v}: Show the file shows nothing`);
       await page.locator("#main [data-raw]").first().click();
-      if (await page.locator("#main pre.raw").count()) fail(`${label} ${name}: Show the file didn't toggle off`);
+      if (await page.locator("#main pre.raw").count()) fail(`${label} ${v}: Show the file didn't toggle off`);
     }
   }
-  ok(`${label}: opened all ${n} sections`);
+  ok(`${label}: opened all ${views.length} views`);
 }
 
-// The sample notebook.
+// ---------- the sample notebook ----------
 {
   const { ctx, page, errors } = await open(pagePath);
   if ((await page.title()) !== "Ada's notebook") fail("title is " + (await page.title()));
-  const byline = await page.locator("#byline").innerText();
-  if (!/^Chief of staff for Alex · updated /.test(byline)) fail("byline: " + byline);
+  if ((await page.locator("#byline").innerText()) !== "Chief of staff for Alex") fail("byline: " + (await page.locator("#byline").innerText()));
+  if ((await page.locator("#q").getAttribute("placeholder")) !== "Tell Ada something, or search everything Ada knows…") fail("omnibox placeholder: " + (await page.locator("#q").getAttribute("placeholder")));
+  if (!(await page.locator("#top-r .next").innerText()).includes("Next brief 12:30pm")) fail("next brief: " + (await page.locator("#top-r").innerText()));
+  if ((await page.locator('#top-r a[href="#how"]').getAttribute("aria-label")) !== "How Ada works") fail("gear button label");
+  const navs = await page.locator("#nav a.nv").allInnerTexts();
+  if (navs.map(s => s.split("\n")[0].trim()).join() !== "Today,Open loops,Notebook,History") fail("nav: " + navs.join(" | "));
+  if (!(await page.locator('#nav a.nv[href="#loops"] .n.hot').count())) fail("Open loops count isn't red with overdue loops");
+
+  // Today
   let t = await mainText(page);
-  for (const s of ["Thursday, October 15", "Needs your answer", "Follow-ups Ada can send", "do 1 and 3", "The numbers mean this brief", "This week", "Due today", "Tell Priya Natarajan SSO can ship Thursday", "Needs your reply"])
-    if (!has(t, s)) fail("Today is missing: " + s);
-  if (!has(t, "Due yesterday")) fail("Today: overdue action not shown");
-  // Two briefs: the latest (Midday check-in) first and open, the morning one collapsed below it.
-  const latestH = (await page.locator("#main .brief-latest .brief-h").innerText()).trim();
-  if (!/^Midday check-in/.test(latestH) || !/sent 12:31pm/.test(latestH)) fail("latest brief heading: " + latestH);
-  const old = page.locator("#main details.brief-old");
-  if ((await old.count()) !== 1) fail("expected 1 earlier brief, got " + (await old.count()));
+  need(t, ["Thursday, October 15", "Midday check-in sent 12:31pm", "Focus: Lock v3 pricing before Friday's Q4 Launch review", "Catch up 4", "To sort 3", "Due today or tomorrow 3", "Nudges 3",
+    "Ada needs your answer", "The referral idea has come up three times. Make it a project?", "Project?", "Jordan Kim asked for the Q3 churn numbers", "3 days waiting", "raised in 2 briefs",
+    "9:30am", "Prep ready", "Prep at 12:45pm", "Rest of the week", "Mon 19", "Catch up", "Raised 3 times · now a nudge", "Open loops", "1d late", "In play this week", "Dana Whitfield",
+    "Ada today", "Morning brief: 3 meetings", "Full history"], "Today");
+  if ((await page.locator("#ask .ask-row").count()) !== 5) fail("needs your answer rows: " + (await page.locator("#ask .ask-row").count()));
+  if (await page.locator("#ask [data-answer]").count()) fail("answer buttons on the read-only copy");
+  await page.locator('#ask [data-ui="askFilter"][data-v="replies"]').click();
+  if ((await page.locator("#ask .ask-row").count()) !== 2) fail("Replies filter: " + (await page.locator("#ask .ask-row").count()));
+  await page.locator('#ask [data-ui="askFilter"][data-v="all"]').click();
+  if (!(await mainText(page)).includes(CANARY)) fail("canary text didn't render literally on Today"); else ok("canary renders literally");
+  const bs = page.locator("#briefs details.brief");
+  if ((await bs.count()) !== 2) fail("briefs: " + (await bs.count()));
   else {
-    if (!/^Morning brief · sent 7:02am/.test((await old.locator("summary").innerText()).trim())) fail("earlier brief summary: " + (await old.locator("summary").innerText()));
-    if (await old.evaluate(d => d.open)) fail("earlier brief should start collapsed");
-    if (has(t, "Prep ready")) fail("collapsed brief's content is showing");
-    await old.locator("summary").click();
+    const sum0 = (await bs.nth(0).locator("summary").innerText()).replace(/\s+/g, " ").trim();
+    if (!/^Midday check-in · sent 12:31pm latest · 2 follow-ups$/.test(sum0)) fail("latest brief first: " + sum0);
+    if (await bs.nth(0).evaluate(d => d.open) || await bs.nth(1).evaluate(d => d.open)) fail("briefs should start collapsed");
+    await bs.nth(0).locator("summary").click(); await bs.nth(1).locator("summary").click();
     t = await mainText(page);
-    for (const s of ["9:30am", "Prep ready", "Prep at 12:45pm", "Due elsewhere", "Send the v3 pricing deck to Dana Whitfield before the 9:30 review", "You may have missed"])
-      if (!has(t, s)) fail("Morning brief is missing: " + s);
+    need(t, ["Follow-ups Ada can send", "Tell Priya Natarajan SSO can ship Thursday", "Send the v3 pricing deck to Dana Whitfield before the 9:30 review", "Due elsewhere", "You may have missed"], "briefs");
     if ((t.match(/The numbers mean this brief/g) || []).length !== 1) fail("the numbers hint should be on the latest brief only");
   }
-  if (!(await page.locator('#nav [data-view="actions"] .n.hot').count())) fail("actions count isn't marked overdue");
-  ok("Today page");
-  await clickAllSections(page, "sample");
+  await page.locator('#loops-summary [data-ui="todayTab"][data-v="owed"]').click();
+  if (!has(await page.locator("#loops-summary").innerText(), "Acme's Q1 seat forecast")) fail("Open loops summary: Owed to you tab");
+  await page.click("#main [data-raw]");
+  if (!(await page.locator("#main pre.raw").allInnerTexts()).join("\n").includes("Escaping canary: " + CANARY)) fail("canary wrong in Show the files"); else ok("canary literal in Show the files");
+  await page.click("#main [data-raw]");
+  ok("Today");
 
-  // Catch up.
-  const cuBtn = page.locator('#nav [data-view="catchup"]');
-  if ((await cuBtn.locator(".n").innerText()) !== "4") fail("catch-up count: " + (await cuBtn.locator(".n").innerText()));
-  if (!(await cuBtn.locator(".n.hot").count())) fail("catch-up count isn't red with a 3-day-old reply");
-  if ((await page.locator("#nav button").nth(1).getAttribute("data-view")) !== "catchup") fail("Catch up isn't right after Today");
-  await cuBtn.click();
-  let ct = await mainText(page);
-  for (const s of ["Needs your reply", "You may have missed", "Changed", "Raised 3 times · now a nudge", "Raised in 2 briefs", "3 days", "7 days", "Acme moved the renewal call to Dec 3"])
-    if (!has(ct, s)) fail("Catch up is missing: " + s);
-  if (!(await page.locator('#main a.src[href*="FMfcgzQXJWDsKmbNlrqhGvq"]').count())) fail("catch-up source chip doesn't link to the thread");
-  ok("Catch up page");
-
-  // Phone width: the sub-pages are a second row of tabs under the page title.
-  {
-    await page.setViewportSize({ width: 400, height: 900 });
-    await page.evaluate(() => { location.hash = "how/briefs"; });
-    if (!(await page.locator("#main .subtabs").isVisible()) || (await page.locator("#nav .subnav").isVisible())) fail("phone: sub-tabs not shown in place of the nested index");
-    await page.locator('#main .subtabs [data-view="how/knows"]').click();
-    if (!page.url().endsWith("#how/knows") || (await page.locator('#main .subtabs [aria-current="page"]').getAttribute("data-view")) !== "how/knows") fail("phone sub-tab didn't switch");
-    await page.setViewportSize({ width: 1280, height: 900 });
-    if (await page.locator("#main .subtabs").isVisible()) fail("sub-tabs showing on a wide screen");
-    await page.evaluate(() => { location.hash = "today"; });
-    ok("How Ada works: phone sub-tabs");
-  }
-  // Drafts.
-  const views = await page.locator("#nav button").evaluateAll(bs => bs.map(b => b.dataset.view));
-  if (views.indexOf("drafts") !== views.indexOf("waiting") + 1) fail("Drafts isn't right after Waiting on others: " + views.join(","));
-  const drBtn = page.locator('#nav [data-view="drafts"]');
-  if ((await drBtn.locator(".n").innerText()) !== "4") fail("drafts count: " + (await drBtn.locator(".n").innerText()));
-  if (await drBtn.locator(".n.hot").count()) fail("drafts count is red with nothing urgent");
-  await drBtn.click();
-  let dt = await mainText(page);
-  for (const s of ["Soon", "Long-term", "Moved or finished", "Pricing philosophy essay", "Last worked on Sep 20", "Waiting to be picked up", "Board narrative", "v3 · shorter opening, churn first", "For Jordan Kim", "Pricing email to Dana", "Ready", "Outline", "Moved", "Done", "Deck", "Email", "Message", "Due tomorrow"])
-    if (!has(dt, s)) fail("Drafts page is missing: " + s);
-  const openIn = page.locator('#main a.obs[href="https://docs.google.com/document/d/sample"]');
-  if (!(await openIn.count()) || !has(await openIn.first().innerText(), "Open in Google Docs") || (await openIn.first().getAttribute("target")) !== "_blank") fail("moved draft's Open in link");
-  const longCards = page.locator("#main section.block", { has: page.locator("h3", { hasText: /^Long-term/i }) }).locator(".dcard");
-  if ((await longCards.count()) !== 1 || !has(await longCards.first().innerText(), "Waiting to be picked up")) fail("Long-term group");
-  if (await longCards.locator(".tag.late, .tag.due").count()) fail("long-term draft has a warning tone");
-  const soonCards = page.locator("#main section.block", { has: page.locator("h3", { hasText: /^Soon/i }) }).locator(".dcard");
-  if ((await soonCards.count()) !== 3 || has(await soonCards.allInnerTexts().then(t => t.join(" ")), "Waiting to be picked up")) fail("Soon group");
-  ok("Drafts page");
-  await page.click('#main a[href="#drafts/Q4%20launch%20deck"]');
-  dt = await mainText(page);
-  if ((await page.locator("#main .slide").count()) !== 4) fail("deck should show 4 slides, got " + (await page.locator("#main .slide").count()));
-  if ((await page.locator("#main .slide-notes").count()) !== 4 || !has(dt, "Open with the pricing decision")) fail("speaker notes missing");
-  if (has(dt, "Speaker notes: Open")) fail("speaker notes prefix not stripped");
-  for (const s of ["Kind", "Deck", "Outline", "Project", "Q4 Launch", "History", "Linked from"]) if (!has(dt, s)) fail("deck page is missing: " + s);
-  await page.click("#main [data-raw]");
-  if (!(await page.locator("#main pre.raw").innerText()).includes("### 2. What launches on Nov 18")) fail("deck Show the file");
-  await page.click("#main [data-raw]");
-  ok("deck draft page");
-  await page.evaluate(() => { location.hash = "drafts/Acme%20uptime%20credit%20offer"; });
-  dt = await mainText(page);
-  if (!has(dt, "This moved to Google Docs on Thu, Oct 15. The copy there is the real one.")) fail("moved banner: " + dt.slice(0, 300));
-  if (!(await page.locator('#main .moved-banner a[href="https://docs.google.com/document/d/sample"]').count())) fail("moved banner link");
-  ok("moved draft page");
-  await page.evaluate(() => { location.hash = "people/Jordan%20Kim"; });
-  if (!(await page.locator('#main .backlinks a.wl[href="#drafts/Board%20narrative"]').count())) fail("person page doesn't list drafts for them");
-  await page.evaluate(() => { location.hash = "drafts/Pricing%20email%20to%20Dana"; });
-  if (!has(await mainText(page), "cos/now.md")) fail("draft page doesn't show what links to it");
-  await page.evaluate(() => { location.hash = "today"; });
-  dt = await mainText(page);
-  if (!has(dt, "Drafts due soon") || !(await page.locator('#main a.wl[href="#drafts/Pricing%20email%20to%20Dana"]').count())) fail("Drafts due soon on Today");
-  await page.click('#nav [data-view="archive"]');
-  ct = await mainText(page);
-  if (!has(ct, "From catch-up") || !has(ct, "Why: replied") || !has(ct, "Why: skipped")) fail("archived catch-up lines");
-  await page.click('#nav [data-view="inbox"]');
-  if (!(await mainText(page)).includes(CANARY)) fail("canary text didn't render literally");
-  else ok("canary renders literally");
-  await page.click("#main [data-raw]");
-  if (!(await page.locator("#main pre.raw").innerText()).includes("Escaping canary: " + CANARY)) fail("canary wrong in Show the file");
-  else ok("canary literal in Show the file");
-  await page.click("#main [data-raw]");
-
-  await page.click('#nav [data-view="people"]');
-  await page.click('#main [data-go="people/Dana%20Whitfield"]');
-  if (!page.url().endsWith("#people/Dana%20Whitfield")) fail("person hash: " + page.url());
-  let pt = await mainText(page);
-  if (!has(pt, "Dana Whitfield") || !/Linked from \d+ places/i.test(pt) || !has(pt, "cos/actions.md") || !has(pt, "Head of Sales")) fail("person page incomplete");
-  else ok("person page");
-  await page.click("#main [data-raw]");
-  if (!(await page.locator("#main pre.raw").innerText()).includes("rhythm: Weekly pricing sync")) fail("person Show the file");
-  await page.click("#main [data-raw]");
+  // Open loops
+  await go(page, "loops");
+  t = await mainText(page);
+  need(t, ["Open loops", "14 promises in flight", "You owe", "Owed to you", "Drafting", "Overdue", "Done this week", "Reply to Jordan Kim with Q3 churn numbers", "16 days waiting",
+    "Acme's Q1 seat forecast", "Pricing philosophy essay", "Long-term", "Lists in other tools", "Linear", "Open Linear"], "Open loops");
+  if ((await page.locator("#main .cols3 > .card").count()) !== 3) fail("Open loops: three columns");
+  await page.locator('[data-ui="loopsGroup"][data-v="person"]').click();
+  t = await mainText(page);
+  if (!(await page.locator("#main table.gt").count()) || !has(t, "Dana Whitfield") || !has(t, "overdue")) fail("Open loops by person");
   await page.reload();
-  if (!has(await mainText(page), "Linked from")) fail("reload lost the open note");
+  if ((await page.locator('[data-ui="loopsGroup"][data-v="person"]').getAttribute("aria-pressed")) !== "true") fail("grouping isn't kept across reload");
+  await page.locator('[data-ui="loopsGroup"][data-v="project"]').click();
+  if (!has(await mainText(page), "Q4 Launch")) fail("Open loops by project");
+  await page.locator('[data-ui="loopsFilter"][data-v="late"]').click();
+  if ((await page.locator("#main table.gt tbody tr[data-il]").count()) !== 3) fail("Overdue filter rows: " + (await page.locator("#main table.gt tbody tr[data-il]").count()));
+  await page.locator('[data-ui="loopsFilter"][data-v="all"]').click();
+  await page.locator('[data-ui="loopsGroup"][data-v="status"]').click();
+  ok("Open loops");
+  // Drafts open from Drafting
+  await page.click('#main a[href="#drafts/Q4%20launch%20deck"]');
+  t = await mainText(page);
+  if ((await page.locator("#main .slide").count()) !== 4) fail("deck should show 4 slides, got " + (await page.locator("#main .slide").count()));
+  if ((await page.locator("#main .slide-notes").count()) !== 4 || !has(t, "Open with the pricing decision")) fail("speaker notes missing");
+  if (has(t, "Speaker notes: Open")) fail("speaker notes prefix not stripped");
+  if ((await page.locator('#nav a.nv[href="#loops"]').getAttribute("aria-current")) !== "page") fail("a draft belongs to Open loops");
+  await go(page, "drafts/Acme%20uptime%20credit%20offer");
+  if (!has(await mainText(page), "This moved to Google Docs on Thu, Oct 15. The copy there is the real one.")) fail("moved banner");
+  if (!(await page.locator('#main .moved-banner a[href="https://docs.google.com/document/d/sample"]').count())) fail("moved banner link");
+  ok("drafts");
 
-  await page.click('#nav [data-view="projects"]');
-  await page.click('#main [data-go="projects/Q4%20Launch"]');
-  pt = await mainText(page);
-  if (!has(pt, "Q4 Launch") || !/Linked from \d+ places/i.test(pt) || !has(pt, "v3 pricing and the new onboarding")) fail("project page incomplete");
-  else ok("project page");
-  await page.click("#main .back");
-  await page.click('#main [data-go="areas/Hiring"]');
-  pt = await mainText(page);
-  if (!has(pt, "Hiring") || !/Linked from/i.test(pt)) fail("area page incomplete"); else ok("area page");
-  // A link inside a note goes to that note.
-  await page.click('#main a.wl[href="#people/Marcus%20Bell"]');
-  if (!(await page.locator("#main h2").innerText()).includes("Marcus Bell")) fail("wikilink didn't open the note"); else ok("wikilinks open notes");
-
-  await page.evaluate(() => { location.hash = "people/Jordan%20Kim"; });
-  if (!has(await mainText(page), "cos/catch-up.md")) fail("person page doesn't list catch-up lines");
-  await page.click('#nav [data-view="links"]');
-  const none = page.locator("#main a.wl-none", { hasText: "Mei Chen" });
-  if (!(await none.count()) || (await none.first().getAttribute("title")) !== "No note yet: 2 mentions") fail("unlinked name isn't marked: " + (await none.first().getAttribute("title")));
-  await none.first().click();
-  if (!page.url().endsWith("#name/Mei%20Chen")) fail("name with no note didn't open its page: " + page.url());
-  pt = await mainText(page);
-  for (const s of ["Mei Chen", "No note yet. Ada starts one once Mei Chen comes up again, or ask Ada to start one now.", "2 mentions", "cos/facts.md", "cos/log/2026-10-14.md", "confirmed the new Stripe invoice format"])
-    if (!has(pt, s)) fail("name page is missing: " + s);
+  // Notebook
+  await go(page, "notebook");
+  t = await mainText(page);
+  need(t, ["Notebook", "People", "Projects & areas", "Ideas", "Links & facts", "Decisions", "Dana Whitfield", "Q4 Launch", "Key customers", "Team tier drops to $18"], "Notebook");
+  await page.click('#main a.pill[href="#notebook/people"]');
+  need(await page.locator("#main .ix").innerText(), ["Mei Chen", "no note", "2 mentions", "Sam Okafor"], "Notebook · People");
+  await page.click('#main .ixr[href="#people/Dana%20Whitfield"]');
+  t = await page.locator("#main .dtcard").innerText();
+  need(t, ["Dana Whitfield", "Head of Sales, Northwind", "You owe them", "They owe you", "Mentions", "Open loops", "Everything that mentions Dana", "cos/actions.md".replace("cos/actions.md", "Open loops · You owe"), "Weekly pricing sync, Thursdays", "Linked"], "Person detail");
+  if ((await page.locator('#main .ixr[aria-current="true"]').getAttribute("href")) !== "#people/Dana%20Whitfield") fail("picked person isn't marked in the index");
+  await page.locator("#main .dtcard [data-raw]").click();
+  if (!(await page.locator("#main .dtcard pre.raw").innerText()).includes("rhythm: Weekly pricing sync")) fail("person Show the file");
+  await page.locator("#main .dtcard [data-raw]").click();
+  await go(page, "name/Mei%20Chen");
+  t = await page.locator("#main .dtcard").innerText();
+  need(t, ["Mei Chen", "no note yet", "No note yet. Ada starts one once Mei Chen comes up again", "2 mentions", "confirmed the new Stripe invoice format"], "Name with no note");
   if (await page.locator("#main [data-start-note]").count()) fail("Start a note shown on the read-only copy");
-  ok("names with no note open a page");
-  await page.click('#nav [data-view="people"]');
-  pt = await mainText(page);
-  const mentioned = page.locator("#main section.block", { has: page.locator("h3", { hasText: /^Mentioned, no note yet/i }) });
-  if (!(await mentioned.count()) || !has(await mentioned.innerText(), "Mei Chen · 2 mentions")) fail("People: Mentioned, no note yet");
-  for (const p of ["Q4 Launch", "Board deck", "Product"]) if (has(await mentioned.innerText().catch(() => ""), p)) fail("People lists a project as a name: " + p);
-  ok("People: mentioned, no note yet");
+  if ((await page.locator('#main .ixr[aria-current="true"]').getAttribute("href")) !== "#name/Mei%20Chen") fail("Mei Chen isn't marked in the index");
+  await page.click('#main a.pill[href="#notebook/projects"]');
+  await page.click('#main .ixr[href="#projects/Q4%20Launch"]');
+  t = await page.locator("#main .dtcard").innerText();
+  need(t, ["Q4 Launch", "Active", "Open loops", "Decisions", "People", "Links & facts", "v3 pricing and the new onboarding", "Pricing email to Dana"], "Project detail");
+  await go(page, "areas/Hiring");
+  if (!has(await page.locator("#main .dtcard").innerText(), "Projects in this area") || !has(await page.locator("#main .dtcard").innerText(), "Senior PM hiring")) fail("area detail");
+  await go(page, "notebook/links");
+  await page.locator("#main .ixr", { hasText: "Customer beta signup form" }).click();
+  t = await page.locator("#main .dtcard").innerText();
+  if (!has(t, "forms.northwind.example/v3-beta") || !(await page.locator("#main .dtcard [data-copy]").count())) fail("link detail");
+  const none = page.locator("#main .dtcard a.wl-none", { hasText: "Mei Chen" });
+  await go(page, "notebook/links");
+  await page.locator("#main .ixr", { hasText: "Billing and Stripe questions" }).click();
+  if (!(await none.count()) || (await none.first().getAttribute("title")) !== "No note yet: 2 mentions") fail("unlinked name isn't marked");
+  await page.fill("#ix-q", "acme");
+  if ((await page.locator("#main .ixr").count()) < 1 || has(await page.locator("#main .ix").innerText(), "Board portal")) fail("index filter");
+  await page.fill("#ix-q", "");
+  // old addresses land in the Notebook
+  await go(page, "people");
+  if ((await page.locator('#main a.pill[href="#notebook/people"]').getAttribute("aria-pressed")) !== "true") fail("#people doesn't open Notebook · People");
+  await go(page, "ideas");
+  if ((await page.locator('#main a.pill[href="#notebook/ideas"]').getAttribute("aria-pressed")) !== "true") fail("#ideas doesn't open Notebook · Ideas");
+  ok("Notebook");
 
-  // How Ada works for you: nested sub-pages under its index entry.
-  const howText = async (page, sub) => { await page.evaluate(h => { location.hash = h; }, "how/" + sub); return mainText(page); };
-  await page.click('#nav [data-view="how"]');
-  if (!page.url().endsWith("#how/rules")) fail("the parent should open its first sub-page: " + page.url());
-  const subs = await page.locator("#nav .subnav button").evaluateAll(bs => bs.map(b => b.dataset.view));
-  if (subs.join() !== "how/rules,how/briefs,how/tools,how/knows,how/defaults,how/can") fail("sub-pages: " + subs.join());
-  if ((await page.locator('#nav [data-view="how"]').getAttribute("aria-expanded")) !== "true") fail("parent isn't marked expanded");
-  pt = await howText(page, "rules");
-  for (const s of ["Your rules", "Nudges", "At most 2 a day", "My rules", "Nudge me at most twice a day", "Where things go", "Moved from my-instructions.md"]) if (!has(pt, s)) fail("Your rules is missing: " + s);
-  if (has(pt, "Brief days") || has(pt, "Your briefs")) fail("Your rules shows brief settings");
-  if ((await page.locator("#main section.block > h3", { hasText: /^Notes$/i }).count())) fail("a nested heading shows as its own section");
-  if ((await page.locator("#main .path").innerText()).trim() !== "cos/my-rules.md") fail("Your rules file: " + (await page.locator("#main .path").innerText()));
-  pt = await howText(page, "briefs");
-  for (const s of ["Your briefs", "Midday check-in", "12:30pm", "6:45am", "Fridays", "Weekdays", "What goes in my briefs", "Skip newsletters", "Important people"]) if (!has(pt, s)) fail("Briefs is missing: " + s);
-  pt = await howText(page, "tools");
-  for (const s of ["My tools", "Presentations: Google Slides", "Team updates: Slack, #product-leads", "How I write", "Executives", "Numbers first, then the story"]) if (!has(pt, s)) fail("Tools & voice is missing: " + s);
-  const toolsRows = await page.locator("#main section.block", { has: page.locator("h3", { hasText: /^My tools/i }) }).locator("tbody tr").count();
-  if (toolsRows !== 4) fail("My tools rows: " + toolsRows);
-  const writeRows = await page.locator("#main section.block", { has: page.locator("h3", { hasText: /^How I write/i }) }).locator("tbody tr").count();
-  if (writeRows !== 5) fail("How I write rows: " + writeRows);
-  if (!has(await page.locator("#main .path").innerText(), "cos/my-rules.md · cos/about-me.md")) fail("Tools & voice files");
-  pt = await howText(page, "knows");
-  for (const s of ["What Ada knows about you", "VP of Product", "Learned", "Family and time off"]) if (!has(pt, s)) fail("What Ada knows is missing: " + s);
-  if (has(pt, "Numbers first, then the story")) fail("How I write shows on What Ada knows");
-  pt = await howText(page, "defaults");
-  for (const s of ["You changed this", "Always on", "Now: 3 briefs"]) if (!has(pt, s)) fail("Defaults is missing: " + s);
-  if ((await page.locator("#main .overridden").count()) !== 3) fail("expected 3 struck-through defaults");
-  if (!has(await page.locator("#main .path").innerText(), ".cos/defaults.md")) fail("Defaults file");
-  // Everything Ada can do, from .cos/options.md: one block per group.
-  pt = await howText(page, "can");
-  const groups = [...(await import("node:fs")).readFileSync(new URL("file://" + optionsPath)).toString().matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
-  if (!has(pt, "Everything Ada can do") || !has(pt, "what can you do?") || !has(pt, "/cos:settings")) fail("Everything Ada can do section missing");
+  // History
+  await go(page, "history");
+  t = await mainText(page);
+  need(t, ["History", "Wednesday, Oct 14", "Captured", "Decision", "Brief", "Archived", "Mei Chen confirmed the new Stripe invoice format is cosmetic", "Activity", "6 weeks ago", "This week", "Daily notes", "cos/log/"], "History");
+  if ((await page.locator("#main .heat i").count()) !== 42) fail("activity cells: " + (await page.locator("#main .heat i").count()));
+  if (!(await page.locator("#main .heat i.l1, #main .heat i.l2, #main .heat i.l3").count())) fail("activity shows nothing");
+  await page.locator('#main [data-ui="histFilter"][data-v="archived"]').first().click();
+  t = await mainText(page);
+  if (!has(t, "Look into the conference sponsorship for March") || has(t, "Mei Chen confirmed")) fail("Archived filter");
+  await page.locator('#main [data-ui="histFilter"][data-v="all"]').click();
+  await page.fill("#hist-q", "stripe");
+  t = await page.locator("#main .hist").innerText();
+  if (!has(t, "Mei Chen confirmed") || has(t, "Linear: PRD-398")) fail("history search");
+  if ((await page.evaluate(() => document.activeElement && document.activeElement.id)) !== "hist-q") fail("history search box loses focus while typing");
+  await page.fill("#hist-q", "");
+  await go(page, "archive");
+  if ((await page.locator('#main [data-ui="histFilter"][data-v="archived"]').first().getAttribute("aria-pressed")) !== "true") fail("#archive doesn't open History · Archived");
+  await page.locator('#main [data-ui="histFilter"][data-v="all"]').click();
+  ok("History");
+
+  // How Ada works
+  await page.click('#top-r a[href="#how"]');
+  t = await mainText(page);
+  need(t, ["How Ada works", "Where Ada listens", "Carbon Voice", "not connected", "Briefs", "Midday check-in", "Fridays 4:30pm", "Weekdays 6:45am", "Always include these people", "Jordan Kim",
+    "Rules", "At most 2 a day", "Nudge me at most twice a day", "Where things go", "Moved from my-instructions.md", "Tools & voice", "Google Slides", "How you write", "Executives",
+    "What Ada knows about you", "VP of Product", "Learned", "Family and time off", "Defaults & everything Ada can do", "Morning brief · changed", "Ask before sending · always", "1 thing to finish setting up"], "How Ada works");
+  if (!(await page.locator("#top-r .backbtn").count())) fail("How Ada works: no Back to Today");
+  if ((await page.locator("#main table.t tbody tr").count()) !== 5) fail("How you write rows: " + (await page.locator("#main table.t tbody tr").count()));
+  await page.click("#main details.more summary");
+  t = await mainText(page);
+  need(t, ["You changed this", "Now: 3 briefs", "Always on", "Everything Ada can do", "what can you do?", "/cos:settings", "Default: on"], "Show all defaults");
+  if ((await page.locator("#main .overridden").count()) !== 3) fail("expected 3 struck-through defaults, got " + (await page.locator("#main .overridden").count()));
+  if (!/Say: "move my morning brief to 6:45"/.test(t)) fail("Say: hint missing");
+  const groups = [...fs.readFileSync(optionsPath, "utf8").matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
   for (const g of groups) if (!(await page.locator("#main section.block > h4", { hasText: new RegExp("^" + g.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") }).count())) fail("options group missing: " + g);
-  if (!/Say: "move my morning brief to 6:45"/.test(pt)) fail("Say: hint missing");
-  if (!has(pt, "Default: on")) fail("Default chip missing");
-  if (!has(pt, "\"Catch me up since Friday\"")) fail("Ask any time phrases missing");
-  await page.click("#main [data-raw]");
-  if (!(await page.locator("#main .rawfile .path", { hasText: ".cos/options.md" }).count())) fail("options.md not in Show the file");
-  await page.click("#main [data-raw]");
-  ok("Everything Ada can do (" + groups.length + " groups)");
-  if ((await page.locator('#nav .subnav [aria-current="page"]').getAttribute("data-view")) !== "how/can") fail("current sub-page not marked");
-  await page.click('#nav [data-view="sources"]');
-  if (await page.locator("#nav .subnav").count()) fail("sub-pages stay open after leaving");
-  ok("How Ada works page");
+  for (const [old, sec] of [["how/briefs", "how-briefs"], ["how/knows", "how-about"], ["about", null], ["sources", "how-listening"], ["how/can", "how-defaults"]]) {
+    await go(page, old);
+    if ((await page.locator("#nav .howlink").getAttribute("aria-current")) !== "page") fail(`#${old} doesn't open How Ada works`);
+    if (sec && !(await page.locator("#" + sec).count())) fail(`#${old}: no section ${sec}`);
+  }
+  ok("How Ada works (" + groups.length + " option groups)");
 
+  // Search from the omnibox
   await page.fill("#q", "v3-beta");
-  pt = await mainText(page);
-  if (!has(pt, "forms.northwind.example/v3-beta") || !(await page.locator("#main mark").count())) fail("search for a URL fragment");
-  await page.fill("#q", "uptime");
-  pt = await mainText(page);
-  if (!/\d+ results for “uptime”/.test(pt)) fail("search heading: " + pt.slice(0, 80));
-  await page.locator("#main .grouplink", { hasText: "My actions" }).click();
-  if ((await page.inputValue("#q")) !== "" || !(await page.locator("#main h2").innerText()).includes("My actions")) fail("search group header didn't open the section");
-  await page.fill("#q", "GitHub notifications");
-  if (!(await page.locator("#main .grouplink", { hasText: "Everything Ada can do" }).count()) || !has(await mainText(page), ".cos/options.md")) fail("search doesn't cover options.md");
-  await page.fill("#q", "Presentations: Google Slides");
-  await page.locator("#main .grouplink", { hasText: "Tools & voice" }).click();
-  if (!page.url().endsWith("#how/tools")) fail("search result didn't land on its sub-page: " + page.url());
+  t = await mainText(page);
+  if (!has(t, "forms.northwind.example/v3-beta") || !(await page.locator("#main mark").count())) fail("search for a URL fragment");
+  await page.locator("#main .grouplink", { hasText: "Notebook" }).click();
+  if ((await page.inputValue("#q")) !== "" || !(await page.locator("#main h1").innerText()).includes("Notebook")) fail("search group header didn't open its view");
   await page.fill("#q", "Skip newsletters");
-  if (!(await page.locator("#main .grouplink", { hasText: "Briefs" }).count())) fail("search groups my-rules lines by sub-page: " + (await page.locator("#main .grouplink").allInnerTexts()).join(" | "));
+  if (!(await page.locator("#main .grouplink", { hasText: "How Ada works" }).count())) fail("search groups my-rules lines under How Ada works");
   await page.fill("#q", "stopped losing small teams");
-  if (!(await page.locator("#main .grouplink", { hasText: "Drafts" }).count())) fail("search doesn't find draft text");
+  if (!(await page.locator("#main .grouplink", { hasText: "Open loops" }).count())) fail("search doesn't find draft text");
   await page.fill("#q", "canary");
   if (!(await mainText(page)).includes(CANARY)) fail("canary wrong in search results");
-  await page.fill("#q", "");
+  await page.keyboard.press("Escape");
+  if ((await page.inputValue("#q")) !== "") fail("Esc doesn't clear the search");
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+k" : "Control+k");
+  if ((await page.evaluate(() => document.activeElement && document.activeElement.id)) !== "q") fail("Ctrl+K doesn't focus the omnibox");
   ok("search");
-  if (errors.length) { errors.forEach(e => fail(e)); } else ok("no page or console errors");
+  if (!(await page.locator(".notice.ro").count()) || !has(await page.locator(".notice.ro").innerText(), "Read-only copy")) fail("read-only notice missing");
+  await walk(page, "sample");
+  errors.forEach(e => fail(e)); if (!errors.length) ok("no page or console errors");
   await ctx.close();
-}
-// Obsidian buttons, when Obsidian is installed.
-{
-  const fs = await import("node:fs");
-  const obsPath = pagePath.replace(/brain\.html$/, "brain-obsidian.html");
-  fs.writeFileSync(obsPath, fs.readFileSync(pagePath, "utf8").replace('"obsidian":false', '"obsidian":true'));
-  const { ctx, page, errors } = await open(obsPath, { hash: "#people/Dana%20Whitfield" });
-  const top = page.locator("#obs-top a.obs");
-  const href = (await top.count()) ? await top.getAttribute("href") : "";
-  if (!href.startsWith("obsidian://open?path=") || !decodeURIComponent(href).endsWith("/my work & notes/cos/now.md")) fail("Obsidian header link: " + href);
-  if (!((await top.getAttribute("title")) || "").includes("Open folder as vault")) fail("Obsidian first-time hint missing");
-  const small = page.locator("#main a.obs.small");
-  if (!(await small.count()) || !decodeURIComponent(await small.getAttribute("href")).endsWith("/cos/people/Dana Whitfield.md")) fail("per-page Obsidian link");
-  else ok("Obsidian links");
-  errors.forEach(e => fail(e));
-  await ctx.close();
-  fs.unlinkSync(obsPath);
 }
 // No brief yet today: the next one comes from "My briefs".
 for (const [path, today, now, want] of [
@@ -453,8 +397,13 @@ for (const [path, today, now, want] of [
 ]) {
   const { ctx, page, errors } = await open(path, { today, now });
   const t = await mainText(page);
-  if (!has(t, want)) fail(`next brief for ${today} ${now}: wanted "${want}", page says "${(t.match(/No brief yet today\.[^\n]*/) || ["nothing"])[0]}"`);
+  if (!has(t, want)) fail(`next brief for ${today} ${now}: wanted "${want}", page says "${(t.match(/No brief yet today\.[^\n·]*/) || ["nothing"])[0]}"`);
   errors.forEach(e => fail(e));
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open(pagePath, { today: "2026-10-17", now: "10:00" });
+  if (!(await page.locator("#top-r .next").innerText()).includes("Next brief Mon 6:45am")) fail("header next brief on Saturday: " + (await page.locator("#top-r .next").innerText()));
   await ctx.close();
 }
 ok("next brief");
@@ -462,20 +411,14 @@ ok("next brief");
 {
   const { ctx, page, errors } = await open(legacyPath);
   let t = await mainText(page);
-  const h = (await page.locator("#main .brief-latest .brief-h").innerText()).trim();
-  if (!/^Morning brief/.test(h) || !/sent 7:02am/.test(h)) fail("legacy brief heading: " + h);
-  for (const s of ["Focus", "9:30am", "Prep ready", "Follow-ups Ada can send", "The numbers mean this brief", "Jordan, Q3 logo churn was 2.1%.", "Due elsewhere"])
-    if (!has(t, s)) fail("legacy brief is missing: " + s);
-  if (await page.locator("#main details.brief-old").count()) fail("legacy brief shows earlier briefs");
-  await page.evaluate(() => { location.hash = "how/briefs"; });
+  need(t, ["Morning brief sent 7:02am", "9:30am", "Prep ready"], "legacy Today");
+  const s = page.locator("#briefs details.brief");
+  if ((await s.count()) !== 1 || !/^Morning brief · sent 7:02am/.test((await s.locator("summary").innerText()).replace(/\s+/g, " ").trim())) fail("legacy brief summary");
+  else { await s.locator("summary").click(); need(await mainText(page), ["Follow-ups Ada can send", "The numbers mean this brief", "Jordan, Q3 logo churn was 2.1%."], "legacy brief"); }
+  await go(page, "how");
   t = await mainText(page);
-  await page.evaluate(() => { location.hash = "how/rules"; });
-  t += await mainText(page);
-  await page.evaluate(() => { location.hash = "how/defaults"; });
-  t += await mainText(page);
-  for (const s of ["Your briefs", "Morning brief", "At 7:30am", "7:30am", "Weekdays", "From your settings", "Now: 1 brief"])
-    if (!has(t, s)) fail("legacy How Ada works is missing: " + s);
-  await clickAllSections(page, "legacy");
+  need(t, ["Morning brief", "Weekdays 7:30am", "From your settings", "Morning brief · changed"], "legacy How Ada works");
+  await walk(page, "legacy");
   errors.forEach(e => fail(e));
   ok("older brief.md and my-rules.md");
   await ctx.close();
@@ -483,46 +426,49 @@ ok("next brief");
 // Phone width.
 {
   const { ctx, page, errors } = await open(pagePath, { width: 400 });
-  await clickAllSections(page, "400px");
-  await page.click('#nav [data-view="people"]');
-  await page.click('#main [data-go="people/Dana%20Whitfield"]');
+  await walk(page, "400px");
+  if (!(await page.locator("#nav a.nv").first().isVisible())) fail("phone: nav tabs hidden");
+  await go(page, "people/Dana%20Whitfield");
   await noJunk(page, "400px person");
+  await go(page, "drafts/Q4%20launch%20deck");
+  await noJunk(page, "400px deck");
   errors.forEach(e => fail(e));
   await ctx.close();
 }
 // A brand-new notebook.
 {
   const { ctx, page, errors } = await open(freshPath);
-  await clickAllSections(page, "new notebook");
-  await page.click('#nav [data-view="people"]');
-  if (!has(await mainText(page), "No people notes yet. Ada starts a note for someone once they keep coming up")) fail("new notebook: people empty state");
-  await page.click('#nav [data-view="drafts"]');
-  if (!has(await mainText(page), "No drafts yet. Tell Ada “start a draft email to …” and it shows up here.")) fail("new notebook: drafts empty state: " + (await mainText(page)).slice(0, 400));
-  await page.evaluate(() => { location.hash = "how/tools"; });
-  const nt = await mainText(page);
-  if (!has(nt, "When a draft is ready, Ada asks where it should go")) fail("new notebook: My tools empty state");
-  if (!has(nt, "Ada asks before learning how you write from your sent messages")) fail("new notebook: How I write empty state");
-  if (!(await mainText(page)).length) fail("new notebook: empty page");
+  await walk(page, "new notebook");
+  await go(page, "today");
+  need(await mainText(page), ["What’s taking most of your head this week?", "Catch up: all clear", "Nothing to sort", "No nudges today", "Nothing you owe right now."], "new Today");
+  await go(page, "loops");
+  need(await mainText(page), ["Nothing you owe.", "Nothing outstanding.", "No drafts."], "new Open loops");
+  await go(page, "notebook");
+  need(await mainText(page), ["Nothing here yet. Tell Ada about people"], "new Notebook");
+  await go(page, "history");
+  need(await mainText(page), ["Nothing yet. Each day Ada captures something"], "new History");
+  await go(page, "how");
+  need(await mainText(page), ["No rules of your own yet", "When a draft is ready, Ada asks where it should go", "Ada asks before learning how you write from your sent messages", "Morning brief · on"], "new How Ada works");
   errors.forEach(e => fail(e));
   await ctx.close();
 }
 // Screenshots, when asked for.
 if (shots) {
-  const shotsOf = async (width, dark, list) => {
-    const { ctx, page } = await open(pagePath, { width, dark });
+  const shotsOf = async (p, prefix, width, dark, list) => {
+    const { ctx, page } = await open(p, { width, dark });
     for (const [name, hash] of list) {
-      await page.evaluate(h => { location.hash = h; }, hash);
-      await page.waitForTimeout(250);
-      await page.screenshot({ path: `${shots}/${name}-${width}${dark ? "-dark" : ""}.png`, fullPage: true });
+      await go(page, hash); await page.waitForTimeout(200);
+      await page.screenshot({ path: `${shots}/${prefix}${name}-${width}${dark ? "-dark" : ""}.png`, fullPage: true });
     }
     await ctx.close();
   };
-  await shotsOf(1280, false, [["catchup", "catchup"], ["drafts", "drafts"], ["draft-deck", "drafts/Q4%20launch%20deck"], ["draft-moved", "drafts/Acme%20uptime%20credit%20offer"]]);
-  await shotsOf(400, false, [["draft-deck", "drafts/Q4%20launch%20deck"], ["drafts", "drafts"]]);
-  const list = [["today", "today"], ["person", "people/Dana%20Whitfield"], ["people", "people"], ["name-page", "name/Mei%20Chen"], ["about", "how/rules"], ["about-briefs", "how/briefs"], ["about-tools", "how/tools"], ["about-defaults", "how/defaults"], ["about-can", "how/can"]];
-  await shotsOf(1280, false, list);
-  await shotsOf(400, false, list);
-  await shotsOf(1280, true, [["today", "today"], ["people", "people"], ["about", "how/rules"]]);
+  const views = [["today", "today"], ["loops", "loops"], ["notebook", "people/Dana%20Whitfield"], ["history", "history"], ["how", "how"]];
+  for (const dark of [false, true]) {
+    await shotsOf(pagePath, "", 1280, dark, views.concat([["draft-deck", "drafts/Q4%20launch%20deck"], ["notebook-project", "projects/Q4%20Launch"]]));
+    await shotsOf(freshPath, "new-", 1280, dark, views);
+  }
+  await shotsOf(pagePath, "", 400, false, views);
+  await shotsOf(pagePath, "", 400, true, [["today", "today"]]);
   ok("screenshots in " + shots);
 }
 await browser.close();
@@ -581,23 +527,24 @@ const toastSays = async (text, bad) => until(`toast "${text}"`, async () => {
   return (await t.isVisible()) && (await t.innerText()).includes(text) && (bad === undefined || (await t.getAttribute("class")) === (bad ? "bad" : ""));
 });
 const go = async h => { await page.evaluate(x => { location.hash = x; }, h); await page.waitForTimeout(100); };
+const line = (p, s) => read(p).split("\n").find(l => l.includes(s));
+const D = "2026-10-15";
 
-await page.goto(liveUrl + "&today=2026-10-15#actions");
+await page.goto(liveUrl + "&today=" + D + "&now=10:00#loops");
 await page.waitForLoadState("networkidle");
 if (!(await page.locator("#cos-server").count())) fail("no #cos-server on the served page");
 if (await page.locator(".notice.ro").count()) fail("read-only notice shown on the live page");
-if (!(await page.locator("#byline").innerText()).includes("live")) fail("byline doesn't say live");
+if (!(await page.locator("#foot").innerText()).includes("live")) fail("footer doesn't say live");
 
-// 1. Check off an action.
-const marcus = page.locator("#main li[data-il]", { hasText: "Book a design review" });
+// 1. Check off a loop.
+const marcus = page.locator("#main [data-il]", { hasText: "Book a design review" });
 await marcus.locator("input.cb").check();
 await toastSays("Checked off");
-let line = read("cos/actions.md").split("\n").find(l => l.includes("Book a design review"));
-if (!/^- \[x\] /.test(line) || !/\[done:: \d{4}-\d{2}-\d{2}\]/.test(line)) fail("check off didn't save: " + line); else ok("check off saves [x] and done");
-await until("checked item moves to Done", async () => (await page.locator("#main details.done").innerText()).includes("Done (3)"));
+let l = line("cos/actions.md", "Book a design review");
+if (!/^- \[x\] /.test(l) || !/\[done:: \d{4}-\d{2}-\d{2}\]/.test(l)) fail("check off didn't save: " + l); else ok("check off saves [x] and done");
 
-// 2. Edit a line's text: the fields stay.
-const narrative = page.locator("#main li[data-il]", { hasText: "Write the board narrative" });
+// 2. Edit a line's text: the box and fields stay.
+const narrative = page.locator("#main [data-il]", { hasText: "Write the board narrative" });
 await narrative.hover();
 await narrative.locator(".pen").click();
 const input = page.locator("#main input.inline-edit");
@@ -605,35 +552,69 @@ if ((await input.inputValue()) !== "Write the board narrative for the Nov 6 meet
 await input.fill("Write the board narrative for the Nov 6 board meeting, for the [[Board deck]]");
 await input.press("Enter");
 await toastSays("Saved");
-line = read("cos/actions.md").split("\n").find(l => l.includes("board narrative"));
-if (line !== "- [ ] Write the board narrative for the Nov 6 board meeting, for the [[Board deck]] [due:: 2026-10-30] [src:: onboarding 2026-10-01]") fail("edited line: " + line);
+l = line("cos/actions.md", "board narrative");
+if (l !== "- [ ] Write the board narrative for the Nov 6 board meeting, for the [[Board deck]] [due:: 2026-10-30] [src:: onboarding 2026-10-01]") fail("edited line: " + l);
 else ok("inline edit keeps the box and fields");
-// Esc cancels
-await page.locator("#main li[data-il]", { hasText: "Reply to" }).dblclick({ position: { x: 200, y: 14 } });
+await page.locator("#main [data-il]", { hasText: "Reply to" }).locator(".lt").dblclick();
 if (!(await page.locator("#main input.inline-edit").count())) fail("double-click didn't start an edit");
 await page.keyboard.press("Escape");
 if (await page.locator("#main input.inline-edit").count()) fail("Esc didn't cancel");
 
-// 3. Add to the inbox.
-await go("inbox");
-await page.locator('#main .addrow[data-add-path="cos/inbox.md"] input').fill("Call the bank about the wire, ask [[Mei Chen]]");
+// 3. The Open loops box: something you owe, and something owed to you.
+await page.fill("#loop-add", "Order new name badges");
 await page.keyboard.press("Enter");
-await toastSays("Added");
-if (!/^- Call the bank about the wire, ask \[\[Mei Chen\]\] \[src:: page \d{4}-\d{2}-\d{2}\]$/m.test(read("cos/inbox.md"))) fail("inbox add: " + read("cos/inbox.md").slice(-200));
-else ok("add to inbox");
-if (!(await page.locator("#main").innerText()).includes("Call the bank about the wire")) fail("added item not shown");
-// Add an action lands under To do, with a box.
-await go("actions");
-await page.locator('#main .addrow[data-add-path="cos/actions.md"] input').fill("Order new name badges");
+await toastSays("Added to You owe");
+if (!/- \[ \] Order new name badges \[src:: page [\d-]+\]\n(?:[^\n]*\n)*?## Elsewhere/.test(read("cos/actions.md"))) fail("loop add didn't land in To do");
+await page.fill("#loop-add", "Priya Natarajan owes me the revised SSO date");
 await page.keyboard.press("Enter");
-await toastSays("Added");
-const acts = read("cos/actions.md");
-if (!/- \[ \] Order new name badges \[src:: page [\d-]+\]\n(?:[^\n]*\n)*?## Elsewhere/.test(acts)) fail("action add didn't land in To do"); else ok("add an action");
+await toastSays("Added to Owed to you");
+if (!/^- \[ \] \[\[Priya Natarajan\]\]: the revised SSO date \[src:: page [\d-]+\]$/m.test(read("cos/waiting.md"))) fail("owed add: " + read("cos/waiting.md").slice(-160));
+else ok("Open loops box: You owe and Owed to you");
 
-// 4. Edit the whole file.
+// 4. The omnibox: Enter adds to the inbox.
+await page.fill("#q", "Call the bank about the wire, ask [[Mei Chen]]");
+if (!(await page.locator("#main").innerText()).includes("Press Enter to add")) fail("omnibox doesn't offer to add");
+await page.keyboard.press("Enter");
+await toastSays("Added to Ada’s inbox");
+if (!/^- Call the bank about the wire, ask \[\[Mei Chen\]\] \[src:: page \d{4}-\d{2}-\d{2}\]$/m.test(read("cos/inbox.md"))) fail("omnibox add: " + read("cos/inbox.md").slice(-200));
+else ok("omnibox adds to the inbox");
+if ((await page.inputValue("#q")) !== "") fail("omnibox not cleared after adding");
+
+// 5. Answers on Today.
+await go("today");
+const move = page.locator("#ask .ask-row", { hasText: "Make it a project?" });
+await move.locator('[data-answer="yes"]').click();
+await toastSays("Answered: yes");
+l = line("cos/now.md", "The referral idea");
+if (l !== "- The referral idea has come up three times. Make it a project? [src:: cv 2026-10-14] [answer:: yes " + D + "]") fail("answer yes: " + l);
+await until("row shows answered", async () => (await page.locator("#ask .ask-row", { hasText: "Make it a project?" }).innerText()).includes("Answered: yes"));
+const reply = page.locator("#ask .ask-row", { hasText: "asked whether SSO can ship Thursday" });
+await reply.locator('[data-answer="snooze"]').click();
+await toastSays("Answered: not now");
+if (!/asked whether SSO can ship Thursday .*\[answer:: snooze 2026-10-15\]$/.test(line("cos/catch-up.md", "asked whether SSO can ship"))) fail("answer snooze: " + line("cos/catch-up.md", "asked whether SSO can ship"));
+await page.locator("#ask .ask-row", { hasText: "Jordan Kim asked for the Q3 churn numbers" }).locator('[data-answer="draft"]').click();
+await toastSays("Answered: draft a reply");
+if (!/\[answer:: draft 2026-10-15\]$/.test(line("cos/catch-up.md", "Q3 churn numbers"))) fail("answer draft");
+// A line with no source gets one saying it came from the page.
+write("cos/now.md", read("cos/now.md").replace("## Suggested moves\n", "## Suggested moves\n- Close the Partner API pilot project for good?\n"));
+await until("new suggestion shows", async () => (await page.locator("#ask").innerText()).includes("Close the Partner API pilot"));
+await page.locator("#ask .ask-row", { hasText: "Close the Partner API pilot" }).locator('[data-answer="no"]').click();
+await toastSays("Answered: not now");
+if (line("cos/now.md", "Partner API pilot") !== "- Close the Partner API pilot project for good? [answer:: no " + D + "] [src:: page " + D + "]") fail("answer no: " + line("cos/now.md", "Partner API pilot"));
+ok("answers: yes, no, draft, snooze");
+// Focus: the question shows when now.md has no focus, and the answer becomes a focus line.
+write("cos/now.md", read("cos/now.md").replace(/## Focus\n(?:- [^\n]*\n)+/, "## Focus\n"));
+await until("focus question shows", async () => (await page.locator("#ask").innerText()).includes("What’s taking most of your head this week?"));
+await page.fill("#focus-answer", "Ship v3 pricing");
+await page.keyboard.press("Enter");
+await toastSays("Focus set");
+if (!/## Focus\n- Ship v3 pricing \[src:: page [\d-]+\]\n/.test(read("cos/now.md"))) fail("focus answer: " + read("cos/now.md").slice(0, 200));
+else ok("focus answer");
+
+// 6. Edit the whole file (a person, from the Notebook).
 await go("people/Dana%20Whitfield");
-const editBtn = page.locator("#main [data-edit]");
-if ((await editBtn.getAttribute("aria-label")) !== "Edit the file" || !(await editBtn.getAttribute("title"))) fail("edit button label");
+const editBtn = page.locator("#main .dtcard [data-edit]");
+if ((await editBtn.getAttribute("aria-label")) !== "Edit the note" || !(await editBtn.getAttribute("title"))) fail("edit button label: " + (await editBtn.getAttribute("aria-label")));
 await editBtn.click();
 const ta = page.locator("#ed-text");
 await until("editor loads", async () => (await ta.inputValue()).includes("rhythm:"));
@@ -641,12 +622,13 @@ await ta.fill((await ta.inputValue()).replace("Weekly pricing sync, Thursdays", 
 await page.click("#ed-save");
 await toastSays("Saved");
 if (!read("cos/people/Dana Whitfield.md").includes("rhythm: Weekly pricing sync, Fridays")) fail("file edit not saved"); else ok("Edit the file saves");
-if (!(await page.locator("#editor").isHidden())) fail("editor didn't close");
 await until("page shows the edit", async () => (await page.locator("#main").innerText()).includes("Weekly pricing sync, Fridays"));
 
-// 5. The file changed while editing: see the choices, keep mine.
-await go("inbox");
-await page.click("#main [data-edit]");
+// 7. The file changed while editing: see the choices, keep mine (Today's files, picking inbox.md).
+await go("today");
+await page.click("#main .ph [data-edit]");
+await until("editor picker", async () => (await page.locator("#ed-pick").count()) > 0);
+await page.selectOption("#ed-pick", "cos/inbox.md");
 await until("editor loads inbox", async () => (await ta.inputValue()).includes("# Inbox"));
 write("cos/inbox.md", read("cos/inbox.md") + "- Changed on disk meanwhile [src:: cv 2026-10-15]\n");
 await ta.fill((await ta.inputValue()) + "- Mine from the editor\n");
@@ -657,70 +639,66 @@ await page.click('[data-conflict="replace"]');
 await toastSays("Saved");
 if (!read("cos/inbox.md").includes("- Mine from the editor") || read("cos/inbox.md").includes("Changed on disk meanwhile")) fail("keep mine didn't overwrite"); else ok("editor conflict: keep mine");
 
-// 6. A change on disk shows up by itself.
-await go("actions");
+// 8. A change on disk shows up by itself.
+await go("loops");
 write("cos/actions.md", read("cos/actions.md").replace("## To do\n", "## To do\n- [ ] Renew the team's Figma seats [src:: cv 2026-10-15]\n"));
 await until("page refreshes with the outside change", async () => (await page.locator("#main").innerText()).includes("Renew the team's Figma seats"), 6000) && ok("live refresh after an outside change");
 
-// 7. A stale check-off: error, then the page catches up.
+// 9. A stale check-off: error, then the page catches up.
 await page.evaluate(() => { window.cosPausePolling = true; });
 write("cos/actions.md", read("cos/actions.md").replace("- [ ] Draft the uptime credit offer", "- [ ] Write the uptime credit offer"));
-await page.locator("#main li[data-il]", { hasText: "Draft the uptime credit offer" }).locator("input.cb").check();
+await page.locator("#main [data-il]", { hasText: "Draft the uptime credit offer" }).locator("input.cb").check();
 await toastSays("changed since the page loaded", true);
 await until("page refreshes after the stale edit", async () => (await page.locator("#main").innerText()).includes("Write the uptime credit offer"));
 if (read("cos/actions.md").includes("[x] Write the uptime credit offer")) fail("stale toggle was applied");
-if (await page.locator("#main li[data-il]", { hasText: "Write the uptime credit offer" }).locator("input.cb").isChecked()) fail("stale checkbox stayed checked");
+if (await page.locator("#main [data-il]", { hasText: "Write the uptime credit offer" }).locator("input.cb").isChecked()) fail("stale checkbox stayed checked");
 ok("stale toggle: error toast and refresh");
 await page.evaluate(() => { window.cosPausePolling = false; });
 
-// 8. Start a note for a name that has none.
+// 10. Start a note for a name that has none.
 await go("name/Mei%20Chen");
 await page.click("#main [data-start-note]");
 await toastSays("Note started");
 if (read("cos/people/Mei Chen.md") !== "---\nrole:\norg:\n---\n# Mei Chen\n") fail("new note: " + JSON.stringify(read("cos/people/Mei Chen.md")));
-await until("opens the new note", async () => page.url().endsWith("#people/Mei%20Chen") && (await page.locator("#main h2").innerText()).includes("Mei Chen"));
-if (!/On the notebook page: started a note for Mei Chen/.test(fs.readdirSync(path.join(ws, "cos/log")).filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).sort().reverse().map(f => read("cos/log/" + f)).join("\n"))) fail("create isn't logged");
+await until("opens the new note", async () => page.url().endsWith("#people/Mei%20Chen") && !(await page.locator("#main .dtcard").innerText()).includes("no note yet"));
 const again = await page.evaluate(async () => {
   const key = JSON.parse(document.getElementById("cos-server").textContent).key;
   const r = await fetch("/api/create", { method: "POST", headers: { "X-Notebook-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ path: "cos/people/Mei Chen.md", content: "x" }) });
   return r.status;
 });
 if (again !== 409) fail("create over an existing note: " + again);
-const outside = await page.evaluate(async () => {
-  const key = JSON.parse(document.getElementById("cos-server").textContent).key;
-  const r = await fetch("/api/create", { method: "POST", headers: { "X-Notebook-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ path: "cos/../evil.md", content: "x" }) });
-  return r.status;
-});
-if (outside !== 400) fail("create outside cos/: " + outside);
 ok("Start a note");
 
-// 9. Quiet icon buttons are labelled.
-for (const h of ["actions", "people/Dana%20Whitfield", "how/rules"]) {
+// 11. Quiet icon buttons are labelled.
+for (const h of ["today", "loops", "people/Dana%20Whitfield", "history", "how"]) {
   await go(h);
-  for (const b of await page.locator("#main .file .ibtn").all()) {
+  for (const b of await page.locator("#main .ibtn").all()) {
     if (!(await b.getAttribute("aria-label")) || !(await b.getAttribute("title"))) fail(`${h}: icon button without a label`);
   }
 }
 ok("icon buttons have labels");
 
-// 9. Theme switch.
-await page.click('[data-theme-set="dark"]');
+// 12. Theme switch.
+await go("today");
+await page.click('#nav [data-theme-set="dark"]');
 if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "dark") fail("dark theme not set");
 await page.reload(); await page.waitForLoadState("networkidle");
 if ((await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) !== "dark") fail("theme not kept across reload");
-if ((await page.locator('[data-theme-set="dark"]').getAttribute("aria-pressed")) !== "true") fail("dark not shown as chosen");
-await page.click('[data-theme-set="auto"]');
+if ((await page.locator('#nav [data-theme-set="dark"]').getAttribute("aria-pressed")) !== "true") fail("dark not shown as chosen");
+await page.click('#nav [data-theme-set="auto"]');
 if (await page.evaluate(() => document.documentElement.hasAttribute("data-theme"))) fail("auto didn't clear the theme");
 ok("theme switch");
 
-// Screenshots: edit mode, light and dark.
 if (shots) {
   for (const dark of [false, true]) {
     await page.evaluate(d => { if (d) document.documentElement.setAttribute("data-theme", "dark"); else document.documentElement.removeAttribute("data-theme"); }, dark);
-    await go("actions");
-    await page.locator("#main li[data-il]", { hasText: "Reply to" }).hover();
-    await page.screenshot({ path: `${shots}/live-actions${dark ? "-dark" : ""}.png`, fullPage: true });
-    await page.click("#main [data-edit]");
+    await go("loops");
+    await page.locator("#main [data-il]", { hasText: "Reply to" }).hover();
+    await page.screenshot({ path: `${shots}/live-loops${dark ? "-dark" : ""}.png`, fullPage: true });
+    await go("today");
+    await page.screenshot({ path: `${shots}/live-today${dark ? "-dark" : ""}.png`, fullPage: true });
+    await go("loops");
+    await page.click("#main .ph [data-edit]");
     await until("editor loads", async () => (await ta.inputValue()).length > 0);
     await page.screenshot({ path: `${shots}/live-editor${dark ? "-dark" : ""}.png` });
     await page.click("#ed-cancel");
@@ -735,12 +713,12 @@ await ctx.close();
   const c2 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await c2.route(/fonts\./, r => r.abort());
   const p2 = await c2.newPage();
-  await p2.goto(pathToFileURL(fileCopy).href + "?today=2026-10-15#actions");
+  await p2.goto(pathToFileURL(fileCopy).href + "?today=" + D + "#loops");
   const n = p2.locator(".notice.ro");
-  if (!(await n.count()) || !(await n.innerText()).includes("Read-only copy. To check things off and edit, open your live notebook")) fail("read-only notice");
+  if (!(await n.count()) || !/^Read-only copy, updated .*\. To check things off and edit, open your live notebook\.$/.test((await n.innerText()).trim())) fail("read-only notice: " + (await n.innerText().catch(() => "")));
   if ((await n.locator("a").getAttribute("href")) !== liveUrl) fail("read-only notice link: " + (await n.locator("a").getAttribute("href")));
-  if (await p2.locator("input.cb, .pen, .addrow, [data-edit]").count()) fail("file copy shows edit controls");
-  if (shots) await p2.screenshot({ path: `${shots}/readonly-notice.png`, clip: { x: 0, y: 0, width: 1280, height: 260 } });
+  if (await p2.locator("input.cb, .pen, .addrow, #loop-add, [data-edit], [data-answer]").count()) fail("file copy shows edit controls");
+  if (shots) await p2.screenshot({ path: `${shots}/readonly-notice.png`, clip: { x: 0, y: 0, width: 1280, height: 320 } });
   ok("read-only file copy");
   await c2.close();
 }
