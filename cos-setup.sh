@@ -46,6 +46,15 @@ die()  { printf '\n%s✗ %s%s\n' "$red" "$1" "$reset" >&2; exit 1; }
 ask()  { local reply; read -r -p "$1 " reply </dev/tty || true; printf '%s' "$reply"; }
 yes()  { case "$(ask "$1")" in [nN]*) return 1 ;; *) return 0 ;; esac; }          # default yes
 no()   { case "$(ask "$1")" in [yY]*) return 1 ;; *) return 0 ;; esac; }           # default no
+# For questions about who can message the agent, Return alone isn't an answer: ask again.
+yn()   {
+  local i
+  for i in 1 2 3; do
+    case "$(ask "$1")" in [yY]*) return 0 ;; [nN]*) return 1 ;; esac
+    info "Type y or n, then press Return."
+  done
+  info "No answer, so no."; return 1
+}
 have() { command -v "$1" >/dev/null 2>&1; }
 sha256() { if have shasum; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi; }
 quiet() { "$@" </dev/null >>"$LOG" 2>&1; }   # run a command with its output in the log
@@ -849,12 +858,12 @@ if [[ -n "$CREATOR" && "$CREATOR" != "$(cv_user id)" && -n "${PAT:-}" ]]; then
   else
     CREATOR_NAME=$(cv_contact_name "$PAT" "$CREATOR")
     if [[ -n "$CREATOR_NAME" ]]; then
-      if yes "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [Y/n]"; then
+      if yn "  $CREATOR_NAME created this Agent Account. Let $CREATOR_NAME message ${AGENT_NAME:-it} without a pairing code? [y/n]"; then
         OWNER_ID=$CREATOR
       fi
     else
       echo "  Carbon Voice says this Agent Account was created by the account with ID $CREATOR."
-      if ! no "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/N]"; then OWNER_ID=$CREATOR; fi
+      if yn "  Is that your own Carbon Voice account? If so, it can skip pairing. [y/n]"; then OWNER_ID=$CREATOR; fi
     fi
     if [[ -n "$OWNER_ID" ]]; then ALLOW_CREATOR=1; else ALLOW_CREATOR=0; fi
   fi
@@ -938,9 +947,11 @@ mkdir -p "$DIR/cos/log/transcripts" "$DIR/cos/projects" "$DIR/cos/areas" "$DIR/c
   "$DIR/cos/archive" "$DIR/cos/drafts" "$DIR/.cos" "$DIR/outbox" "$DIR/.claude" "$CV_DIR"; chmod 700 "$CV_DIR"
 # Let the Agent Account's owner message the agent straight away instead of pairing with a code:
 # add them to the cv-channel allowlist (.cv/access.json, the format /cv-channel:access uses).
-# A new file gets the "allowlist" policy, so strangers get nothing. An existing file keeps its
-# policy and other entries; an owner the user deliberately blocked stays blocked. Anyone else
-# still pairs, which the owner approves at the terminal.
+# A new file gets the "pairing" policy: if the creator turns out not to be the account the user
+# messages from, they still get a pairing code back instead of silence. A code is only a
+# request; nobody gets in until it's approved at the terminal, and /cv-channel:access offers to
+# lock the policy down once someone is paired. An existing file keeps its policy and other
+# entries; an owner the user deliberately blocked stays blocked.
 OWNER_ALLOWED=""
 if [[ -n "$OWNER_ID" ]]; then
   ACCESS="$CV_DIR/access.json"
@@ -953,10 +964,22 @@ if [[ -n "$OWNER_ID" ]]; then
       warn "Couldn't read .cv/access.json, so who can message your agent was left as it was."
     fi
   else
-    (umask 077; jq -n --arg o "$OWNER_ID" '{dmPolicy: "allowlist", allowFrom: [$o], blockedFrom: []}' > "$ACCESS")
+    (umask 077; jq -n --arg o "$OWNER_ID" '{dmPolicy: "pairing", allowFrom: [$o], blockedFrom: []}' > "$ACCESS")
     OWNER_ALLOWED=1
   fi
   chmod 600 "$ACCESS" 2>/dev/null || true
+fi
+# With nobody allowed, the user pairs their account with a code, so turn pairing on. The
+# channel reads an access file with no dmPolicy as "allowlist" (such files predate pairing),
+# and an allowlist with nobody on it drops every message without a reply.
+if [[ -z "$OWNER_ALLOWED" ]]; then
+  ACCESS="$CV_DIR/access.json"
+  if [[ ! -s "$ACCESS" ]]; then
+    (umask 077; jq -n '{dmPolicy: "pairing", allowFrom: [], blockedFrom: []}' > "$ACCESS")
+  elif jq -e '.dmPolicy == null and ((.allowFrom // []) | length == 0)' "$ACCESS" >/dev/null 2>&1 \
+       && jq '.dmPolicy = "pairing"' "$ACCESS" > "$WORK/access.json" 2>>"$LOG"; then
+    cat "$WORK/access.json" > "$ACCESS"
+  fi
 fi
 # The notebook: a new agent gets every starting file; an existing one gets only the files it
 # doesn't have yet, so its notes are never touched.
