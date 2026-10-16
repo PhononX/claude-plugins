@@ -54,8 +54,7 @@ cos:migrate skill first.
    - a draft with no `horizon` yet: decide it as the cos:draft skill describes, and add it.
    Never archive or delete a draft; finished ones stay in `drafts/` marked `done`, `moved` or
    `dropped`, and only the user drops one.
-   Don
-   reorganize anything yourself; the user decides. Leave existing suggestions they haven't
+   Don't reorganize anything yourself; the user decides. Leave existing suggestions they haven't
    answered.
 7. **Nudges.** Overwrite `cos/nudges.md` with at most `nudges_per_day` items (3 unless set) for
    tomorrow: items due within 48 hours or overdue, people waited on longest, ideas whose `back`
