@@ -1230,10 +1230,7 @@ fi
 BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
 
 # ---------- hand off ----------
-# First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this
-# script can start the agent itself: it can whenever there's a terminal to read from, including
-# under `curl ... | bash`, where the script's own input is the pipe. Without one, the user runs
-# two lines.
+# First what was set up (to read), then numbered steps (to do), then the line that starts it.
 if [[ $MODE == update ]]; then
   step "$AGENT_NAME is up to date."
   printf '  %-20s %s\n' "Your agent's folder:" "$(shown "$DIR")"
@@ -1267,12 +1264,7 @@ printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every
 echo
 show_notebook "It's nearly empty now: it fills in as you talk to $AGENT_NAME, starting with the short conversation it has with you first."
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
-CAN_START=""; if { : </dev/tty; } 2>/dev/null; then CAN_START=1; fi
-if [[ -n "$CAN_START" ]]; then
-  printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
-else
-  echo "    1. Start $AGENT_NAME by running the line below. Keep that window open while you use it."
-fi
+echo "    1. Start $AGENT_NAME by running the line below. Keep that window open while you use it."
 printf '    2. Claude asks whether you trust this folder. Choose %s.\n' "$(hl '"Yes, I trust this folder"')"
 if [[ -n "$DEV_STEP" ]]; then
   # Pro/Max start with --dangerously-load-development-channels, because cv-channel isn't on
@@ -1295,25 +1287,11 @@ if [[ -n "$REMOTE_ARGS" ]]; then
     "$(val "${ORG:-the same account as Claude Code}")" "$(hl /mobile)"
   echo
 fi
-if [[ -z "$CAN_START" ]]; then
-  printf '  Start %s now:  %s\n' "$AGENT_NAME" "$(hl "cd $CD_PATH && ./start-cos.sh")"
-  if [[ -n "$LAUNCHER" ]]; then printf '  Next time, you can also open it from %s.\n' "$LAUNCHER_WHERE"; fi
-elif [[ -n "$LAUNCHER" ]]; then
-  printf '  Next time, open %s from %s, or run  %s\n' "$(val "$AGENT_NAME")" "$LAUNCHER_WHERE" "$(hl "cd $CD_PATH && ./start-cos.sh")"
-else
-  printf '  Next time, start it with  %s\n' "$(hl "cd $CD_PATH && ./start-cos.sh")"
-fi
+# The user starts the agent themselves. Starting it from here (exec ./start-cos.sh </dev/tty)
+# froze Claude under `curl ... | bash`.
+printf '  Start %s now:  %s\n' "$AGENT_NAME" "$(hl "cd $CD_PATH && ./start-cos.sh")"
+if [[ -n "$LAUNCHER" ]]; then printf '  Next time, you can also open it from %s.\n' "$LAUNCHER_WHERE"; fi
 echo
-if [[ -n "$CAN_START" ]]; then
-  ask "  Press Return to start $AGENT_NAME." >/dev/null
-  cd "$DIR"
-  rm -rf "$WORK"; trap - EXIT   # exec replaces this script, so the exit trap won't run
-  # start-cos.sh opens Claude with no first message. Keep it that way: in a folder that isn't
-  # trusted yet, `claude "<first message>"` shows the folder-trust prompt but then ignores
-  # every key (Enter, arrows, Ctrl+C). Plain `claude` handles the prompt fine.
-  exec ./start-cos.sh </dev/tty
-fi
-# Otherwise (no terminal) the steps above say how to start it.
 }
 
 main "$@"
