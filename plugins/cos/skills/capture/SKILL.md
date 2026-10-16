@@ -38,9 +38,12 @@ that doesn't follow the format doesn't show up properly.
 Check `my-rules.md` under "Where things go" first: the user's own routing wins. If their team's
 tasks live in another tool, don't copy those tasks into `actions.md`.
 
-Always add `src::`. Link people, projects and areas with `[[Name]]` in the sentence. Create a
-`people/` or `projects/` note only for someone or something that keeps coming up, or that the
-user names as a project; otherwise the link alone is enough.
+Always add `src::`. Link people, projects and areas with `[[Name]]` in the sentence. Start a
+`people/` note the second time someone comes up, or straight away for anyone in "Important
+people", anyone the user owes something to or is waiting on, and anyone they asked you to keep
+track of. Put only what you know in its front matter (role, org, `last_talked`). Start a
+`projects/` note when the user names something as a project. Otherwise the link alone is
+enough: the notebook page lists linked names that have no note yet.
 
 ## The bar
 File it if the user would be annoyed to re-explain it next week. Skip musings, options that

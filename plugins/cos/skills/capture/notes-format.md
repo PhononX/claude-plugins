@@ -33,8 +33,10 @@ Dates are always `YYYY-MM-DD`. Times are 24-hour `HH:MM`.
 | `sources.md` | Where the user's conversations and to-dos happen, and what the agent reads in each |
 
 Names of notes are the plain name, as people say it: `people/Dana Whitfield.md`,
-`projects/Q4 Launch.md`. Links use that name exactly: `[[Dana Whitfield]]`. Don't create a note
-for someone or something mentioned once; a link with no note yet is fine.
+`projects/Q4 Launch.md`. Links use that name exactly: `[[Dana Whitfield]]`. A person gets a
+note the second time they come up, or straight away if they're in "Important people" or in an
+open item; a project gets one when the user calls it a project. A link with no note yet is fine
+for anyone mentioned once. Link only names: never `[[Today]]`, `[[Monday]]` or other words.
 
 ## Lines
 
