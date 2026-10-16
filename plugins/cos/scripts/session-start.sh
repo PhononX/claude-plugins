@@ -53,6 +53,11 @@ done
 if [[ -n "$DRAFTS" ]]; then echo; echo "### Drafts in progress (cos/drafts/)"; printf '%s' "$DRAFTS"; fi
 INBOX=$(grep -c '^- ' "$COS/inbox.md" 2>/dev/null || true)
 if [[ "${INBOX:-0}" -gt 0 ]]; then echo; echo "cos/inbox.md has $INBOX unsorted item(s)."; fi
+ANSWERS=$(grep -rn --include='*.md' -F '[answer::' "$COS" 2>/dev/null | grep -v -e '/archive/' -e '/log/' | head -20 || true)
+if [[ -n "$ANSWERS" ]]; then
+  echo; echo "Answered on the notebook page (act on each, then remove the line):"
+  printf '%s\n' "$ANSWERS" | sed "s#^$COS/#  cos/#"
+fi
 
 # Notes from before the current layout (0.1.x) are moved over by the cos:migrate skill.
 if [[ ! -f "$COS/.layout" && ( -f "$COS/open-loops.md" || -f "$COS/people.md" ) ]]; then
