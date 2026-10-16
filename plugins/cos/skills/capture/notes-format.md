@@ -76,6 +76,8 @@ draft:
 | `replaces` | my-rules rules | the id of the default it replaces |
 | `status`, `via`, `reads` | sources | connected or not, through what, and what the agent reads there |
 | `for` | my-rules tools, about-me writing | the kind of work: `email`, `doc`, `deck`, `slack`, `text`, `post`, `notes`, or another word |
+| `horizon` | drafts | `soon` or `long` |
+| `touched` | drafts | the last date the user worked on it or added to it |
 | `audience` | about-me writing | who it's written to: `colleagues`, `team`, `executives`, `clients`, `friends`, `family`, or another word |
 
 `src` sources are short, lowercase names: `cv` (Carbon Voice), `gmail`, `cal`, `slack`,
@@ -247,6 +249,7 @@ one of the user's tools.
 ---
 kind: doc
 status: draft
+horizon: soon
 for: "[[Jordan Kim]]"
 project: "[[Board deck]]"
 due: 2026-11-06
@@ -269,6 +272,9 @@ Q3 was the quarter we stopped losing small teams…
 ```
 - `kind` is `email`, `doc`, `deck`, `message`, `post` or another word. `for` and `project` link
   the person and project it's for.
+- `horizon` is `soon` (needed in days or weeks: a reply, this week's deck) or `long` (built over
+  time: a strategy memo, a talk, a book). Long-term drafts are never offered for dropping; when
+  they've gone quiet, they're offered back to life.
 - `status` goes `notes` (only notes so far) → `outline` → `draft` → `ready` → `moved` (it now
   lives in one of the user's tools) or `done` (sent, or finished here) or `dropped`.
 - Each new version replaces the "Draft" section; the version before it is kept as

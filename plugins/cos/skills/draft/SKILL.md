@@ -14,8 +14,11 @@ more to read than that.
 "Start a draft email to Dana about the pricing change", "I want to write the board narrative".
 1. Ask at most two short questions, only if you can't tell: what it's for (the one thing it should
    achieve) and who it's for. Skip what's obvious from the notebook.
-2. Create `cos/drafts/<Name>.md` with `kind`, `status`, `for`, `project`, `due` if known,
-   `version: 1`. Pull in what the notebook already knows: the person's note, the project's
+2. Create `cos/drafts/<Name>.md` with `kind`, `status`, `horizon`, `for`, `project`, `due` if
+   known, `version: 1`, `touched` (today). Decide the horizon: `soon` when it has a near deadline
+   or is a reply, a message, or something for a meeting this week or next; `long` when it's an
+   idea they're building over time ("someday", "over the next few months", an essay, a talk, a
+   strategy, a book). Say which you chose in a few words, so they can correct it. Pull in what the notebook already knows: the person's note, the project's
    decisions and facts, open actions, and any idea in `ideas.md` it grew from (move that line
    into "Notes").
 3. If there's enough to go on, write a first version under "Draft" (`status: draft`); if it's
@@ -39,6 +42,16 @@ more to read than that.
 - **Reading it back:** speak a short summary, not the whole thing, and attach the draft. Read it
   in full only if they ask.
 - Keep "Notes" as the raw material: never delete a note because the draft no longer uses it.
+- Set `touched` to today whenever they work on it or add to it.
+
+## Bringing a long-term draft back
+A `long` draft that's gone quiet isn't stale: it's waiting for its moment. When you notice one
+(the nightly review flags it, or something relevant comes up), look for what's new since
+`touched`: ideas, notes, decisions, conversations and messages that relate to it. Offer it back
+with that reason: "You haven't worked on the pricing philosophy piece since September, and two
+things you said this week fit it. Want to pick it back up?" If they say yes, add what you found
+under "Notes" and ask where they want to start. If they say not now, leave it alone for a few
+weeks. Only drop it if they say so.
 
 ## When it's ready
 When the user says it's ready (or it plainly is, and they agree):

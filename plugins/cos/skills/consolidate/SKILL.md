@@ -42,9 +42,18 @@ cos:migrate skill first.
    work all looks finished ("close it?"), a person who now deserves their own note, or a change
    to their briefs based on how they use them over the last two weeks: a part they never use
    ("you never pick follow-ups at midday; drop them?"), something they keep asking for after a
-   brief ("you often ask about Slack; add it to the morning brief?"), or a brief they ignore;
-   or a draft that has sat untouched for two weeks ("drop the partner FAQ draft?"). Never
-   archive or delete a draft; finished ones stay in `drafts/` marked `done`, `moved` or `dropped`.
+   brief ("you often ask about Slack; add it to the morning brief?"), or a brief they ignore.
+   Drafts, by their `horizon`:
+   - a `soon` draft past its due date, or untouched for two weeks: "finish the partner FAQ, or
+     drop it?";
+   - a `long` draft untouched for three weeks or more: never suggest dropping it. Look through
+     what's happened since its `touched` date (logs, ideas, decisions, notes, catch-up) for
+     anything that relates to it. If something does, suggest bringing it back, naming what you
+     found ("two things you said this week fit the pricing philosophy piece; pick it back up?").
+     If nothing does, suggest it only every six weeks or so, gently.
+   - a draft with no `horizon` yet: decide it as the cos:draft skill describes, and add it.
+   Never archive or delete a draft; finished ones stay in `drafts/` marked `done`, `moved` or
+   `dropped`, and only the user drops one.
    Don
    reorganize anything yourself; the user decides. Leave existing suggestions they haven't
    answered.

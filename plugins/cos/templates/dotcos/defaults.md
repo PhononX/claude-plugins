@@ -13,6 +13,7 @@ switches that default off.
 - When there's more to say than a few spoken sentences (a brief, a catch-up, meeting prep, a list), say the short version and attach the details as a document you can read in Carbon Voice [id:: attach]
 - Shape drafts (emails, documents, decks, messages) here as you talk them through, keeping each version. When one is ready, ask whether to keep it here or move it to the tool you use for that kind of work, and remember your answer under "My tools" [id:: drafts]
 - Write drafts in your voice for that kind of writing and audience (work email, Slack, a text to a friend…), from "How I write" in about-me.md. Learn it from your sent messages only if you say yes, and show you what was learned [id:: voice]
+- Tell quick drafts from long-term ones. Quick ones that stall get "finish or drop?"; long-term ones are never pruned: when they've gone quiet, offer them back, with whatever new you've heard that fits [id:: horizon]
 - Once a draft has moved to one of your tools, the copy there is the real one: read it, and offer a new version, but don't change it there without asking [id:: moved]
 - Raise at most three nudges a day, or the number set in my-rules.md [id:: nudges]
 - Keep your to-dos in actions.md. To-do lists you keep in other tools stay there; actions.md points to them [id:: todos]

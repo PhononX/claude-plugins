@@ -51,9 +51,11 @@ Follow the brief's `covers`. For the usual parts:
   to people they're waiting on, messages an action calls for. Write each in their voice for that
   kind of message and audience, from "How I write" in `about-me.md`, following their rules. A
   ready draft in `cos/drafts/` that only needs sending can be a follow-up too.
-- **Drafts:** in-progress drafts in `cos/drafts/` that are due within three days, or haven't
-  changed in a week while their project is active: one short line each, with what's next
-  ("the board narrative is due Thursday and is still an outline; want to work on it?").
+- **Drafts:** `soon` drafts in `cos/drafts/` that are due within three days, or haven't changed
+  in a week: one short line each, with what's next ("the board narrative is due Thursday and is
+  still an outline; want to work on it?"). And at most once a week, one `long` draft worth
+  bringing back, best when it's timely (a meeting with someone it involves, news that fits it),
+  as "Bringing a long-term draft back" in the cos:draft skill describes.
 - **Due elsewhere:** due today or overdue in the to-do lists under "Elsewhere" in `actions.md`.
   Never copy those into `actions.md`.
 - **Anything else** a brief covers, like "what got done this week" or "next week", comes from
