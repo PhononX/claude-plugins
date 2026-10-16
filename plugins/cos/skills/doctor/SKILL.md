@@ -93,7 +93,8 @@ Locate the plugin root as two levels above this skill's base directory (`PLUGIN_
    it can't read the folder ("Operation not permitted"), macOS is keeping background jobs out of
    it: allow it in System Settings → Privacy & Security, or move the agent's folder out of
    Documents/Desktop.
-12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `~/Applications/<agent
+12. **Launcher:** if `cos/setup.conf` has `APP=1`: on a Mac, check `/Applications/<agent
+   name>.app` or `~/Applications/<agent
    name>.app` exists and `osadecompile` on it mentions this folder; on Linux, check
    `~/.local/share/applications/cos-<folder name>.desktop` points at this folder's
    `start-cos.sh`. If it's missing or points elsewhere, the fix is `./update-cos.sh`.

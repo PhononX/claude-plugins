@@ -362,8 +362,10 @@ install_notebook_server() {
 # make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
 # path) and LAUNCHER_WHERE (where it is, in words).
 applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
+# our_app <path>: true if the app there is a launcher this setup made (or nothing is there).
+our_app() { [[ ! -e "$1" ]] || osadecompile "$1" 2>/dev/null </dev/null | grep -q "Made by the Chief of Staff setup"; }
 make_launcher() {
-  local name dir_as name_as app desk
+  local name dir_as name_as app desk old
   name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
   if [[ "$PLATFORM" == mac ]]; then
     have osacompile || return 1
@@ -385,14 +387,26 @@ on run
 	end try
 end run
 APPLESCRIPT
-    mkdir -p "$HOME/Applications"
-    app="$HOME/Applications/$name.app"
+    # The Applications folder Finder shows, when this account can write to it (admin accounts
+    # can); otherwise the one in the home folder, which Finder hides from its sidebar but
+    # Spotlight and Launchpad still find. Never replace an app this setup didn't make.
+    old="$HOME/Applications/$name.app"
+    if [[ -w /Applications ]] && our_app "/Applications/$name.app"; then
+      app="/Applications/$name.app"
+    else
+      our_app "$old" || return 1
+      mkdir -p "$HOME/Applications"; app=$old
+    fi
     osacompile -o "$WORK/launcher.app" "$WORK/launcher.applescript" >>"$LOG" 2>&1 </dev/null || return 1
     rm -rf "$app"; mv "$WORK/launcher.app" "$app"
-    LAUNCHER=$app; LAUNCHER_WHERE="your Applications (or Spotlight)"
+    # An earlier setup put it in ~/Applications; don't leave two.
+    if [[ "$app" != "$old" && -e "$old" ]] && our_app "$old"; then rm -rf "$old"; fi
+    LAUNCHER=$app
+    if [[ "$app" == /Applications/* ]]; then LAUNCHER_WHERE="Applications (or Spotlight)"
+    else LAUNCHER_WHERE="Applications in your home folder (or Spotlight)"; fi
     if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
       desk="$HOME/Desktop/$name.app"
-      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or Applications"; fi
+      if [[ -L "$desk" || ! -e "$desk" ]]; then ln -sfn "$app" "$desk"; LAUNCHER_WHERE="your Desktop or $LAUNCHER_WHERE"; fi
     fi
   else
     mkdir -p "$HOME/.local/share/applications"
@@ -1143,7 +1157,7 @@ fi
 
 # ---------- a launcher ----------
 # An app that opens Terminal and starts the agent, or, if it's already running, just brings
-# Terminal forward: in ~/Applications on a Mac (so Spotlight, Launchpad and the Dock find it),
+# Terminal forward: in Applications on a Mac (so Finder, Spotlight, Launchpad and the Dock find it),
 # optionally on the Desktop too; a .desktop file on Linux. Rebuilt by every update, so it keeps
 # pointing at this folder.
 WANT_APP=$(saved APP); WANT_DESKTOP=$(saved DESKTOP); LAUNCHER=""; LAUNCHER_WHERE=""
@@ -1162,7 +1176,7 @@ if [[ -z "$WANT_APP" ]]; then
 fi
 if [[ "$WANT_APP" == 1 ]]; then
   if make_launcher; then
-    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE"; fi
+    if [[ $MODE == setup || -z "$(saved APP)" ]]; then ok "Added $AGENT_NAME to $LAUNCHER_WHERE: $(shown "$LAUNCHER")"; fi
   else
     warn "Couldn't add the launcher. You can still start $AGENT_NAME with ./start-cos.sh."; WANT_APP=0
   fi
