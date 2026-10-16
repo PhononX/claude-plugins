@@ -81,7 +81,8 @@ draft:
 | `audience` | about-me writing | who it's written to: `colleagues`, `team`, `executives`, `clients`, `friends`, `family`, or another word |
 
 `src` sources are short, lowercase names: `cv` (Carbon Voice), `gmail`, `cal`, `slack`,
-`linear`, `asana`, `notion`, `jira`, `drive`, `file` (a file on this computer), `onboarding`, or
+`linear`, `asana`, `notion`, `jira`, `drive`, `file` (a file on this computer), `onboarding`,
+`page` (the user changed it on the notebook page), or
 the name of another tool. Everything the user tells the agent directly comes in through
 Carbon Voice, so it's `cv`. Add the link to the original message or email when you have one:
 `[src:: gmail 2026-10-12 https://mail.google.com/...]`.

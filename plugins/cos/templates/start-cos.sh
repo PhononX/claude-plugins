@@ -70,6 +70,13 @@ fi
 
 CMD=("{{CLAUDE_BIN}}" {{CHANNEL_ARGS}} ${REMOTE[@]+"${REMOTE[@]}"})
 
+# The notebook server normally starts at login; start it here if it isn't running.
+NB_PORT=$(sed -n 's/^NOTEBOOK_PORT=//p' cos/setup.conf 2>/dev/null | head -1)
+if [[ -n "$NB_PORT" && -f .cos/notebook-server.mjs ]] && command -v node >/dev/null 2>&1 \
+   && ! curl -fs --max-time 1 "http://localhost:$NB_PORT/health" >/dev/null 2>&1 </dev/null; then
+  nohup node "$PWD/.cos/notebook-server.mjs" >> "$CV_DIR/notebook-server.log" 2>&1 </dev/null &
+fi
+
 # newer_setup: prints the newest published Chief of Staff version if it's newer than this
 # folder's, or nothing. Asks GitHub at most once a day, with a 2-second limit, and stays quiet
 # when offline.

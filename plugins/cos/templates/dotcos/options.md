@@ -28,7 +28,8 @@ comes with the Chief of Staff and grows with updates. Ask your agent "what can y
 - The nightly review at 2:15, which tidies your notes [id:: nightly] [default:: chosen at setup] [say:: change it in cos/setup.conf (NIGHTLY=1 or 0), then run ./update-cos.sh]
 
 ## Your notebook
-- Your notebook page, with everything your agent knows [id:: page] [default:: on] [say:: "send me the link to my notebook", or run ./open-brain.sh]
+- Your notebook page, with everything your agent knows, always on at an address you can bookmark [id:: page] [default:: on] [say:: "send me the link to my notebook", or run ./open-brain.sh]
+- Check things off, add items and edit notes right on the notebook page; your agent sees every change [id:: page-edit] [default:: on] [say:: click a checkbox, the pencil next to an item, or "Edit the file"]
 - Rules for where things go, like "team tasks live in Linear" [id:: where] [default:: none] [say:: "my team's tasks live in Jira; don't copy them"]
 - Your own rules for how your agent works [id:: rules] [default:: none] [say:: "from now on, keep drafts under three sentences"]
 - What your agent knows about you, which you can correct [id:: about] [default:: what you said in onboarding] [say:: "that's wrong: I don't run hiring any more"]

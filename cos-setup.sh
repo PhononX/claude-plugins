@@ -294,6 +294,61 @@ cv_catalog() {
   if [[ -f "$dir/.claude-plugin/marketplace.json" ]]; then printf '%s' "$dir/.claude-plugin/marketplace.json"; fi
 }
 
+# install_notebook_server: sets up and (re)starts the always-on notebook server for $DIR. Returns
+# success once it answers on its port.
+notebook_up() { curl -fs --max-time 1 "http://localhost:$NOTEBOOK_PORT/health" >/dev/null 2>&1 </dev/null; }
+install_notebook_server() {
+  local node_bin label unit svc i
+  node_bin=$(command -v node 2>/dev/null) || return 1
+  [[ -f "$DIR/.cos/notebook-server.mjs" ]] || return 1
+  label=$(printf '%s' "$(basename "$DIR")" | tr -c 'A-Za-z0-9._-' '-')
+  # Stop a copy started by hand (./open-brain.sh, ./start-cos.sh) so the service can take the port.
+  pkill -f -- "$DIR/.cos/notebook-server.mjs" >/dev/null 2>&1 </dev/null || true
+  if [[ "$PLATFORM" == mac ]]; then
+    svc="com.phononx.cos.$label.notebook"
+    mkdir -p "$HOME/Library/LaunchAgents"
+    fill "$TEMPLATES/notebook.plist" "$HOME/Library/LaunchAgents/$svc.plist" JOB_LABEL="$(xml "$svc")" \
+      NODE="$(xml "$node_bin")" WORKSPACE="$(xml "$DIR")" PORT="$NOTEBOOK_PORT" \
+      PATH="$(xml "$(dirname "$node_bin"):$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin")"
+    launchctl bootout "gui/$(id -u)/$svc" </dev/null >/dev/null 2>&1 || true
+    launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$svc.plist" </dev/null >>"$LOG" 2>&1 || true
+  elif have systemctl && systemctl --user show-environment </dev/null >/dev/null 2>&1; then
+    svc="cos-$label-notebook.service"; unit="$HOME/.config/systemd/user/$svc"
+    mkdir -p "$(dirname "$unit")"
+    {
+      echo "[Unit]"
+      echo "Description=Notebook for $AGENT_NAME (Chief of Staff)"
+      echo "[Service]"
+      echo "WorkingDirectory=$DIR"
+      echo "Environment=COS_NOTEBOOK_PORT=$NOTEBOOK_PORT"
+      echo "ExecStart=\"$node_bin\" \"$DIR/.cos/notebook-server.mjs\""
+      echo "Restart=always"
+      echo "RestartSec=10"
+      echo "StandardOutput=append:$DIR/.cv/notebook-server.log"
+      echo "StandardError=append:$DIR/.cv/notebook-server.log"
+      echo "[Install]"
+      echo "WantedBy=default.target"
+    } > "$unit"
+    systemctl --user daemon-reload </dev/null >>"$LOG" 2>&1 || true
+    systemctl --user enable "$svc" </dev/null >>"$LOG" 2>&1 || true
+    systemctl --user restart "$svc" </dev/null >>"$LOG" 2>&1 || true
+  else
+    local cron_cmd="cd \"$DIR\" && \"$node_bin\" \"$DIR/.cos/notebook-server.mjs\" >> .cv/notebook-server.log 2>&1"
+    if have crontab; then
+      { crontab -l 2>/dev/null | grep -vF -- "$DIR/.cos/notebook-server.mjs" || true; echo "@reboot $cron_cmd"; } | crontab - 2>>"$LOG" || true
+    fi
+    (cd "$DIR" && nohup "$node_bin" "$DIR/.cos/notebook-server.mjs" >> .cv/notebook-server.log 2>&1 </dev/null &)
+  fi
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
+    notebook_up && return 0
+    sleep 0.2
+  done
+  # The service didn't come up (on a Mac, macOS can keep background jobs out of some folders until
+  # allowed): start it from here for now; ./start-cos.sh and ./open-brain.sh do the same.
+  (cd "$DIR" && nohup "$node_bin" "$DIR/.cos/notebook-server.mjs" >> .cv/notebook-server.log 2>&1 </dev/null &)
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do notebook_up && return 0; sleep 0.2; done
+  return 1
+}
 # make_launcher: builds the launcher for this agent (see "a launcher" in main). Sets LAUNCHER (its
 # path) and LAUNCHER_WHERE (where it is, in words).
 applescript_str() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
@@ -357,7 +412,7 @@ wrap() { printf '%s\n' "$1" | fold -s -w $((80 - ${#2})) | sed -e 's/ *$//' -e "
 show_notebook() {
   [[ -n "$BRAIN_LINK" ]] || return 0
   printf '  %sYour notebook%s\n' "$bold" "$reset"
-  wrap "Everything $AGENT_NAME knows, on one page in your browser: today's briefs, what you owe and what you're waiting on, people, projects, ideas, drafts, decisions, and how $AGENT_NAME works for you, which you can change just by saying so. $1 It updates itself as $AGENT_NAME works, so bookmark it:" "  "
+  wrap "Everything $AGENT_NAME knows, on one page in your browser: today's briefs, what you owe and what you're waiting on, people, projects, ideas, drafts, decisions, and how $AGENT_NAME works for you. $1 Check things off, add and edit right on the page, or just tell $AGENT_NAME. It's always on and updates as $AGENT_NAME works, so bookmark it (the address includes its key, so keep it to yourself):" "  "
   printf '    %s\n' "$(val "$BRAIN_LINK")"
   if [[ -d /Applications/Obsidian.app || -d "$HOME/Applications/Obsidian.app" ]] || have obsidian; then
     echo "  You use Obsidian: you can also open $(shown "$DIR")/cos as a vault."
@@ -954,7 +1009,7 @@ if [[ -f "$DIR/my-instructions.md" ]]; then
 fi
 # The notebook page's builder and template, the defaults, and the list of everything the agent
 # can do (options.md, for /cos:settings): replaced on every update.
-for f in build-brain.sh brain-template.html defaults.md options.md; do
+for f in build-brain.sh brain-template.html defaults.md options.md notebook-server.mjs whats-new.md; do
   if [[ -f "$TEMPLATES/dotcos/$f" ]]; then cp "$TEMPLATES/dotcos/$f" "$DIR/.cos/$f"; fi
 done
 chmod +x "$DIR/.cos/build-brain.sh" 2>/dev/null || true
@@ -1025,8 +1080,8 @@ if [[ -n "$HOOKS_OK" ]]; then ok "Notes load when your agent starts, and tokens 
 else warn "The note-keeping check didn't pass. Your agent will still start; run /cos:doctor in its folder for details."; fi
 # The notebook page: everything the agent knows, built from cos/. It's rebuilt whenever the agent
 # changes a note; build it now so the link works straight away.
-BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
-if [[ -n "$BRAIN_LINK" ]]; then ok "Notebook page built"
+BRAIN_LINK=""
+if (cd "$DIR" && .cos/build-brain.sh </dev/null 2>>"$LOG"); then ok "Notebook page built"
 else warn "Couldn't build the notebook page. Your agent will still start; run /cos:doctor in its folder for details."; fi
 
 # ---------- nightly review ----------
@@ -1089,6 +1144,24 @@ if [[ "$WANT_APP" == 1 ]]; then
   fi
 fi
 
+# ---------- the notebook server: its key and port ----------
+# The key (in the notebook's address, and needed for every change) is made once and kept. The
+# port is fixed per agent, so the address can be bookmarked: picked from the folder's path, and
+# moved along if something else already uses it.
+NB_KEY_FILE="$CV_DIR/notebook.key"
+if [[ ! -s "$NB_KEY_FILE" ]]; then
+  (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$NB_KEY_FILE")
+fi
+chmod 600 "$NB_KEY_FILE" 2>/dev/null || true
+NOTEBOOK_PORT=$(saved NOTEBOOK_PORT)
+if [[ ! "$NOTEBOOK_PORT" =~ ^[0-9]+$ ]]; then
+  NOTEBOOK_PORT=$(( 41000 + $(printf '%s' "$DIR" | cksum | cut -d' ' -f1) % 2000 ))
+  for try in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    if ! (exec 3<>"/dev/tcp/127.0.0.1/$NOTEBOOK_PORT") 2>/dev/null; then break; fi
+    NOTEBOOK_PORT=$((NOTEBOOK_PORT + 1))
+  done
+fi
+
 # Save the answers, so ./update-cos.sh can update this agent without asking again.
 ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file is rewritten
 {
@@ -1100,8 +1173,23 @@ ALLOW_CREATOR=${ALLOW_CREATOR:-$(saved ALLOW_CREATOR)}   # read before the file 
   echo "NIGHTLY=$([ -n "$NIGHTLY" ] && echo 1 || echo 0)"
   echo "APP=${WANT_APP:-0}"
   echo "DESKTOP=${WANT_DESKTOP:-0}"
+  echo "NOTEBOOK_PORT=$NOTEBOOK_PORT"
   if [[ -n "$ALLOW_CREATOR" ]]; then echo "ALLOW_CREATOR=$ALLOW_CREATOR"; fi
 } > "$DIR/cos/setup.conf"
+
+# ---------- the notebook server: always on ----------
+# Serves the notebook page at http://localhost:<port>/?k=<key> and saves edits made on it. Runs
+# at login and is restarted if it stops: a launchd job on a Mac, a systemd user service on Linux
+# (or, without systemd, a crontab @reboot line). Restarted here so an update takes effect.
+NOTEBOOK=""
+if install_notebook_server; then
+  NOTEBOOK=1
+  ok "Your notebook is always on at http://localhost:$NOTEBOOK_PORT/ (the address with its key comes next)"
+else
+  warn "Couldn't start the notebook server, so your notebook opens read-only for now. Run /cos:doctor in"
+  warn "your agent's folder for details."
+fi
+BRAIN_LINK=$(cd "$DIR" && ./open-brain.sh --link </dev/null 2>>"$LOG" || true)
 
 # ---------- hand off ----------
 # First what was set up (to read), then numbered steps (to do). Step 1 depends on whether this

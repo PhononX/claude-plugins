@@ -1,7 +1,7 @@
 {
   "name": "cos",
   "description": "A chief of staff you talk to through Carbon Voice. Keeps a notebook of your focus, actions, what you're waiting on, projects, people, decisions and ideas, that you can see on one page or open in Obsidian. Sends a morning brief and tidies its notes nightly. Set up with the one-line installer (see the README, or run /cos:setup for directions); check health with /cos:doctor.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": { "name": "PhononX" },
   "homepage": "https://github.com/PhononX/claude-plugins/tree/main/plugins/cos#readme",
   "repository": "https://github.com/PhononX/claude-plugins",
