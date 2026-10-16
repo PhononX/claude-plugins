@@ -351,6 +351,39 @@ APPLESCRIPT
   fi
 }
 
+# wrap <text> <indent> [<later lines' indent>]: prints text wrapped to fit an 80-column terminal.
+wrap() { printf '%s\n' "$1" | fold -s -w $((80 - ${#2})) | sed -e 's/ *$//' -e "1s/^/$2/" -e "1!s/^/${3:-$2}/"; }
+# show_notebook: what the notebook page is, its link, and an offer to open it now.
+show_notebook() {
+  [[ -n "$BRAIN_LINK" ]] || return 0
+  printf '  %sYour notebook%s\n' "$bold" "$reset"
+  wrap "Everything $AGENT_NAME knows, on one page in your browser: today's briefs, what you owe and what you're waiting on, people, projects, ideas, drafts, decisions, and how $AGENT_NAME works for you, which you can change just by saying so. $1 It updates itself as $AGENT_NAME works, so bookmark it:" "  "
+  printf '    %s\n' "$(val "$BRAIN_LINK")"
+  if [[ -d /Applications/Obsidian.app || -d "$HOME/Applications/Obsidian.app" ]] || have obsidian; then
+    echo "  You use Obsidian: you can also open $(shown "$DIR")/cos as a vault."
+  fi
+  if yes "  Open your notebook now? [Y/n]"; then
+    open_url "$BRAIN_LINK"
+    if [[ $MODE == setup ]]; then echo "  It opened in your browser. Come back to this window to start $AGENT_NAME."; fi
+  fi
+  echo
+}
+# whats_new: the highlights of each version newer than the one this folder had, from the plugin's
+# whats-new.md ("## <version>" headings, then lines).
+whats_new() {
+  local f="$TEMPLATES/dotcos/whats-new.md" v show="" line
+  [[ -n "$OLD_VERSION" && -f "$f" && "$OLD_VERSION" != "$COS_VERSION" ]] || return 0
+  printf '  %sWhat'"'"'s new since %s%s\n' "$bold" "$OLD_VERSION" "$reset"
+  while IFS= read -r line; do
+    case "$line" in
+      "## "*) v=${line#\#\# }; v=${v%% *}
+              if version_ge "$v" "$OLD_VERSION" && [[ "$v" != "$OLD_VERSION" ]]; then show=1; else show=""; fi ;;
+      "- "*) if [[ -n "$show" ]]; then wrap "$line" "  " "    "; fi ;;
+    esac
+  done < "$f"
+  echo
+}
+
 label() {  # status → coloured label
   case "$1" in
     have)       printf '%salready installed%s' "$green" "$reset" ;;
@@ -956,6 +989,7 @@ for s in start-cos.sh nightly.sh update-cos.sh cv-channel-log.sh open-brain.sh; 
   if [[ -e "$DIR/$s" ]] && ! cmp -s "$WORK/$s" "$DIR/$s"; then cp "$DIR/$s" "$DIR/$s.bak"; fi
   mv "$WORK/$s" "$DIR/$s"; chmod +x "$DIR/$s"
 done
+OLD_VERSION=$(cat "$DIR/cos/.version" 2>/dev/null || true)   # for "What's new" after an update
 printf '%s\n' "$COS_VERSION" > "$DIR/cos/.version"
 if [[ -n "$NEW_AGENT" ]]; then printf 'stage: not-started\n' > "$DIR/cos/.onboarding-pending"; fi
 LEFT=$(cd "$DIR" && grep -l '{{' CLAUDE.md start-cos.sh nightly.sh .claude/settings.json </dev/null 2>/dev/null || true)
@@ -1079,8 +1113,9 @@ if [[ $MODE == update ]]; then
   printf '  %-20s %s\n' "Version:" "${COS_VERSION:-unknown}"
   printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
   printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
-  if [[ -n "$BRAIN_LINK" ]]; then printf '  %-20s %s\n' "Notebook page:" "$BRAIN_LINK"; fi
   echo
+  whats_new
+  show_notebook "Your notes were kept; anything new shows up there too."
   echo "  If $AGENT_NAME is running, restart it to use the update: in its window, type /exit,"
   echo "  then run ./start-cos.sh."
   printf '  To start it now:  %scd %s && ./start-cos.sh%s\n' "$bold" "$(shown "$DIR")" "$reset"
@@ -1102,12 +1137,8 @@ printf '  %-20s %s%s\n' "Claude account:" "$(val "${ACCOUNT:-your Claude account
 printf '  %-20s %s\n' "Who can message it:" "$WHO"
 printf '  %-20s %s\n' "Claude app:" "$([ -n "$REMOTE_ARGS" ] && echo "on" || echo "off")"
 printf '  %-20s %s\n' "Nightly review:" "$([ -n "$NIGHTLY" ] && echo "2:15 every night" || echo "off")"
-if [[ -n "$BRAIN_LINK" ]]; then
-  printf '  %-20s %s\n' "Notebook page:" "$(val "$BRAIN_LINK")"
-  echo "                       Everything $AGENT_NAME knows, on one page. Open it in your browser and"
-  echo "                       bookmark it; it keeps itself up to date. (Or run ./open-brain.sh.)"
-fi
 echo
+show_notebook "It's nearly empty now: it fills in as you talk to $AGENT_NAME, starting with the short conversation it has with you first."
 printf '  %sTo start talking to %s:%s\n' "$bold" "$AGENT_NAME" "$reset"
 if [[ -t 0 ]]; then
   printf '    1. Press %s below to start %s. Keep that window open while you use it.\n' "$(hl Return)" "$AGENT_NAME"
