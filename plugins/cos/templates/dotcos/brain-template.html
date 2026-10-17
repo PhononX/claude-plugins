@@ -537,7 +537,9 @@ function isoOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" +
 function isISO(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim()); }
 function parseISO(s) { var m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
 var todayParam = new URLSearchParams(location.search).get("today");
-var TODAY = isISO(todayParam) ? parseISO(todayParam) : (function () { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); })();
+function clockToday() { if (isISO(todayParam)) return parseISO(todayParam); var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+// TODAY and NOW_MINS are what the page was drawn with; moveClock() moves them on (see poll()).
+var TODAY = clockToday();
 var TODAY_ISO = isoOf(TODAY);
 function daysFromToday(iso) { var d = parseISO(iso); return d ? Math.round((d - TODAY) / 86400000) : null; }
 var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -730,7 +732,7 @@ function dueTag(iso, prefix) {
   return '<span class="tag ' + cls + '">' + esc(label) + "</span>";
 }
 function dateish(v) { return isISO(v) ? fmtShort(v) : v; }
-var CHIP_ORDER = ["due", "done", "back", "why", "superseded", "archived", "from", "since", "nudged", "prep", "replaces", "kind", "raised", "answer"];
+var CHIP_ORDER = ["due", "done", "back", "why", "superseded", "archived", "from", "since", "nudged", "prep", "replaces", "kind", "raised", "answer", "drafting", "snoozed"];
 function chips(it, skip) {
   skip = skip || [];
   var f = it.fields, out = "";
@@ -748,6 +750,8 @@ function chips(it, skip) {
   if (want("kind")) out += '<span class="tag">' + T(KIND_LABEL[f.kind.toLowerCase()] || f.kind) + "</span>";
   if (want("raised")) out += raisedTag(f.raised);
   if (want("answer")) { var aw = answerOf(it); if (aw) out += '<span class="tag ok">Answered: ' + esc(ANSWER_WORDS[aw.word] || aw.word) + "</span>"; }
+  if (want("drafting")) out += '<span class="tag acc">Drafting with ' + A + " since " + esc(dateish(f.drafting)) + "</span>";
+  if (want("snoozed")) out += '<span class="tag">' + (String(f.snoozed).trim() === TODAY_ISO ? "Snoozed today" : "Snoozed " + esc(dateish(f.snoozed))) + "</span>";
   if (want("replaces")) { var dflt = defaultById(f.replaces); out += '<span class="tag acc">Replaces: ' + T(dflt ? dflt.text : f.replaces) + "</span>"; }
   Object.keys(f).forEach(function (k) {
     if (k === "src" || CHIP_ORDER.indexOf(k) >= 0 || skip.indexOf(k) >= 0 || f[k] === "") return;
@@ -803,7 +807,13 @@ function linksTo(it, n) { return it.links.some(function (l) { return resolve(l) 
 /* ---------- briefs (brief.md, and "My briefs" in my-rules.md) ---------- */
 function minsOf(hm) { var m = String(hm || "").trim().match(/^(\d{1,2}):(\d{2})$/); return m ? +m[1] * 60 + +m[2] : null; }
 var nowParam = new URLSearchParams(location.search).get("now");
-var NOW_MINS = minsOf(nowParam) != null ? minsOf(nowParam) : (function () { var d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+function clockMins() { if (minsOf(nowParam) != null) return minsOf(nowParam); var d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+var NOW_MINS = clockMins();
+function moveClock() { // true when the day has changed since the page was drawn
+  var t = clockToday(), changed = isoOf(t) !== TODAY_ISO;
+  TODAY = t; TODAY_ISO = isoOf(t); NOW_MINS = clockMins();
+  return changed;
+}
 // The sections under the heading at blocks[start]: one per heading one level down, plus one
 // named "" for lines before the first of those.
 function sectionsUnder(d, start, level) {
@@ -1123,12 +1133,26 @@ function answerOf(it) {
   var m = a.match(/^(\S+)(?:\s+(\d{4}-\d{2}-\d{2}))?/);
   return m ? { word: m[1].toLowerCase(), date: m[2] || null } : null;
 }
+// Answered on the page and waiting for the agent ([answer::]), or already handled by it: a reply being
+// drafted ([drafting::]) or snoozed for today ([snoozed:: <today>]). A snooze from an earlier day asks again.
+function handledOf(it) {
+  var f = it.fields, a = answerOf(it);
+  if (a) return { kind: "answer", word: a.word, chip: cap(ANSWER_WORDS[a.word] || a.word), note: "Answered. " + A + " picks it up next time." };
+  if (f.drafting != null && String(f.drafting).trim() !== "") return { kind: "drafting", chip: "Drafting with " + A, note: "" };
+  if (String(f.snoozed || "").trim() === TODAY_ISO) return { kind: "snoozed", chip: "Snoozed today", note: "" };
+  return null;
+}
 function cap(s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); }
 // "no" is never written by this page now (suggested moves say "later"), but older answers still show.
 var ANSWER_WORDS = { yes: "yes", no: "no", later: "later", draft: "draft a reply", snooze: "not now" };
+// Only a move that asks to make or start a project gets "Make project", and only one that asks whether to
+// do something today gets "Today". Merely naming a project ("close the pilot project?") is a plain yes/no.
+var MAKE_PROJECT = /\b(?:make|turn|set|start|spin|open|kick off)\b[^.?!]{0,40}?\b(?:a|an|new)\s+project\b/i;
+var DO_TODAY = /\btoday\s*\?|\b(?:do|tackle|handle|finish|start|work on|take on|send|ship|deal with)\b[^.?!]*\btoday\b[^.!]*\?/i;
 function moveKind(text) {
-  if (/\bprojects?\b/i.test(text)) return { label: "Project?", cls: "c-info", yes: "Make project", no: "Not now", noWord: "later", filter: "projects" };
-  if (/\btoday\b|\btackle\b|\bthis week\b/i.test(text)) return { label: "Today?", cls: "c-warm", yes: "Today", no: "Later", noWord: "later", filter: "decisions" };
+  text = plainText(text);
+  if (MAKE_PROJECT.test(text)) return { label: "Project?", cls: "c-info", yes: "Make project", no: "Not now", noWord: "later", filter: "projects" };
+  if (DO_TODAY.test(text)) return { label: "Today?", cls: "c-warm", yes: "Today", no: "Later", noWord: "later", filter: "decisions" };
   return { label: "Decide", cls: "c-acc", yes: "Yes", no: "Not now", noWord: "later", filter: "decisions" };
 }
 function askRows() {
@@ -1140,7 +1164,7 @@ function askRows() {
   });
   return rows;
 }
-function unanswered(rows) { return rows.filter(function (r) { return r.type === "focus" || !answerOf(r.it); }); }
+function unanswered(rows) { return rows.filter(function (r) { return r.type === "focus" || !handledOf(r.it); }); }
 function askRowHtml(r) {
   if (r.type === "focus") {
     return '<div class="ask-row"><span class="chip c-acc">Focus</span><div class="ask-txt"><div class="ask-t">What’s taking most of your head this week?</div>' +
@@ -1148,7 +1172,7 @@ function askRowHtml(r) {
       (SRV ? '<div class="ask-act" style="flex:1 1 360px"><form class="addrow" data-add-path="cos/now.md" data-add-section="Focus" data-add-toast="Focus set">' +
         '<input id="focus-answer" type="text" placeholder="e.g. Lock v3 pricing before Friday" aria-label="Your focus this week"><button type="submit" class="btn primary">Set focus</button></form></div>' : "") + "</div>";
   }
-  var it = r.it, a = answerOf(it), f = it.fields, sub = [];
+  var it = r.it, a = handledOf(it), f = it.fields, sub = [];
   if (r.type === "reply") {
     var s = parseSrc(f.src || ""), age = ageDays(it);
     if (s.name) sub.push(s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + T(s.name) + "</a>" : T(s.name));
@@ -1160,7 +1184,7 @@ function askRowHtml(r) {
     sub.push("cos/now.md");
   }
   var act;
-  if (a) act = '<span class="chip c-ok">' + esc(cap(ANSWER_WORDS[a.word] || a.word)) + '</span> <span class="answered">Answered. ' + A + " picks it up next time.</span>";
+  if (a) act = '<span class="chip c-ok">' + a.chip + "</span>" + (a.note ? ' <span class="answered">' + a.note + "</span>" : "");
   else if (SRV) act = '<button type="button" class="btn primary" data-answer="' + esc(r.k.yesWord || "yes") + '">' + esc(r.k.yes) + "</button>" +
     '<button type="button" class="btn" data-answer="' + esc(r.k.noWord || "no") + '">' + esc(r.k.no) + "</button>";
   else act = "";
@@ -1330,7 +1354,7 @@ R.today = function () {
   });
   if (!filters.some(function (f) { return f[0] === UI.askFilter; })) UI.askFilter = "all";
   var shown = rows.filter(function (r) { return UI.askFilter === "all" || r.filter === UI.askFilter; });
-  shown.sort(function (a, b) { return (a.type === "focus" ? 0 : answerOf(a.it) ? 2 : 1) - (b.type === "focus" ? 0 : answerOf(b.it) ? 2 : 1); });
+  shown.sort(function (a, b) { return (a.type === "focus" ? 0 : handledOf(a.it) ? 2 : 1) - (b.type === "focus" ? 0 : handledOf(b.it) ? 2 : 1); });
   var limit = UI.askAll ? shown.length : 5;
   var askBody = rows.length ? shown.slice(0, limit).map(askRowHtml).join("") +
     (shown.length > limit ? '<div class="ask-foot"><span>' + plural(open.length, "question") + " open</span>" +
@@ -1756,7 +1780,7 @@ R.history = function () {
   var all = historyEntries(), counts = {};
   all.forEach(function (e) { counts[e.type] = (counts[e.type] || 0) + 1; });
   var f = UI.histFilter;
-  if (f !== "all" && !counts[f]) f = UI.histFilter = "all";
+  if (f !== "all" && !(Object.prototype.hasOwnProperty.call(counts, f) && counts[f])) f = UI.histFilter = "all";
   var q = UI.histQ.toLowerCase();
   var list = all.filter(function (e) { return (f === "all" || e.type === f) && (!q || plainText(e.text).toLowerCase().indexOf(q) >= 0 || (e.it.fields.why || "").toLowerCase().indexOf(q) >= 0); });
   var byDay = {}, days = [];
@@ -2010,6 +2034,13 @@ var OLD = { catchup: ["today", "catchup"], inbox: ["today", "sort"], nudges: ["t
   people: ["notebook", "people"], projects: ["notebook", "projects"], areas: ["notebook", "projects"], ideas: ["notebook", "ideas"], links: ["notebook", "links"],
   facts: ["notebook", "links"], decisions: ["notebook", "decisions"], log: ["history"], archive: ["history", "archived"], about: ["how"], sources: ["how", "listening"] };
 var HOW_OLD = { rules: "rules", briefs: "briefs", tools: "tools", knows: "about", defaults: "defaults", can: "defaults", listening: "listening", about: "about" };
+// The only sections a hash may name; anything else in the hash is ignored, never handed to a selector.
+var SECTIONS = { today: ["ask", "schedule", "sort", "nudges", "briefs", "catchup", "loops-summary"], how: ["listening", "briefs", "rules", "tools", "about", "defaults"] };
+function knownSection(view, name) { return name && (SECTIONS[view] || []).indexOf(name) >= 0 ? name : null; }
+function sectionEl() {
+  var sec = knownSection(state.view, state.section); if (!sec) return null;
+  return document.getElementById(state.view === "how" ? "how-" + sec : sec);
+}
 function readHash() {
   var h = location.hash.replace(/^#/, ""), parts = h.split("/"), id = parts[0], rest = parts.slice(1).join("/"), name = null;
   try { name = rest ? decodeURIComponent(rest) : null; } catch (e) { name = rest || null; }
@@ -2020,9 +2051,9 @@ function readHash() {
   if (id === "item" && parts.length >= 3) { var path = decodeURIComponent(parts.slice(1, -1).join("/")), line = +parts[parts.length - 1]; return { view: "notebook", kind: "item", itemPath: path, itemLine: line, filter: path === "cos/ideas.md" ? "ideas" : path === "cos/decisions.md" ? "decisions" : /links|facts/.test(path) ? "links" : null }; }
   if (id === "notebook") return { view: "notebook", filter: NB_FILTERS.some(function (f) { return f[0] === name; }) ? name : null };
   if (id === "history") return { view: "history", filter: name };
-  if (id === "how") return { view: "how", section: HOW_OLD[name] || name || null };
-  if (OLD[id]) { var o = OLD[id]; return o[0] === "how" ? { view: "how", section: o[1] || null } : o[0] === "history" ? { view: "history", filter: o[1] || null } : o[0] === "notebook" ? { view: "notebook", filter: o[1] } : { view: o[0], section: o[1] || null }; }
-  if (id === "today" || id === "loops") return { view: id, section: name };
+  if (id === "how") return { view: "how", section: knownSection("how", HOW_OLD[name] || name) };
+  if (Object.prototype.hasOwnProperty.call(OLD, id)) { var o = OLD[id]; return o[0] === "how" ? { view: "how", section: o[1] || null } : o[0] === "history" ? { view: "history", filter: o[1] || null } : o[0] === "notebook" ? { view: "notebook", filter: o[1] } : { view: o[0], section: o[1] || null }; }
+  if (id === "today" || id === "loops") return { view: id, section: knownSection(id, name) };
   return s;
 }
 function applyState(s) {
@@ -2095,7 +2126,7 @@ function go(hash) {
 function route(focus) {
   applyState(readHash()); drawnHash = location.hash;
   render();
-  var target = state.view === "how" && state.section ? $("#how-" + state.section) : state.view === "today" && state.section ? $("#" + state.section) : null;
+  var target = sectionEl();
   if (target) target.scrollIntoView(); else window.scrollTo(0, 0);
   if (focus && !target) { var h = $("#main h1"); if (h) h.focus({ preventScroll: true }); }
 }
@@ -2209,7 +2240,7 @@ function api(method, name, body) {
     });
   }, function () { var err = new Error("Can't reach your notebook. Is your computer's notebook server running? Run ./open-brain.sh to start it."); err.status = 0; throw err; });
 }
-function reindex() { DOCS = {}; BRIEFS = null; DEFAULTS = null; MENTIONS = null; LOOPS = null; NOTES = {}; ORDER.forEach(indexNote); }
+function reindex() { DOCS = {}; BRIEFS = null; DEFAULTS = null; MENTIONS = null; LOOPS = null; NOT_PEOPLE = null; NOTES = {}; ORDER.forEach(indexNote); }
 function loadFiles(files) {
   FILES = {}; ORDER = [];
   Object.keys(files).forEach(function (p) { FILES[p] = String(files[p]).replace(/\r\n?/g, "\n"); ORDER.push(p); });
@@ -2238,6 +2269,11 @@ function refreshNotes() {
 }
 function poll() {
   if (!SRV || document.visibilityState !== "visible" || window.cosPausePolling) return;
+  // A page left open overnight moves to the new day (Today's header, briefIsToday(), ages, answers).
+  if (!midEdit()) {
+    var before = JSON.stringify(nextBriefParts());
+    if (moveClock()) { reindex(); rerender(); } else if (JSON.stringify(nextBriefParts()) !== before) topRight();
+  }
   api("GET", "version").then(function (j) {
     if (j.version !== VERSION && !midEdit()) return refreshNotes();
   }).catch(function (err) { if (!offline) { offline = true; toast(err.message, true); } });
@@ -2405,16 +2441,18 @@ $("#ed-conflict").addEventListener("click", function (e) {
 });
 
 /* ---------- answers, the omnibox, and the Open loops box (edit mode) ---------- */
-function stamp() { return TODAY_ISO; }
+function stamp() { return isoOf(clockToday()); } // the date now, not when the page loaded
 document.addEventListener("click", function (e) {
   var b = SRV && e.target.closest && e.target.closest("[data-answer]"); if (!b) return;
   e.preventDefault();
   var it = itemAt(b); if (!it) return;
   var raw = rawLine(it), word = b.getAttribute("data-answer");
+  // One answer per line: a new answer replaces an earlier answer or an expired snooze instead of piling up.
+  var base = raw.replace(/\s*\[(?:answer|snoozed)::[^\]]*\]/g, "").replace(/\s+$/, "");
   var add = " [answer:: " + word + " " + stamp() + "]" + (/\[src::/.test(raw) ? "" : " [src:: page " + stamp() + "]");
   Array.prototype.forEach.call(b.parentNode.querySelectorAll("button"), function (x) { x.disabled = true; });
   busy++;
-  api("POST", "replace", { path: it.path, line: raw, newLine: raw.replace(/\s+$/, "") + add }).then(function () {
+  api("POST", "replace", { path: it.path, line: raw, newLine: base + add }).then(function () {
     busy--; toast("Answered: " + (ANSWER_WORDS[word] || word) + ". " + AGENT + " picks it up next time."); return refreshNotes();
   }).catch(function (err) {
     busy--; Array.prototype.forEach.call(b.parentNode.querySelectorAll("button"), function (x) { x.disabled = false; });
@@ -2455,14 +2493,20 @@ document.addEventListener("submit", function (e) {
   }).catch(function (err) { busy--; toast(err.message, true); });
 });
 
-header();
-var saved = null;
-try { saved = JSON.parse(sessionStorage.getItem(SKEY) || "null"); } catch (e) { saved = null; }
-if (saved && typeof saved.raw === "boolean") RAW = saved.raw;
-applyState(readHash()); drawnHash = location.hash;
-render();
-if (saved && saved.hash === location.hash && saved.y > 0) window.scrollTo(0, saved.y);
-else if (state.section) { var tgt = state.view === "how" ? $("#how-" + state.section) : $("#" + state.section); if (tgt) tgt.scrollIntoView(); }
+// Whatever the first draw does with an odd hash, the live page still loads the notes and keeps polling.
+try {
+  header();
+  var saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(SKEY) || "null"); } catch (e) { saved = null; }
+  if (saved && typeof saved.raw === "boolean") RAW = saved.raw;
+  applyState(readHash()); drawnHash = location.hash;
+  render();
+  if (saved && saved.hash === location.hash && saved.y > 0) window.scrollTo(0, saved.y);
+  else { var tgt = sectionEl(); if (tgt) tgt.scrollIntoView(); }
+} catch (err) {
+  if (window.console) console.error(err);
+  try { applyState({ view: "today" }); render(); } catch (e2) { if (window.console) console.error(e2); }
+}
 if (SRV) {
   refreshNotes().catch(function (err) { toast(err.message, true); });
   setInterval(poll, 3000);

@@ -624,6 +624,7 @@ ok("omnibox: Enter opens, Tell row and Cmd/Ctrl+Enter add");
 // 5. Answers on Today.
 await go("today");
 const move = page.locator("#ask .ask-row", { hasText: "Make it a project?" });
+if ((await move.locator('[data-answer="yes"]').innerText()) !== "Make project") fail("“Make it a project?” button: " + (await move.locator('[data-answer="yes"]').innerText()));
 await move.locator('[data-answer="yes"]').click();
 await toastSays("Answered: yes. Ada picks it up next time.");
 l = line("cos/now.md", "The referral idea");
@@ -639,12 +640,44 @@ if (!/\[answer:: draft 2026-10-15\]$/.test(line("cos/catch-up.md", "Q3 churn num
 // A line with no source gets one saying it came from the page.
 write("cos/now.md", read("cos/now.md").replace("## Suggested moves\n", "## Suggested moves\n- Close the Partner API pilot project for good?\n"));
 await until("new suggestion shows", async () => (await page.locator("#ask").innerText()).includes("Close the Partner API pilot"));
+{ // Naming a project isn't asking to make one.
+  const pilot = page.locator("#ask .ask-row", { hasText: "Close the Partner API pilot" });
+  const yes = await pilot.locator('[data-answer="yes"]').innerText(), no = await pilot.locator('[data-answer="later"]').innerText();
+  if (yes !== "Yes" || no !== "Not now" || (await pilot.innerText()).includes("Project?")) fail(`“Close the Partner API pilot project for good?” buttons: ${yes} / ${no}`);
+}
 await page.locator("#ask .ask-row", { hasText: "Close the Partner API pilot" }).locator('[data-answer="later"]').click();
 await toastSays("Answered: later");
 if (line("cos/now.md", "Partner API pilot") !== "- Close the Partner API pilot project for good? [answer:: later " + D + "] [src:: page " + D + "]") fail("answer later: " + line("cos/now.md", "Partner API pilot"));
 if (await page.locator('#ask [data-answer="no"]').count()) fail("a suggested move still writes answer:: no");
 if (await page.locator("#main").evaluate(el => /will act on it/.test(el.innerText))) fail("page still promises immediate action");
 ok("answers: yes, later, draft, snooze");
+// Only a move that asks about doing something today gets "Today".
+write("cos/now.md", read("cos/now.md").replace("## Suggested moves\n", "## Suggested moves\n- Tackle the pricing page copy today?\n- Share today's standup notes with [[Sam Okafor]]?\n"));
+await until("today suggestions show", async () => (await page.locator("#ask").innerText()).includes("Share today's standup notes"));
+if ((await page.locator("#ask .ask-row", { hasText: "Tackle the pricing page copy" }).locator('[data-answer="yes"]').innerText()) !== "Today") fail("“…today?” move doesn't offer Today");
+if ((await page.locator("#ask .ask-row", { hasText: "Share today's standup notes" }).locator('[data-answer="yes"]').innerText()) !== "Yes") fail("a move that merely says today offers Today");
+ok("suggested-move buttons");
+
+// Once the agent has handled an answer it swaps answer:: for drafting:: or snoozed::. A snooze from an
+// earlier day asks again, and answering it replaces the old snooze instead of adding a second field.
+write("cos/catch-up.md", read("cos/catch-up.md")
+  .replace(/(Q3 churn numbers .*) \[answer:: draft [\d-]+\]/, "$1 [drafting:: " + D + "]")
+  .replace(/(SSO can ship Thursday .*) \[answer:: snooze [\d-]+\]/, "$1 [snoozed:: " + D + "]")
+  .replace("## Needs your reply\n", "## Needs your reply\n- [[Sam Okafor]] asked for the venue shortlist [kind:: reply] [since:: 2026-10-13] [snoozed:: 2026-10-14] [src:: slack 2026-10-13]\n"));
+await until("handled replies show", async () => (await page.locator("#ask").innerText()).includes("venue shortlist"));
+if (await page.locator('#ask [data-ui="askAll"]').count()) await page.click('#ask [data-ui="askAll"]');
+{
+  const drafting = page.locator("#ask .ask-row", { hasText: "Q3 churn numbers" }), snoozed = page.locator("#ask .ask-row", { hasText: "SSO can ship Thursday" });
+  const venue = page.locator("#ask .ask-row", { hasText: "venue shortlist" });
+  if (!(await drafting.innerText()).includes("Drafting with Ada") || (await drafting.locator("[data-answer]").count())) fail("drafting:: row: " + (await drafting.innerText()));
+  if (!(await snoozed.innerText()).includes("Snoozed today") || (await snoozed.locator("[data-answer]").count())) fail("snoozed:: today row: " + (await snoozed.innerText()));
+  if ((await venue.locator("[data-answer]").count()) !== 2) fail("a snooze from yesterday doesn't ask again");
+  await venue.locator('[data-answer="snooze"]').click();
+  await toastSays("Answered: not now");
+  const v = line("cos/catch-up.md", "venue shortlist");
+  if (v !== "- [[Sam Okafor]] asked for the venue shortlist [kind:: reply] [since:: 2026-10-13] [src:: slack 2026-10-13] [answer:: snooze " + D + "]") fail("re-snooze: " + v);
+}
+ok("answer contract: drafting, snoozed today, snooze expires");
 // Focus: the question shows when now.md has no focus, and the answer becomes a focus line.
 write("cos/now.md", read("cos/now.md").replace(/## Focus\n(?:- [^\n]*\n)+/, "## Focus\n"));
 await until("focus question shows", async () => (await page.locator("#ask").innerText()).includes("What’s taking most of your head this week?"));
@@ -711,6 +744,48 @@ const again = await page.evaluate(async () => {
 });
 if (again !== 409) fail("create over an existing note: " + again);
 ok("Start a note");
+
+// 10b. Names that turn out not to be people drop out of People when the notes change.
+write("cos/waiting.md", read("cos/waiting.md") + "- [ ] [[Gamma Rollout]]: kickoff notes [since:: 2026-10-14] [src:: cv 2026-10-14]\n");
+await go("notebook/people");
+await until("Gamma Rollout listed as a person", async () => (await page.locator("#main").innerText()).includes("Gamma Rollout"), 9000);
+write("cos/links.md", read("cos/links.md") + "- [Gamma plan](https://example.com/gamma) for the [[Gamma Rollout]] [src:: cv 2026-10-14]\n");
+await until("Gamma Rollout leaves People", async () => (await page.locator("#main").innerText()).includes("Dana Whitfield") && !(await page.locator("#main").innerText()).includes("Gamma Rollout"), 9000);
+ok("not-people cache refreshes");
+
+// 10c. Odd hashes don't stop the page, and polling still runs.
+{
+  const p4 = await ctx.newPage(), errs = [];
+  p4.on("pageerror", e => errs.push(e.message));
+  await p4.goto(liveUrl + "&today=" + D + "&now=10:00#today/2026-10-16");
+  await p4.waitForLoadState("networkidle");
+  if (!(await p4.locator("#main h1").innerText()).includes("Thursday")) fail("#today/2026-10-16 didn't open Today");
+  for (const h of ["loops/1", "how/constructor", "history/constructor", "constructor", "today/a%22]b"]) {
+    await p4.evaluate(x => { location.hash = x; }, h);
+    await p4.waitForTimeout(150);
+  }
+  await p4.evaluate(() => { location.hash = "loops/1"; });
+  await p4.reload(); await p4.waitForLoadState("networkidle");
+  write("cos/actions.md", read("cos/actions.md").replace("## Elsewhere", "- [ ] Picked up after an odd hash\n\n## Elsewhere"));
+  await until("polling picks up a change after #loops/1", async () => (await p4.locator("#main").innerText()).includes("Picked up after an odd hash"), 9000);
+  if (errs.length) fail("odd hashes: " + errs.join("; "));
+  await p4.close();
+}
+ok("odd hashes");
+
+// 10d. A page left open past midnight moves to the new day.
+{
+  const p5 = await ctx.newPage();
+  await p5.clock.setFixedTime(new Date(2026, 9, 15, 23, 59, 30));
+  await p5.goto(liveUrl + "#today");
+  await p5.waitForLoadState("networkidle");
+  if (!(await p5.locator("#main h1").innerText()).includes("Thursday, October 15")) fail("clock page header: " + (await p5.locator("#main h1").innerText()));
+  await p5.clock.setFixedTime(new Date(2026, 9, 16, 0, 0, 30));
+  await p5.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await until("Today moves to the new day", async () => (await p5.locator("#main h1").innerText()).includes("Friday, October 16"), 9000);
+  await p5.close();
+}
+ok("new day re-renders");
 
 // 11. Quiet icon buttons are labelled.
 for (const h of ["today", "loops", "people/Dana%20Whitfield", "history", "how"]) {
