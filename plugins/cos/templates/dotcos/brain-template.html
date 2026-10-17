@@ -85,6 +85,10 @@ code { font: 0.9em var(--f-mono); background: var(--subtle); border: 1px solid v
 .omni input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; color: var(--ink); }
 .omni input::placeholder { color: var(--muted); }
 kbd { font: 12px var(--f-mono); color: var(--muted); border: 1px solid var(--control); border-radius: 6px; padding: 2px 6px; }
+[data-sr].hl { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.tell-row { cursor: pointer; align-items: center; }
+.tell-row .txt { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.tell-row .hint { color: var(--muted); font-size: 13px; }
 .top-r { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .next { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .next b { color: var(--ink); font-weight: 600; }
@@ -697,7 +701,6 @@ function doc(path) {
 function sec(d, name) { var n = norm(name); return d.items.filter(function (it) { return norm(it.section).indexOf(n) === 0; }); }
 function secParas(d, name) { var n = norm(name); return d.blocks.filter(function (b) { return b.type === "p" && norm(b.section).indexOf(n) === 0; }); }
 function has(p) { return FILES[p] != null; }
-function filesUnder(dir) { return ORDER.filter(function (p) { return p.indexOf(dir) === 0; }); }
 function notesOf(kind) { return Object.keys(NOTES).map(function (k) { return NOTES[k]; }).filter(function (n) { return n.kind === kind; }).sort(function (a, b) { return a.name.localeCompare(b.name); }); }
 
 /* ---------- chips ---------- */
@@ -771,9 +774,6 @@ function itemLi(it, opts) {
     quoteHtml(it, opts.quoteClass) + meta((opts.before || "") + chips(it, opts.skip) + (opts.after || "")) + "</div></li>";
 }
 function emptyLi(msg) { return '<li class="nobox empty">' + msg + "</li>"; }
-function listCard(items, empty, opts) {
-  return '<ul class="list card">' + (items.length ? items.map(function (it) { return itemLi(it, opts); }).join("") : emptyLi(empty)) + "</ul>";
-}
 
 /* ---------- shared lookups ---------- */
 function actionsDoc() { return doc("cos/actions.md"); }
@@ -866,15 +866,8 @@ function scheduleIsDefault(sch) {
   return sch.length === 1 && norm(sch[0].name) === "morningbrief" && minsOf(sch[0].at) === 420 && dayList(sch[0].days).join() === "1,2,3,4,5";
 }
 function nextBrief() { // "Midday check-in at 12:30pm", or null when every brief is off
-  var sch = schedule(); if (!sch.length) sch = [{ name: "Morning brief", at: "07:00", days: "weekdays" }];
-  sch = sch.filter(function (b) { return minsOf(b.at) != null; });
-  for (var off = 0; off <= 7; off++) {
-    var dow = (TODAY.getDay() + off) % 7;
-    var c = sch.filter(function (b) { return dayList(b.days).indexOf(dow) >= 0 && (off > 0 || minsOf(b.at) > NOW_MINS); })
-      .sort(function (a, b) { return minsOf(a.at) - minsOf(b.at); })[0];
-    if (c) return c.name + (off === 0 ? " at " : off === 1 ? " tomorrow at " : " on " + DAYS_LONG[dow] + " at ") + fmtTime(String(c.at).trim());
-  }
-  return null;
+  var n = nextBriefParts(); if (!n) return null;
+  return n.name + (n.off === 0 ? " at " : n.off === 1 ? " tomorrow at " : " on " + DAYS_LONG[n.dow] + " at ") + n.time;
 }
 
 /* ---------- catch up (catch-up.md) ---------- */
@@ -948,44 +941,10 @@ function fmLink(v) { // a front-matter value that may be a [[link]]
   if (!v) return "";
   return /\[\[/.test(v) ? inl(v) : wl(v);
 }
-function draftCard(n) {
-  var d = doc(n.path), fm = d.fm, st = draftStatus(n), last = lastHistory(n), live = draftInProgress(n), long = live && draftLong(n), idle = untouchedDays(n);
-  var who = [fm["for"] ? "For " + fmLink(fm["for"]) : "", fm.project ? fmLink(fm.project) : ""].filter(Boolean).join(" \u00b7 ");
-  var href = safeHref(fm.link || "");
-  return '<div class="card pcard dcard"><h4><a class="wl-plain" href="#' + esc(noteHash(n)) + '">' + T(n.name) + "</a></h4>" +
-    (who ? '<p class="role">' + who + "</p>" : "") +
-    '<div class="row">' + (fm.kind ? '<span class="tag">' + T(kindName(fm.kind)) + "</span>" : "") + draftStatusTag(st) +
-    (fm.due ? (live && !long ? dueTag(fm.due) : '<span class="tag">Due ' + esc(dateish(fm.due)) + "</span>") : "") +
-    (long && idle != null && idle >= 21 ? '<span class="tag">Waiting to be picked up</span>' : "") + "</div>" +
-    (long && isISO(fm.touched) ? '<p class="role">Last worked on ' + esc(agoWords(fm.touched)) + "</p>" : "") +
-    (fm.version || last ? '<p class="role">' + (fm.version ? "v" + T(fm.version) : "") + (last ? (fm.version ? " \u00b7 " : "") + inl(historyText(last)) : "") + "</p>" : "") +
-    (st === "moved" && href ? '<div><a class="obs small" href="' + esc(href) + '" target="_blank" rel="noopener">Open in ' + T(fm.moved_to || "your tool") + " \u2197</a></div>" : "") + "</div>";
-}
-function draftsDueSoon() {
-  return draftNotes().filter(function (n) { var d = doc(n.path); return draftInProgress(n) && !draftLong(n) && isISO(d.fm.due) && daysFromToday(d.fm.due) <= 3; })
-    .sort(function (a, b) { return doc(a.path).fm.due < doc(b.path).fm.due ? -1 : 1; });
-}
 function draftsFor(n) { // drafts whose front matter names this person or project
   return draftNotes().filter(function (x) { var fm = doc(x.path).fm; return [fm["for"], fm.project].some(function (v) { return v && resolve(plainText(v)) === n; }); });
 }
 
-var FILE_RANK = ["cos/now.md", "cos/brief.md", "cos/catch-up.md", "cos/nudges.md", "cos/actions.md", "cos/waiting.md", "cos/inbox.md", "cos/ideas.md", "cos/decisions.md", "cos/links.md", "cos/facts.md"];
-function rankOf(p) {
-  var i = FILE_RANK.indexOf(p); if (i >= 0) return [i, ""];
-  if (/^cos\/(projects|areas|people|drafts)\//.test(p)) return [20, p];
-  if (/^cos\/log\//.test(p)) return [30, invert(p)];
-  if (/^cos\/archive\//.test(p)) return [40, invert(p)];
-  return [25, p];
-}
-function invert(s) { return s.split("").map(function (c) { return String.fromCharCode(65535 - c.charCodeAt(0)); }).join(""); }
-function linkedItems(n) {
-  var out = [];
-  ORDER.forEach(function (p) {
-    if (p === n.path || p.indexOf("cos/") !== 0) return;
-    doc(p).items.forEach(function (it) { if (linksTo(it, n)) out.push(it); });
-  });
-  return out.sort(function (a, b) { var ra = rankOf(a.path), rb = rankOf(b.path); return ra[0] - rb[0] || (ra[1] < rb[1] ? -1 : ra[1] > rb[1] ? 1 : a.line - b.line); });
-}
 function humanKey(k) { k = k.replace(/_/g, " "); return k.charAt(0).toUpperCase() + k.slice(1); }
 function fmValue(k, v) {
   if (isISO(v)) return esc(fmtDay(v)) + (k === "due" && daysFromToday(v) <= 2 ? " " + dueTag(v) : "");
@@ -1164,11 +1123,13 @@ function answerOf(it) {
   var m = a.match(/^(\S+)(?:\s+(\d{4}-\d{2}-\d{2}))?/);
   return m ? { word: m[1].toLowerCase(), date: m[2] || null } : null;
 }
-var ANSWER_WORDS = { yes: "yes", no: "not now", draft: "draft a reply", snooze: "not now" };
+function cap(s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); }
+// "no" is never written by this page now (suggested moves say "later"), but older answers still show.
+var ANSWER_WORDS = { yes: "yes", no: "no", later: "later", draft: "draft a reply", snooze: "not now" };
 function moveKind(text) {
-  if (/\bprojects?\b/i.test(text)) return { label: "Project?", cls: "c-info", yes: "Make project", no: "Not now", filter: "projects" };
-  if (/\btoday\b|\btackle\b|\bthis week\b/i.test(text)) return { label: "Today?", cls: "c-warm", yes: "Today", no: "Later", filter: "decisions" };
-  return { label: "Decide", cls: "c-acc", yes: "Yes", no: "Not now", filter: "decisions" };
+  if (/\bprojects?\b/i.test(text)) return { label: "Project?", cls: "c-info", yes: "Make project", no: "Not now", noWord: "later", filter: "projects" };
+  if (/\btoday\b|\btackle\b|\bthis week\b/i.test(text)) return { label: "Today?", cls: "c-warm", yes: "Today", no: "Later", noWord: "later", filter: "decisions" };
+  return { label: "Decide", cls: "c-acc", yes: "Yes", no: "Not now", noWord: "later", filter: "decisions" };
 }
 function askRows() {
   var rows = [], now = doc("cos/now.md");
@@ -1199,7 +1160,7 @@ function askRowHtml(r) {
     sub.push("cos/now.md");
   }
   var act;
-  if (a) act = '<span class="chip c-ok">Answered: ' + esc(ANSWER_WORDS[a.word] || a.word) + '</span> <span class="answered">— ' + A + " will act on it</span>";
+  if (a) act = '<span class="chip c-ok">' + esc(cap(ANSWER_WORDS[a.word] || a.word)) + '</span> <span class="answered">Answered. ' + A + " picks it up next time.</span>";
   else if (SRV) act = '<button type="button" class="btn primary" data-answer="' + esc(r.k.yesWord || "yes") + '">' + esc(r.k.yes) + "</button>" +
     '<button type="button" class="btn" data-answer="' + esc(r.k.noWord || "no") + '">' + esc(r.k.no) + "</button>";
   else act = "";
@@ -1208,7 +1169,9 @@ function askRowHtml(r) {
 }
 
 /* ---------- open loops ---------- */
+var LOOPS = null; // built once per index, like MENTIONS; reindex() resets it
 function loopItems() {
+  if (LOOPS) return LOOPS;
   var out = [];
   openActions().forEach(function (it) {
     var s = parseSrc(it.fields.src || "");
@@ -1223,7 +1186,7 @@ function loopItems() {
     out.push({ type: "draft", note: n, text: n.name, person: fm["for"] ? plainText(fm["for"]) : null, project: fm.project ? plainText(fm.project) : null,
       since: fm.touched, due: fm.due, long: draftLong(n), status: draftStatus(n) });
   });
-  return out;
+  return (LOOPS = out);
 }
 var LOOP_LABEL = { owe: "You owe", owed: "Owed to you", draft: "Drafting" };
 var LOOP_CHIP = { owe: "c-acc", owed: "c-ok", draft: "" };
@@ -1251,7 +1214,6 @@ var VIEWS = [
   { id: "notebook", label: "Notebook", count: function () { return notebookCount(); } },
   { id: "history", label: "History" }
 ];
-function V(id) { return VIEWS.filter(function (v) { return v.id === id; })[0]; }
 var R = {};
 var UI = { askFilter: "all", askAll: false, todayTab: "owe", loopsGroup: "status", loopsFilter: "all", nbQ: "", histFilter: "all", histQ: "", histDays: 14 };
 try { var savedUi = JSON.parse(localStorage.getItem("cos-ui") || "null"); if (savedUi && savedUi.loopsGroup) UI.loopsGroup = savedUi.loopsGroup; } catch (e) {}
@@ -1259,14 +1221,14 @@ function keepUi() { try { localStorage.setItem("cos-ui", JSON.stringify({ loopsG
 
 /* ---------- Today ---------- */
 function briefIsToday() { var b = doc("cos/brief.md"); return b.exists && String(b.fm.date || "").trim() === TODAY_ISO; }
-function nextBriefParts() { // {name, when: "Mon 7:00am" | "12:30pm"} or null
+function nextBriefParts() { // {name, off (days from today), dow, time, when: "Mon 7:00am" | "12:30pm"} or null
   var sch = schedule(); if (!sch.length) sch = [{ name: "Morning brief", at: "07:00", days: "weekdays" }];
   sch = sch.filter(function (b) { return minsOf(b.at) != null; });
   for (var off = 0; off <= 7; off++) {
     var dow = (TODAY.getDay() + off) % 7;
     var c = sch.filter(function (b) { return dayList(b.days).indexOf(dow) >= 0 && (off > 0 || minsOf(b.at) > NOW_MINS); })
       .sort(function (a, b) { return minsOf(a.at) - minsOf(b.at); })[0];
-    if (c) return { name: c.name, when: (off === 0 ? "" : off === 1 ? "Tomorrow " : DAYS[dow] + " ") + fmtTime(String(c.at).trim()) };
+    if (c) { var t = fmtTime(String(c.at).trim()); return { name: c.name, off: off, dow: dow, time: t, when: (off === 0 ? "" : off === 1 ? "Tomorrow " : DAYS[dow] + " ") + t }; }
   }
   return null;
 }
@@ -1982,6 +1944,16 @@ function homeFor(p) {
   if (/^cos\/(my-rules|about-me|sources)\.md$/.test(p) || /^\.cos\//.test(p)) return "how";
   return "other";
 }
+var HOW_FILE = { "cos/my-rules.md": "how/rules", "cos/about-me.md": "how/about", "cos/sources.md": "how/listening", ".cos/defaults.md": "how/defaults" };
+function resultHash(p, i, it) { // where Enter (or Open) takes a search result, or null
+  var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/), n = m && resolve(m[2]);
+  if (n) return noteHash(n);
+  if (it && /^cos\/(ideas|links|facts|decisions)\.md$/.test(p)) return "item/" + encodeURIComponent(p) + "/" + i;
+  var home = homeFor(p);
+  if (home === "how") return HOW_FILE[p] || "how";
+  return home === "other" ? null : home;
+}
+var MAC = /Mac|iPhone|iPad/.test(navigator.platform || "");
 var HOME_LABEL = { today: "Today", loops: "Open loops", notebook: "Notebook", history: "History", how: "How " + AGENT + " works", other: "Other notes" };
 function searchView() {
   var q = QUERY.toLowerCase(), groups = {}, total = 0;
@@ -1994,14 +1966,14 @@ function searchView() {
         var it = info.item, f = it.fields;
         hay = it.text + " " + Object.keys(f).map(function (k) { return k === "src" ? (parseSrc(f[k]).url || "") : f[k]; }).join(" ");
         if (hay.toLowerCase().indexOf(q) < 0) return;
-        html = '<li class="' + (it.checked == null ? "nobox" : "") + '"' + ed(it) + ">" + box(it) + '<div class="txt">' + inl(it.text) + meta(chips(it)) + urlsOf(it.text) + where(p) + "</div></li>";
+        html = '<li class="' + (it.checked == null ? "nobox" : "") + '"' + ed(it) + sr(resultHash(p, i, it)) + ">" + box(it) + '<div class="txt">' + inl(it.text) + meta(chips(it)) + urlsOf(it.text) + where(p, resultHash(p, i, it)) + "</div></li>";
       } else {
         var text = info && info.quoteOf ? info.text : ln.replace(/^\s*(#{1,6}\s+|>\s?)/, "").trim();
         if (i < d.fmEnd) { var fm = text.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/); if (fm) text = humanKey(fm[1]) + ": " + unquote(fm[2]); }
         var sf = splitFields(text);
         hay = sf.text + " " + Object.keys(sf.fields).map(function (k) { return k === "src" ? (parseSrc(sf.fields[k]).url || "") : sf.fields[k]; }).join(" ");
         if (hay.toLowerCase().indexOf(q) < 0) return;
-        html = '<li class="nobox"><div class="txt' + (info && info.quoteOf ? " quote" : "") + '">' + inl(sf.text) + urlsOf(sf.text) + where(p) + "</div></li>";
+        html = '<li class="nobox"' + sr(resultHash(p, i, null)) + '><div class="txt' + (info && info.quoteOf ? " quote" : "") + '">' + inl(sf.text) + urlsOf(sf.text) + where(p, resultHash(p, i, null)) + "</div></li>";
       }
       (groups[home] = groups[home] || []).push(html); total++;
     });
@@ -2011,20 +1983,24 @@ function searchView() {
     while ((m = re.exec(s))) out.push('<span class="url">' + T(m[1]) + "</span>");
     return out.length ? '<div class="meta">' + out.join(" ") + "</div>" : "";
   }
-  function where(p) {
-    var m = p.match(/^cos\/(people|projects|areas|drafts)\/(?:.*\/)?([^\/]+)\.md$/);
-    return '<div class="meta"><span class="bl-file">' + esc(p) + "</span>" + (m && resolve(m[2]) ? '<a class="tag acc" style="text-decoration:none" href="#' + esc(noteHash(resolve(m[2]))) + '">Open</a>' : "") + "</div>";
+  function sr(h) { return h ? ' data-sr data-go="' + esc(h) + '"' : ""; }
+  function where(p, h) {
+    return '<div class="meta"><span class="bl-file">' + esc(p) + "</span>" + (h ? '<a class="tag acc" style="text-decoration:none" href="#' + esc(h) + '">Open</a>' : "") + "</div>";
   }
+  var keys = MAC ? "⌘↵" : "Ctrl↵";
+  // Enter never writes: it opens a result. Telling the agent is its own row, or Cmd/Ctrl+Enter.
+  var tell = SRV ? '<ul class="list card" style="margin-top:14px"><li class="nobox tell-row" data-sr data-tell id="sr-tell" role="button" tabindex="-1"><div class="txt"><span>Tell ' + A + ": “" + esc(QUERY) + "”</span>" +
+    '<span class="hint">' + keys + " to tell " + A + "</span></div></li></ul>" : "";
   var html = pageHead(total + " result" + (total === 1 ? "" : "s") + " for “" + esc(QUERY) + "”",
-    "Searched every note " + A + " keeps." + (SRV ? " Press Enter to add “" + esc(QUERY) + "” to " + A + "’s inbox instead." : ""), []);
-  if (!total) return html + emptyBox("Nothing matches. Try a name, a project, or a word you remember saying." + (SRV ? " Or press Enter to tell " + A + "." : ""));
+    "Searched every note " + A + " keeps." + (total ? " Enter opens the first result; ↑↓ pick another." : "") + (SRV ? " " + keys + " tells " + A + " instead." : ""), []);
+  if (!total) return html + emptyBox("Nothing matches. Try a name, a project, or a word you remember saying.") + tell;
   ["today", "loops", "notebook", "history", "how", "other"].forEach(function (h) {
     var list = groups[h]; if (!list) return;
     var shown = list.slice(0, 60);
     html += card(h === "other" ? "Other notes" : '<button type="button" class="link grouplink" style="font-size:17px;font-weight:600;text-decoration:none;color:var(--ink)" data-view="' + h + '">' + esc(HOME_LABEL[h]) + "</button>", list.length,
       list.length > shown.length ? "first " + shown.length + " shown" : "", '<ul class="list">' + shown.join("") + "</ul>");
   });
-  return html;
+  return html + tell;
 }
 
 /* ---------- routing ---------- */
@@ -2082,6 +2058,7 @@ function render() {
   topRight();
   $("#main").innerHTML = QUERY ? searchView() : R[state.view]();
   enhance();
+  if (QUERY) highlight(SR_SEL, false);
   showTheme();
   var cur = $("#nav [aria-current]");
   if (cur && window.matchMedia("(max-width: 860px)").matches) { var navEl = $("#nav"); navEl.scrollLeft = Math.max(0, cur.offsetLeft - 16); }
@@ -2109,7 +2086,7 @@ function header() {
 }
 function saveSpot() { try { sessionStorage.setItem(SKEY, JSON.stringify({ hash: location.hash, y: window.scrollY, raw: RAW })); } catch (e) {} }
 var drawnHash = null;
-function clearQuery() { if (QUERY) { QUERY = ""; QRE = null; qEl.value = ""; } }
+function clearQuery() { SR_SEL = -1; qEl.removeAttribute("aria-activedescendant"); if (QUERY) { QUERY = ""; QRE = null; qEl.value = ""; } }
 function go(hash) {
   clearQuery();
   if (location.hash !== "#" + hash) location.hash = hash;
@@ -2148,15 +2125,40 @@ document.addEventListener("click", function (e) {
 });
 window.addEventListener("hashchange", function () { if (location.hash !== drawnHash || QUERY) { clearQuery(); route(true); } });
 var qEl = $("#q");
+var SR_SEL = -1; // the highlighted search row, -1 for none
+function srRows() { return Array.prototype.slice.call(document.querySelectorAll("#main [data-sr]")); }
+function highlight(i, scroll) {
+  var rows = srRows(); SR_SEL = i >= rows.length ? -1 : i;
+  rows.forEach(function (r, k) { r.classList.toggle("hl", k === SR_SEL); if (!r.id) r.id = "sr-" + k; });
+  if (SR_SEL >= 0) { qEl.setAttribute("aria-activedescendant", rows[SR_SEL].id); if (scroll) rows[SR_SEL].scrollIntoView({ block: "nearest" }); }
+  else qEl.removeAttribute("aria-activedescendant");
+}
+function openRow(r) {
+  if (!r) return;
+  if (r.hasAttribute("data-tell")) { if (SRV) tellAgent(QUERY); return; }
+  go(r.getAttribute("data-go"));
+}
 qEl.addEventListener("input", function () {
+  SR_SEL = -1;
   QUERY = qEl.value.trim();
   QRE = QUERY ? new RegExp("(" + QUERY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi") : null;
   render();
 });
 qEl.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && qEl.value) { clearQuery(); render(); return; }
-  if (e.key === "ArrowDown") { var first = $("#main a[href], #main button"); if (first) { e.preventDefault(); first.focus(); } return; }
-  if (e.key === "Enter" && SRV && QUERY) { e.preventDefault(); tellAgent(QUERY); }
+  if (!QUERY) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    var n = srRows().length; if (!n) return;
+    e.preventDefault();
+    highlight(e.key === "ArrowDown" ? (SR_SEL + 1) % n : (SR_SEL <= 0 ? n - 1 : SR_SEL - 1), true);
+    return;
+  }
+  if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  if (e.metaKey || e.ctrlKey) { if (SRV) tellAgent(QUERY); return; }
+  // Nothing highlighted: open the first real result, never the Tell row.
+  var rows = srRows();
+  openRow(SR_SEL >= 0 ? rows[SR_SEL] : rows.filter(function (r) { return !r.hasAttribute("data-tell"); })[0]);
 });
 document.addEventListener("keydown", function (e) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); qEl.focus(); qEl.select(); }
@@ -2207,7 +2209,7 @@ function api(method, name, body) {
     });
   }, function () { var err = new Error("Can't reach your notebook. Is your computer's notebook server running? Run ./open-brain.sh to start it."); err.status = 0; throw err; });
 }
-function reindex() { DOCS = {}; BRIEFS = null; DEFAULTS = null; MENTIONS = null; NOTES = {}; ORDER.forEach(indexNote); }
+function reindex() { DOCS = {}; BRIEFS = null; DEFAULTS = null; MENTIONS = null; LOOPS = null; NOTES = {}; ORDER.forEach(indexNote); }
 function loadFiles(files) {
   FILES = {}; ORDER = [];
   Object.keys(files).forEach(function (p) { FILES[p] = String(files[p]).replace(/\r\n?/g, "\n"); ORDER.push(p); });
@@ -2222,7 +2224,11 @@ function rerender() {
   var y = window.scrollY, opened = {};
   Array.prototype.forEach.call(document.querySelectorAll("#main details[open] > summary"), function (s) { opened[s.textContent.replace(/\d+/g, "")] = 1; });
   var ae = document.activeElement, focusId = ae && ae.id && ae.closest && ae.closest("#main") ? ae.id : null, caret = focusId && ae.selectionStart != null ? [ae.selectionStart, ae.selectionEnd] : null;
+  // Text typed into a box survives a refresh that lands mid-typing.
+  var typed = {};
+  Array.prototype.forEach.call(document.querySelectorAll("#main input[id][type=text]"), function (i) { if (i.value) typed[i.id] = i.value; });
   render();
+  Object.keys(typed).forEach(function (id) { var i = document.getElementById(id); if (i && !i.value) i.value = typed[id]; });
   Array.prototype.forEach.call(document.querySelectorAll("#main details > summary"), function (s) { if (opened[s.textContent.replace(/\d+/g, "")]) s.parentNode.open = true; });
   if (focusId) { var f = document.getElementById(focusId); if (f) { f.focus({ preventScroll: true }); if (caret && f.setSelectionRange) try { f.setSelectionRange(caret[0], caret[1]); } catch (e) {} } }
   window.scrollTo(0, y);
@@ -2334,11 +2340,6 @@ document.addEventListener("dblclick", function (e) {
   var host = e.target.closest("[data-il]");
   if (host && e.target.closest(".txt")) { e.preventDefault(); startInline(host); }
 });
-function addRow(path, section, placeholder) {
-  if (!SRV) return "";
-  return '<form class="addrow" data-add-path="' + esc(path) + '" data-add-section="' + esc(section || "") + '"><input type="text" placeholder="' + esc(placeholder) +
-    '" aria-label="' + esc(placeholder.replace(/,.*$|…$/, "")) + '"><button type="submit">Add</button></form>';
-}
 document.addEventListener("submit", function (e) {
   var f = e.target; if (!SRV || !f.classList.contains("addrow")) return;
   e.preventDefault();
@@ -2414,17 +2415,20 @@ document.addEventListener("click", function (e) {
   Array.prototype.forEach.call(b.parentNode.querySelectorAll("button"), function (x) { x.disabled = true; });
   busy++;
   api("POST", "replace", { path: it.path, line: raw, newLine: raw.replace(/\s+$/, "") + add }).then(function () {
-    busy--; toast("Answered: " + (ANSWER_WORDS[word] || word)); return refreshNotes();
+    busy--; toast("Answered: " + (ANSWER_WORDS[word] || word) + ". " + AGENT + " picks it up next time."); return refreshNotes();
   }).catch(function (err) {
     busy--; Array.prototype.forEach.call(b.parentNode.querySelectorAll("button"), function (x) { x.disabled = false; });
     toast(err.message, true); if (err.status === 409) refreshNotes();
   });
 });
+document.addEventListener("click", function (e) {
+  var r = SRV && e.target.closest && e.target.closest("[data-tell]"); if (r) { e.preventDefault(); tellAgent(QUERY); }
+});
 function tellAgent(text) {
   text = text.replace(/\s+/g, " ").trim(); if (!text) return;
   busy++;
   api("POST", "add", { path: "cos/inbox.md", text: text }).then(function () {
-    busy--; clearQuery(); toast("Added to " + AGENT + "’s inbox"); return refreshNotes();
+    busy--; clearQuery(); toast("Added to " + AGENT + "’s inbox. " + AGENT + " files it next time."); return refreshNotes();
   }).catch(function (err) { busy--; toast(err.message, true); });
 }
 // "Priya owes me the estimate" goes to waiting.md as "[[Priya]]: the estimate"; anything else is
@@ -2432,10 +2436,11 @@ function tellAgent(text) {
 function loopTarget(text) {
   var m = text.match(/^\s*\[\[([^\]]+)\]\]\s*:\s*(.+)$/);
   if (m) return { path: "cos/waiting.md", text: "[[" + m[1] + "]]: " + m[2], label: "Owed to you" };
-  m = text.match(/^\s*(?:\[\[)?([^\[\]]+?)(?:\]\])?\s+owes\s+(?:me|us)\s+(.+)$/i);
+  // Only a short name up front counts: 1-3 capitalised words or a [[link]]. "Remind Dana that Priya owes me…" is a to-do.
+  m = text.match(/^\s*(?:\[\[([^\[\]]+)\]\]|(\p{Lu}[\p{L}\p{M}'’.-]*(?:\s+\p{Lu}[\p{L}\p{M}'’.-]*){0,2}))\s+owes\s+(?:me|us)\s+(.+)$/u);
   if (m) {
-    var who = m[1].trim(), n = resolve(who), known = mentions()[who.toLowerCase()];
-    return { path: "cos/waiting.md", text: "[[" + (n ? n.name : known ? known.name : who) + "]]: " + m[2].trim(), label: "Owed to you" };
+    var who = (m[1] || m[2]).trim(), n = resolve(who), known = mentions()[who.toLowerCase()];
+    return { path: "cos/waiting.md", text: "[[" + (n ? n.name : known ? known.name : who) + "]]: " + m[3].trim(), label: "Owed to you" };
   }
   return { path: "cos/actions.md", section: "To do", text: text.replace(/^\s*I\s+(?:owe|need to|have to|must)\s+/i, function () { return ""; }).replace(/^./, function (c) { return c.toUpperCase(); }), label: "You owe" };
 }

@@ -373,6 +373,10 @@ async function walk(page, label) {
   if (!(await page.locator("#main .grouplink", { hasText: "How Ada works" }).count())) fail("search groups my-rules lines under How Ada works");
   await page.fill("#q", "stopped losing small teams");
   if (!(await page.locator("#main .grouplink", { hasText: "Open loops" }).count())) fail("search doesn't find draft text");
+  await page.fill("#q", "Dana Whitfield");
+  if (await page.locator("#main [data-tell]").count()) fail("read-only copy offers to tell Ada");
+  await page.keyboard.press("Enter");
+  if ((await page.inputValue("#q")) !== "" || !(await page.evaluate(() => location.hash)).length) fail("Enter doesn't open the first result");
   await page.fill("#q", "canary");
   if (!(await mainText(page)).includes(CANARY)) fail("canary wrong in search results");
   await page.keyboard.press("Escape");
@@ -569,25 +573,62 @@ await page.fill("#loop-add", "Priya Natarajan owes me the revised SSO date");
 await page.keyboard.press("Enter");
 await toastSays("Added to Owed to you");
 if (!/^- \[ \] \[\[Priya Natarajan\]\]: the revised SSO date \[src:: page [\d-]+\]$/m.test(read("cos/waiting.md"))) fail("owed add: " + read("cos/waiting.md").slice(-160));
-else ok("Open loops box: You owe and Owed to you");
+// Only a short name up front means someone owes you; a sentence that merely contains "owes me" is a to-do.
+for (const [text, file, re] of [
+  ["Priya owes me the estimate", "cos/waiting.md", /^- \[ \] \[\[Priya[^\]]*\]\]: the estimate \[src:: page [\d-]+\]$/m],
+  ["[[Priya Natarajan]] owes us the estimate", "cos/waiting.md", /^- \[ \] \[\[Priya Natarajan\]\]: the estimate \[src:: page [\d-]+\]$/m],
+  ["Remind Dana that Priya owes me the estimate", "cos/actions.md", /^- \[ \] Remind Dana that Priya owes me the estimate \[src:: page [\d-]+\]$/m],
+]) {
+  await page.fill("#loop-add", text);
+  await page.keyboard.press("Enter");
+  await until(`"${text}" lands in ${file}`, async () => re.test(read(file)));
+}
+if (/Remind Dana/.test(read("cos/waiting.md"))) fail("“Remind Dana that Priya owes me…” went to waiting.md");
+ok("Open loops box: You owe and Owed to you");
 
-// 4. The omnibox: Enter adds to the inbox.
-await page.fill("#q", "Call the bank about the wire, ask [[Mei Chen]]");
-if (!(await page.locator("#main").innerText()).includes("Press Enter to add")) fail("omnibox doesn't offer to add");
+// 4. The omnibox: Enter opens a result and never writes; the Tell row or Cmd/Ctrl+Enter adds to the inbox.
+const inboxBefore = read("cos/inbox.md");
+const KEYS = process.platform === "darwin" ? "⌘↵" : "Ctrl↵", MOD = process.platform === "darwin" ? "Meta" : "Control";
+await page.fill("#q", "Priya");
+const tell = page.locator("#main [data-tell]");
+if ((await tell.innerText()).replace(/\s+/g, " ").trim() !== "Tell Ada: “Priya” " + KEYS + " to tell Ada") fail("Tell row: " + (await tell.innerText()));
+if (!(await page.locator("#main [data-sr]").last().evaluate(el => el.hasAttribute("data-tell")))) fail("Tell row isn't the last row");
 await page.keyboard.press("Enter");
-await toastSays("Added to Ada’s inbox");
+await until("Enter opens the first result", async () => (await page.inputValue("#q")) === "" && !(await page.locator("#main [data-tell]").count()));
+if (read("cos/inbox.md") !== inboxBefore) fail("Enter in the omnibox wrote to the inbox");
+await page.fill("#q", "Priya");
+await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
+if ((await page.locator("#main [data-sr].hl").count()) !== 1 || (await page.locator("#main [data-sr]").nth(1).getAttribute("class") || "").indexOf("hl") < 0) fail("arrow keys don't highlight the second result");
+const want = await page.locator("#main [data-sr]").nth(1).getAttribute("data-go");
+await page.keyboard.press("Enter");
+await until("Enter opens the highlighted result", async () => decodeURIComponent(await page.evaluate(() => location.hash)) === decodeURIComponent("#" + want));
+if (read("cos/inbox.md") !== inboxBefore) fail("arrow + Enter wrote to the inbox");
+await page.fill("#q", "Call the bank about the wire, ask [[Mei Chen]]");
+await page.keyboard.press(MOD + "+Enter");
+await toastSays("Added to Ada’s inbox. Ada files it next time.");
 if (!/^- Call the bank about the wire, ask \[\[Mei Chen\]\] \[src:: page \d{4}-\d{2}-\d{2}\]$/m.test(read("cos/inbox.md"))) fail("omnibox add: " + read("cos/inbox.md").slice(-200));
-else ok("omnibox adds to the inbox");
 if ((await page.inputValue("#q")) !== "") fail("omnibox not cleared after adding");
+await page.fill("#q", "Book the offsite venue");
+if (await page.locator("#main [data-sr]:not([data-tell])").count()) fail("expected no results for the offsite");
+await page.keyboard.press("Enter");
+await page.waitForTimeout(300);
+if (/Book the offsite venue/.test(read("cos/inbox.md"))) fail("Enter with no results wrote to the inbox");
+await page.keyboard.press("ArrowUp");
+await page.keyboard.press("Enter");
+await until("Tell row adds", async () => /^- Book the offsite venue \[src:: page [\d-]+\]$/m.test(read("cos/inbox.md")));
+await page.fill("#q", "Chase the venue deposit");
+await page.locator("#main [data-tell]").click();
+await until("clicking the Tell row adds", async () => /^- Chase the venue deposit \[src:: page [\d-]+\]$/m.test(read("cos/inbox.md")));
+ok("omnibox: Enter opens, Tell row and Cmd/Ctrl+Enter add");
 
 // 5. Answers on Today.
 await go("today");
 const move = page.locator("#ask .ask-row", { hasText: "Make it a project?" });
 await move.locator('[data-answer="yes"]').click();
-await toastSays("Answered: yes");
+await toastSays("Answered: yes. Ada picks it up next time.");
 l = line("cos/now.md", "The referral idea");
 if (l !== "- The referral idea has come up three times. Make it a project? [src:: cv 2026-10-14] [answer:: yes " + D + "]") fail("answer yes: " + l);
-await until("row shows answered", async () => (await page.locator("#ask .ask-row", { hasText: "Make it a project?" }).innerText()).includes("Answered: yes"));
+await until("row shows answered", async () => (await page.locator("#ask .ask-row", { hasText: "Make it a project?" }).innerText()).replace(/\s+/g, " ").includes("Yes Answered. Ada picks it up next time."));
 const reply = page.locator("#ask .ask-row", { hasText: "asked whether SSO can ship Thursday" });
 await reply.locator('[data-answer="snooze"]').click();
 await toastSays("Answered: not now");
@@ -598,10 +639,12 @@ if (!/\[answer:: draft 2026-10-15\]$/.test(line("cos/catch-up.md", "Q3 churn num
 // A line with no source gets one saying it came from the page.
 write("cos/now.md", read("cos/now.md").replace("## Suggested moves\n", "## Suggested moves\n- Close the Partner API pilot project for good?\n"));
 await until("new suggestion shows", async () => (await page.locator("#ask").innerText()).includes("Close the Partner API pilot"));
-await page.locator("#ask .ask-row", { hasText: "Close the Partner API pilot" }).locator('[data-answer="no"]').click();
-await toastSays("Answered: not now");
-if (line("cos/now.md", "Partner API pilot") !== "- Close the Partner API pilot project for good? [answer:: no " + D + "] [src:: page " + D + "]") fail("answer no: " + line("cos/now.md", "Partner API pilot"));
-ok("answers: yes, no, draft, snooze");
+await page.locator("#ask .ask-row", { hasText: "Close the Partner API pilot" }).locator('[data-answer="later"]').click();
+await toastSays("Answered: later");
+if (line("cos/now.md", "Partner API pilot") !== "- Close the Partner API pilot project for good? [answer:: later " + D + "] [src:: page " + D + "]") fail("answer later: " + line("cos/now.md", "Partner API pilot"));
+if (await page.locator('#ask [data-answer="no"]').count()) fail("a suggested move still writes answer:: no");
+if (await page.locator("#main").evaluate(el => /will act on it/.test(el.innerText))) fail("page still promises immediate action");
+ok("answers: yes, later, draft, snooze");
 // Focus: the question shows when now.md has no focus, and the answer becomes a focus line.
 write("cos/now.md", read("cos/now.md").replace(/## Focus\n(?:- [^\n]*\n)+/, "## Focus\n"));
 await until("focus question shows", async () => (await page.locator("#ask").innerText()).includes("What’s taking most of your head this week?"));
@@ -702,6 +745,10 @@ if (shots) {
     await until("editor loads", async () => (await ta.inputValue()).length > 0);
     await page.screenshot({ path: `${shots}/live-editor${dark ? "-dark" : ""}.png` });
     await page.click("#ed-cancel");
+    await page.fill("#q", "Priya");
+    await page.keyboard.press("ArrowDown");
+    await page.screenshot({ path: `${shots}/live-search${dark ? "-dark" : ""}.png`, fullPage: true });
+    await page.keyboard.press("Escape");
   }
   ok("live screenshots");
 }
