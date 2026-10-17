@@ -384,6 +384,26 @@ install_app() {
   if [[ "$app" != "$old" && -e "$old" ]] && our_app "$old"; then rm -rf "$old"; fi
   printf '%s' "$app"
 }
+# desktop_entry <file> <name> <comment> <script in this folder> <terminal true|false> <icon>:
+# a Linux .desktop launcher for one of this folder's scripts. Exec takes the path as a quoted
+# argument, where the Desktop Entry spec reserves " ` $ \ (backslash-escaped, then every
+# backslash doubled, since Exec is also a string value) and % (doubled).
+desktop_entry() {
+  local exec_path path_val
+  exec_path=$(printf '%s' "$DIR/$4" | sed -e 's/[\\"`$]/\\&/g' -e 's/\\/\\\\/g' -e 's/%/%%/g')
+  path_val=$(printf '%s' "$DIR" | sed -e 's/\\/\\\\/g')
+  {
+    echo "[Desktop Entry]"
+    echo "Type=Application"
+    echo "Name=$2"
+    echo "Comment=$3"
+    echo "Exec=\"$exec_path\""
+    echo "Path=$path_val"
+    echo "Terminal=$5"
+    echo "Icon=$6"
+    echo "Categories=Office;"
+  } > "$1" && chmod +x "$1"
+}
 make_launcher() {
   local name dir_as name_as app desk entry node_dir
   name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
@@ -437,31 +457,12 @@ APPLESCRIPT
   else
     mkdir -p "$HOME/.local/share/applications"
     app="$HOME/.local/share/applications/cos-$(basename "$DIR").desktop"
-    {
-      echo "[Desktop Entry]"
-      echo "Type=Application"
-      echo "Name=$name"
-      echo "Comment=Your chief of staff, connected to Carbon Voice"
-      echo "Exec=\"${DIR//\"/\\\"}/start-cos.sh\""
-      echo "Path=$DIR"
-      echo "Terminal=true"
-      echo "Icon=utilities-terminal"
-      echo "Categories=Office;"
-    } > "$app"
-    chmod +x "$app"
+    desktop_entry "$app" "$name" "Your chief of staff, connected to Carbon Voice" start-cos.sh true utilities-terminal
     entry="$HOME/.local/share/applications/cos-$(basename "$DIR")-notebook.desktop"
     [[ -e "$entry" ]] || NOTEBOOK_NEW=1
-    {
-      echo "[Desktop Entry]"
-      echo "Type=Application"
-      echo "Name=$name Notebook"
-      echo "Comment=Everything $name knows, in your browser"
-      echo "Exec=\"${DIR//\"/\\\"}/open-brain.sh\""
-      echo "Path=$DIR"
-      echo "Terminal=false"
-      echo "Icon=accessories-text-editor"
-      echo "Categories=Office;"
-    } > "$entry" && chmod +x "$entry" && NOTEBOOK_APP=$entry
+    if desktop_entry "$entry" "$name Notebook" "Everything $name knows, in your browser" open-brain.sh false accessories-text-editor; then
+      NOTEBOOK_APP=$entry
+    fi
     LAUNCHER=$app; LAUNCHER_WHERE="your applications menu"
     if [[ "$WANT_DESKTOP" == 1 && -d "$HOME/Desktop" ]]; then
       cp "$app" "$HOME/Desktop/$name.desktop" && chmod +x "$HOME/Desktop/$name.desktop" && LAUNCHER_WHERE="your Desktop or applications menu"

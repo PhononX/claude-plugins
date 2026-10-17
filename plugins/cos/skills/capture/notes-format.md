@@ -75,6 +75,7 @@ draft:
 | `raised` | catch-up | how many briefs have mentioned it |
 | `answer` | now, catch-up | the user's answer, given on the notebook page, then the date: `yes`, `no` or `later` to a suggested move; `draft` or `snooze` on a catch-up reply (CLAUDE.md says what each means) |
 | `snoozed` | catch-up | the day the user snoozed it on the page; leave it out of that day's briefs |
+| `drafting` | catch-up | the day the agent started drafting this reply with the user |
 | `at`, `days`, `covers` | my-rules briefs | a brief's time, its days, and what it covers |
 | `src` | anything | where it came from: `<source> <YYYY-MM-DD>`, then a link if there is one |
 | `replaces` | my-rules rules | the id of the default it replaces |

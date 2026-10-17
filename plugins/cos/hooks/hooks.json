@@ -40,6 +40,15 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/remember-thread.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/page-answers.sh\" --tool"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
