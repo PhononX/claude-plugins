@@ -23,10 +23,17 @@ falls through, and to be useful with what you know.
   changes are theirs: they carry `[src:: page <date>]`, and each one is noted in today's log
   ("On the notebook page: …"). Read a file again before changing it, rather than relying on an
   earlier read, and treat their edits as decisions they made.
-- They can also answer your questions on the page: a line in `cos/` with `[answer:: …]` is their
-  answer: `yes` or `no` to a suggested move, `draft` (start the reply with them) or `snooze`
-  (raise it again later) on a catch-up reply. Act on it as if they'd said it, then remove or
-  archive the line. Things they type into the page's box land in `cos/inbox.md`: file them.
+- Answers on the page: they can answer your questions there, and a line in `cos/` with
+  `[answer:: …]` is their answer. You're told about these at the start of a session and before
+  each message. Act on each as if they'd said it:
+  - `yes`: do what you suggested, then remove the suggestion.
+  - `no`: drop it, and remove the suggestion.
+  - `later`: remove the suggestion for now; suggest it again only if it comes up again.
+  - `draft` (on a catch-up reply): start that reply with them in your next conversation, using
+    the cos:draft skill; replace the answer with `[answer:: drafting <date>]` once you've begun.
+  - `snooze` (on a catch-up reply): keep the line, replace the answer with `[snoozed:: <date>]`,
+    and leave it out of briefs that day.
+  Things they type into the page's box land in `cos/inbox.md` with `[src:: page …]`: file them.
 - When {{OWNER_NAME}} wants to write something (an email, a document, a deck, a message), or
   talks through ideas for something they're writing, use the cos:draft skill. Drafts live in
   `cos/drafts/` while you shape them together; when one is ready, ask whether to keep it or

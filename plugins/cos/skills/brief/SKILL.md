@@ -45,7 +45,7 @@ Follow the brief's `covers`. For the usual parts:
   `offer` → `[prep:: offered]` and offer it out loud for the ones that matter; `auto` → schedule
   prep (below) and mark `[prep:: HH:MM]`; `off` → nothing.
 - **Catch up:** from `catch-up.md`, the lines raised in fewer than three briefs, oldest replies
-  first. Add 1 to `raised` for each line you include. A line that reaches three goes into
+  first, leaving out any snoozed today (`snoozed::`). Add 1 to `raised` for each line you include. A line that reaches three goes into
   `nudges.md` once, and isn't raised in briefs again; it stays on the notebook page.
 - **Follow-ups:** at most five, numbered from 1: replies the user owes (from catch-up), nudges
   to people they're waiting on, messages an action calls for. Write each in their voice for that

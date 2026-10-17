@@ -19,9 +19,10 @@ cos:migrate skill first.
 ## Steps
 1. **Gather.** Read `cos/log/*.md` entries newer than the last `## Consolidated` heading in
    `cos/log/consolidation.md`. Search (don't read whole) transcripts in `cos/log/transcripts/`
-   archived since then. File anything that was missed, as cos:capture would. Act on any line
-   the user answered on the notebook page (`[answer:: …]`) and file what they added to
-   `inbox.md` there.
+   archived since then. File anything that was missed, as cos:capture would. On the notebook
+   page the user may have answered suggested moves (`[answer:: yes|no|later …]`): act on those,
+   and file what they added to `inbox.md` there. Leave `draft` and `snooze` answers for the
+   live session: they need the user.
 2. **Compare with the notebook.** For each file in `cos/`, list what's new, changed, or
    contradicted.
 3. **Now.** Keep `now.md` short: at most three focus lines, and "This week" holding only dates in

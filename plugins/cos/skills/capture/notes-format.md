@@ -73,7 +73,8 @@ draft:
 | `sent` | brief headings | the time that brief was sent, `HH:MM` |
 | `kind` | catch-up | `reply` (someone asked the user something), `missed` (unread or unanswered and worth seeing), or `changed` (news that moves a project, action or waiting item) |
 | `raised` | catch-up | how many briefs have mentioned it |
-| `answer` | now, catch-up | the user's answer, given on the notebook page, then the date: `yes` or `no` to a suggested move; `draft` (draft the reply with them) or `snooze` (raise it again later) on a catch-up reply |
+| `answer` | now, catch-up | the user's answer, given on the notebook page, then the date: `yes`, `no` or `later` to a suggested move; `draft` or `snooze` on a catch-up reply (CLAUDE.md says what each means) |
+| `snoozed` | catch-up | the day the user snoozed it on the page; leave it out of that day's briefs |
 | `at`, `days`, `covers` | my-rules briefs | a brief's time, its days, and what it covers |
 | `src` | anything | where it came from: `<source> <YYYY-MM-DD>`, then a link if there is one |
 | `replaces` | my-rules rules | the id of the default it replaces |
@@ -150,8 +151,8 @@ note. `facts.md` holds the rest. Never store passwords, access codes or keys any
 ```
 "Suggested moves" are proposals the user hasn't agreed to yet: an inbox item to file, an idea to
 promote into a project, a project to close. Remove each once the user answers. An answer given
-on the notebook page arrives as `[answer:: yes 2026-10-16]` on the line itself: act on it, then
-remove the line.
+on the notebook page arrives as `[answer:: yes 2026-10-16]` on the line itself (or `no`, or
+`later`): act on it, then remove the line.
 
 **brief.md**: one section per brief sent today, under the brief's name and the time it was
 sent. The first brief of the day starts the file again.

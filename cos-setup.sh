@@ -385,7 +385,7 @@ install_app() {
   printf '%s' "$app"
 }
 make_launcher() {
-  local name dir_as name_as app desk entry
+  local name dir_as name_as app desk entry node_dir
   name=$(printf '%s' "$AGENT_NAME" | tr -d '/:"\\$`' ); name=${name:-Chief of Staff}
   NOTEBOOK_APP=""; NOTEBOOK_NEW=""
   if [[ "$PLATFORM" == mac ]]; then
@@ -409,14 +409,17 @@ on run
 	end try
 end run
 APPLESCRIPT
-    # Apps start with a bare PATH, so the notebook's tools (jq, node) are added to it here.
+    # Apps start with a bare PATH, so the notebook's tools (jq, node) are added to it here,
+    # including the folder of the node setup found (nvm, volta and the like put it elsewhere).
+    node_dir=$(dirname "$(command -v node 2>/dev/null || echo /usr/local/bin/node)")
+    node_dir=$(applescript_str "$node_dir")
     cat > "$WORK/notebook.applescript" <<APPLESCRIPT
 -- Opens $name_as's notebook page in your browser, starting the notebook server if it isn't running.
 -- Made by the Chief of Staff setup; ./update-cos.sh rebuilds it.
 on run
 	set agentDir to "$dir_as"
 	try
-		do shell script "export PATH=\"\$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH\"; " & quoted form of (agentDir & "/open-brain.sh") & " >/dev/null 2>&1"
+		do shell script "export PATH=\"$node_dir:\$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH\"; " & quoted form of (agentDir & "/open-brain.sh") & " >/dev/null 2>&1"
 	on error
 		display alert "Couldn't open $name_as's notebook" message "Run ./open-brain.sh in " & agentDir & " to see why."
 	end try
